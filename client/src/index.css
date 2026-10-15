@@ -1,0 +1,116 @@
+/* index.css — Global styles & Tailwind directives */
+/* Step 1 · Setup Project */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base reset ──────────────────────────────────────────────────────────── */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-cream font-sans text-cocoa antialiased;
+    min-height: 100dvh;
+  }
+
+  h1, h2, h3 {
+    @apply font-display;
+  }
+
+  /* Scrollbar tipis */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-beige;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-primary rounded-pill opacity-60;
+  }
+}
+
+/* ── Komponen reusable via @layer components ────────────────────────────── */
+@layer components {
+  /* Tombol utama */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2
+           h-btn px-6 rounded-btn
+           bg-primary text-white font-semibold text-sm
+           transition-all duration-200
+           hover:bg-primary-dark active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* Tombol sekunder (outline) */
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2
+           h-btn px-6 rounded-btn
+           border-2 border-primary text-primary font-semibold text-sm
+           bg-transparent transition-all duration-200
+           hover:bg-beige active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* Tombol ghost */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2
+           h-btn px-6 rounded-btn
+           text-primary font-semibold text-sm
+           transition-all duration-200
+           hover:bg-beige active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* Tombol destruktif */
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2
+           h-btn px-6 rounded-btn
+           bg-error text-white font-semibold text-sm
+           transition-all duration-200
+           hover:opacity-90 active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* Kartu pelanggan */
+  .card {
+    @apply bg-surface rounded-card shadow-sm border border-beige;
+  }
+
+  /* Kartu admin */
+  .card-admin {
+    @apply bg-white rounded-card-admin shadow-sm border border-gray-100;
+  }
+
+  /* Badge status */
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-pill text-xs font-semibold;
+  }
+  .badge-ready   { @apply badge bg-sage text-cocoa; }
+  .badge-preorder { @apply badge bg-peach text-cocoa; }
+  .badge-custom  { @apply badge bg-pink text-cocoa; }
+  .badge-error   { @apply badge bg-red-100 text-error; }
+
+  /* Input standar */
+  .input {
+    @apply h-input w-full px-4 rounded-btn border border-beige bg-surface
+           font-sans text-sm text-cocoa placeholder-cocoa/40
+           focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary
+           transition-all duration-200;
+  }
+
+  /* Container konten mobile (max 480 px, center) */
+  .mobile-container {
+    @apply w-full max-w-mobile mx-auto px-side;
+  }
+}
