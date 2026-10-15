@@ -8,7 +8,7 @@ Aplikasi pemesanan online mandiri untuk UMKM bakery Oven & Co., menggantikan pem
 
 ```
 oven-and-co/
-├── client/     # Frontend: React 18 + Vite + Tailwind CSS
+├── client/     # Frontend: React 19 + Vite 8 + Tailwind CSS
 └── server/     # Backend: Node.js + Express + Prisma + MySQL
 ```
 
@@ -16,7 +16,7 @@ oven-and-co/
 
 ## Prasyarat
 
-- Node.js ≥ 18
+- Node.js ≥ 20.19
 - npm ≥ 9
 - MySQL 8 (hanya diperlukan mulai Step 6)
 

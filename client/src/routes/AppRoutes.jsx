@@ -73,7 +73,6 @@ export default function AppRoutes() {
         <Route path="/cari" element={<CariPage />} />          {/* C-08 */}
         <Route path="/pesanan" element={<RiwayatPesananPage />} />  {/* C-17 */}
         <Route path="/akun" element={<AkunPage />} />          {/* C-20 */}
-        <Route path="/akun/wishlist" element={<WishlistPage />} />  {/* C-23 */}
       </Route>
 
       {/* ── Halaman Pelanggan — FocusLayout (tanpa bottom nav) ──────────── */}
@@ -100,6 +99,7 @@ export default function AppRoutes() {
         <Route path="/akun/ubah-profil" element={<UbahProfilPage />} />    {/* C-20b */}
         <Route path="/akun/voucher-poin" element={<VoucherPoinPage />} />  {/* C-21 */}
         <Route path="/akun/alamat" element={<AlamatPage />} />             {/* C-22 */}
+        <Route path="/akun/wishlist" element={<WishlistPage />} />         {/* C-23 */}
         <Route path="/notifikasi" element={<NotifikasiPage />} />          {/* C-24 */}
       </Route>
 
