@@ -114,3 +114,21 @@
     @apply w-full max-w-mobile mx-auto px-side;
   }
 }
+
+/* ── Animasi ─────────────────────────────────────────────────────────────── */
+/* Dipakai oleh BottomSheet dan Toast */
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes fade-in-up {
+  from { transform: translateY(12px) translateX(-50%); opacity: 0; }
+  to   { transform: translateY(0)    translateX(-50%); opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.22s ease-out both;
+}
