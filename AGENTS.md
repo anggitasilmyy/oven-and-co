@@ -17,10 +17,10 @@ Baca file ini, `docs/SPEC.md`, dan `docs/ROADMAP.md` sebelum mengerjakan tugas a
 
 ## 2. Tech Stack (sudah diputuskan, jangan diganti)
 
-Frontend (`client/`): React 18 + Vite, JavaScript (bukan TypeScript), Tailwind CSS, React Router,
+Frontend (`client/`): React 19.3.1 + Vite 8.3.4, JavaScript (bukan TypeScript), Tailwind CSS 3.4.19, React Router,
 Zustand (state keranjang & sesi), Recharts (grafik admin), lucide-react (ikon), Vitest (unit test).
 
-Backend (`server/`): Node.js + Express, Prisma ORM, MySQL 8, bcrypt, jsonwebtoken, zod (validasi),
+Backend (`server/`): Node.js + Express 4.22.3, Prisma ORM, MySQL 8, bcrypt, jsonwebtoken, zod (validasi),
 node-cron (pembatalan otomatis), multer (upload foto).
 
 Mode data: frontend memakai lapisan `services/`. Flag `VITE_USE_MOCK=true` membaca data mock
