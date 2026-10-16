@@ -1,16 +1,32 @@
 // pages/customer/PembayaranPage.jsx
 // C-14 · Metode Pembayaran
-// Step 2 · Placeholder
+// Step 2.5 (PR B): kerangka responsif — konten asli dijadwalkan sesuai ROADMAP
+
+import FocusPageGrid from '../../components/layout/FocusPageGrid';
+import ActionBar from '../../components/layout/ActionBar';
+import PageHeader from '../../components/layout/PageHeader';
+import PlaceholderPanel from '../../components/layout/PlaceholderPanel';
 
 export default function PembayaranPage() {
   return (
-    <div className="px-5 py-6 space-y-4">
-      <p className="text-xs font-semibold text-primary tracking-widest uppercase">C-14</p>
-      <h1 className="font-display text-3xl text-cocoa">Metode Pembayaran</h1>
-      <p className="text-sm text-cocoa/60">
-        QRIS, e-wallet (GoPay, OVO, Dana, ShopeePay), VA, Bayar di Toko (bersyarat BR-05)
-      </p>
-      <p className="text-xs text-cocoa/40">(FR-14, FR-15 — diimplementasi di Step 5.3)</p>
-    </div>
+    <FocusPageGrid
+      aside={
+        <ActionBar label="Ringkasan & aksi">
+          <PlaceholderPanel step="Step 5.3" compact>
+            Total pembayaran dan tombol Bayar.
+          </PlaceholderPanel>
+        </ActionBar>
+      }
+    >
+      <div className="space-y-6">
+        <PageHeader
+          screenCode="C-14"
+          title="Metode Pembayaran"
+        />
+        <PlaceholderPanel step="Step 5.3" refs="FR-14 · FR-15 · BR-05">
+          QRIS, e-wallet (GoPay, OVO, Dana, ShopeePay), VA, Bayar di Toko (bersyarat).
+        </PlaceholderPanel>
+      </div>
+    </FocusPageGrid>
   );
 }

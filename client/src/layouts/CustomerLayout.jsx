@@ -14,9 +14,8 @@ export default function CustomerLayout() {
       <SiteHeader />
 
       {/* Ruang bawah hanya < md agar konten tidak tertutup BottomNav (72 px + safe area).
-          Bingkai max-w-content menjaga halaman lama tetap rata dengan header di layar lebar;
-          halaman baru tetap memakai PageContainer untuk padding. */}
-      <main className="flex-1 w-full max-w-content mx-auto pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-0">
+          Lebar & padding diatur halaman lewat PageContainer. */}
+      <main className="flex-1 w-full pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-0">
         <Outlet />
       </main>
 

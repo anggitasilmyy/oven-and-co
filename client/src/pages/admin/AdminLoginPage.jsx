@@ -4,11 +4,12 @@
 // FR-26 · Login admin sesuai peran
 // Owner → /admin/dashboard | Staf → /admin/pesanan
 // Checkbox "Ingat saya" sesuai UI/UX Spec
+// Step 2.5 (PR B): memakai AuthSplitLayout (panel brand ≥ lg, form saja di bawahnya)
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat } from 'lucide-react';
-import AdminBrandPanel from '../../components/admin/AdminBrandPanel';
+import AuthSplitLayout from '../../components/layout/AuthSplitLayout';
+import AdminDemoAccounts from '../../components/admin/AdminDemoAccounts';
 import AdminLoginForm from '../../components/admin/AdminLoginForm';
 import { login } from '../../services/authService';
 import useAuthStore from '../../stores/useAuthStore';
@@ -87,37 +88,19 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-cocoa">
-      <AdminBrandPanel />
+    <AuthSplitLayout subtitle="Admin Panel" brandExtra={<AdminDemoAccounts />}>
+      <h1 className="font-display text-3xl text-cocoa mb-1">Masuk Admin</h1>
+      <p className="text-sm text-cocoa/70 mb-8">Masukkan kredensial akun admin kamu</p>
 
-      {/* Panel Kanan — Form Login */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-cream">
-        <div className="w-full max-w-sm">
-          {/* Header mobile (hanya tampil di mobile) */}
-          <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-              <ChefHat size={22} className="text-cream" />
-            </div>
-            <div>
-              <p className="font-display text-xl text-cocoa leading-tight">Oven &amp; Co.</p>
-              <p className="text-xs text-cocoa/50">Admin Panel</p>
-            </div>
-          </div>
-
-          <h2 className="font-display text-3xl text-cocoa mb-1">Masuk Admin</h2>
-          <p className="text-sm text-cocoa/60 mb-8">Masukkan kredensial akun admin kamu</p>
-
-          <AdminLoginForm
-            form={form}
-            onFieldChange={handleChange}
-            rememberMe={rememberMe}
-            onRememberMeChange={setRememberMe}
-            error={error}
-            loading={loading}
-            onSubmit={handleSubmit}
-          />
-        </div>
-      </div>
-    </div>
+      <AdminLoginForm
+        form={form}
+        onFieldChange={handleChange}
+        rememberMe={rememberMe}
+        onRememberMeChange={setRememberMe}
+        error={error}
+        loading={loading}
+        onSubmit={handleSubmit}
+      />
+    </AuthSplitLayout>
   );
 }

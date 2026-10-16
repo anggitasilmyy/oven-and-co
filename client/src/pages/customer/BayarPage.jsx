@@ -1,22 +1,36 @@
 // pages/customer/BayarPage.jsx
 // C-15 · Halaman Bayar (timer 30 menit)
-// Step 2 · Placeholder
+// Step 2.5 (PR B): kerangka responsif — konten asli dijadwalkan sesuai ROADMAP
 
 import { useParams } from 'react-router-dom';
+import FocusPageGrid from '../../components/layout/FocusPageGrid';
+import ActionBar from '../../components/layout/ActionBar';
+import PageHeader from '../../components/layout/PageHeader';
+import PlaceholderPanel from '../../components/layout/PlaceholderPanel';
 
 export default function BayarPage() {
   const { orderNumber } = useParams();
 
   return (
-    <div className="px-5 py-6 space-y-4">
-      <p className="text-xs font-semibold text-primary tracking-widest uppercase">C-15</p>
-      <h1 className="font-display text-3xl text-cocoa">Halaman Bayar</h1>
-      <p className="text-sm text-cocoa/60">
-        Nomor pesanan: <code className="font-mono">{orderNumber}</code>
-      </p>
-      <p className="text-sm text-cocoa/60">
-        QR/VA/kode bayar, hitung mundur 30 menit (BR-06), tombol "Simulasikan Lunas" (dev)
-      </p>
-    </div>
+    <FocusPageGrid
+      aside={
+        <ActionBar label="Ringkasan & aksi">
+          <PlaceholderPanel step="Step 5.3" compact>
+            Hitung mundur 30 menit, total, dan tombol "Simulasikan Lunas" (dev).
+          </PlaceholderPanel>
+        </ActionBar>
+      }
+    >
+      <div className="space-y-6">
+        <PageHeader
+          screenCode="C-15"
+          title="Halaman Bayar"
+          description={<>Nomor pesanan: <code className="font-mono">{orderNumber}</code></>}
+        />
+        <PlaceholderPanel step="Step 5.3" refs="FR-14 · BR-06">
+          QR/VA/kode bayar dan instruksi pembayaran.
+        </PlaceholderPanel>
+      </div>
+    </FocusPageGrid>
   );
 }

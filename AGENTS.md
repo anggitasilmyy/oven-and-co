@@ -43,7 +43,8 @@ oven-and-co/
 │       ├── pages/admin/       # satu folder per layar AD-xx
 │       ├── components/ui/     # komponen dasar reusable (Button, Input, Badge, ...)
 │       ├── components/layout/ # kerangka responsif (PageContainer, PageHeader, ResponsiveGrid,
-│       │                      #   SiteHeader, BottomNav, FocusPageGrid, ActionBar, AuthSplitLayout, TableScroll)
+│       │                      #   SiteHeader, BottomNav, FocusPageGrid, ActionBar, AuthSplitLayout, TableScroll,
+│       │                      #   PlaceholderPanel)
 │       ├── components/customer/
 │       ├── components/admin/
 │       ├── services/          # apiClient + service per domain + mock/
@@ -93,6 +94,8 @@ oven-and-co/
   `max-w-[480px]` atau kelas `mobile-container` (sudah dihapus); gunakan `max-w-content` / `max-w-narrow` /
   `max-w-auth` atau `.page-container`.
 - `hooks/useMediaQuery` hanya untuk perubahan perilaku komponen; perubahan tampilan memakai kelas CSS responsif.
+- Area layar yang belum diimplementasi ditandai `PlaceholderPanel` (step + requirement), bukan data dummy.
+  Saat step terkait dikerjakan, ganti PlaceholderPanel dengan konten asli di kerangka yang sama.
 - Admin: desktop 1440 × 1024 px, sidebar kiri; < 1024 px sidebar menjadi drawer; tabel dibungkus `TableScroll`.
 - Warna (daftarkan di Tailwind config):
   cream `#FBF6EE` (background), surface `#FFFDF9`, beige `#F1E6D6`, primary `#8B5E3C`,

@@ -58,8 +58,9 @@ export default function FocusLayout({ title, onBack, headerRight, bottomBar, chi
 
       {/* ── Konten ──────────────────────────────────────────────────────────── */}
       {/* Tanpa overflow-y-auto agar position: sticky (ActionBar ≥ lg) bekerja terhadap viewport.
-          Bingkai max-w-content menjaga halaman lama tetap rata dengan header. */}
-      <main className={`flex-1 flex flex-col w-full max-w-content mx-auto ${bottomBar ? 'pb-36 lg:pb-6' : 'pb-6'}`}>
+          Lebar & padding diatur halaman lewat PageContainer / FocusPageGrid / AuthSplitLayout
+          (AuthSplitLayout butuh lebar penuh untuk panel brand). */}
+      <main className={`flex-1 flex flex-col w-full ${bottomBar ? 'pb-36 lg:pb-6' : ''}`}>
         {content}
         {bottomBar && (
           <div className="page-container lg:max-w-sm lg:ml-auto lg:mr-0">

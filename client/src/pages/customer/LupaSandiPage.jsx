@@ -3,10 +3,12 @@
 // Step 3 · Authentication
 // FR-03 · UC-03 · Reset sandi via OTP email 6 digit
 // Validation rules SPEC §6: OTP 6 digit, belum kedaluwarsa, kirim ulang setelah hitung mundur
+// Step 2.5 (PR B): split-screen ≥ lg lewat CustomerAuthShell
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AuthHeader from '../../components/customer/AuthHeader';
+import CustomerAuthShell from '../../components/customer/CustomerAuthShell';
 import LupaSandiEmailForm from '../../components/customer/LupaSandiEmailForm';
 import LupaSandiResetForm from '../../components/customer/LupaSandiResetForm';
 import LupaSandiSuccess from '../../components/customer/LupaSandiSuccess';
@@ -27,12 +29,14 @@ export default function LupaSandiPage() {
 
   if (step === STEP.DONE) {
     return (
-      <LupaSandiSuccess onLogin={() => navigate(CUSTOMER_ROUTES.MASUK, { replace: true })} />
+      <CustomerAuthShell>
+        <LupaSandiSuccess onLogin={() => navigate(CUSTOMER_ROUTES.MASUK, { replace: true })} />
+      </CustomerAuthShell>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col justify-center px-5 py-10 w-full max-w-sm mx-auto">
+    <CustomerAuthShell>
       <AuthHeader
         title={step === STEP.EMAIL ? 'Lupa Kata Sandi' : 'Masukkan Kode OTP'}
         subtitle={
@@ -58,6 +62,6 @@ export default function LupaSandiPage() {
           onSuccess={() => setStep(STEP.DONE)}
         />
       )}
-    </div>
+    </CustomerAuthShell>
   );
 }

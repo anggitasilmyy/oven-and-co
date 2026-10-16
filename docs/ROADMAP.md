@@ -68,7 +68,7 @@ CSS tetap mobile-first; desktop memakai layout desktop sungguhan.
 | Bagian | Cakupan |
 |---|---|
 | PR A — Foundation | Token `max-w-content/narrow/auth`, `.page-container`, `components/layout/` (PageContainer, PageHeader, ResponsiveGrid, SiteHeader, BottomNav, FocusPageGrid + ActionBar, AuthSplitLayout, TableScroll, AccountSidebar), `constants/breakpoints.js`, `hooks/useMediaQuery.js`, layout Customer/Focus/Admin responsif, `layouts/AccountLayout.jsx` (belum dipasang), overlay responsif (BottomSheet, Modal, Toast), badge keranjang, dokumentasi |
-| PR B — Penerapan halaman | Halaman existing (auth, onboarding, katalog, placeholder) dirangkai ulang dengan `components/layout/`, AccountLayout dipasang ke rute `/akun/*`, AD-01 memakai AuthSplitLayout |
+| PR B — Penerapan halaman | Auth C-02 – C-04 & AD-01 split-screen ≥ 1024 (AuthSplitLayout), onboarding hero dua kolom, semua halaman placeholder memakai PageContainer/PageHeader/FocusPageGrid + ActionBar dengan `PlaceholderPanel`, halaman `/akun` & `/akun/*` dibungkus AccountLayout (sidebar ≥ 1024), perbaikan logout dari halaman terproteksi (`hooks/useLogout.js`) |
 
 **Hasil:** bottom nav hanya < 768 px, top nav ≥ 768 px, drawer admin < 1024 px, tanpa horizontal overflow
 di semua rute pada 375–1920 px.
@@ -146,6 +146,7 @@ Di akhir, tunjukkan skenario uji manual untuk aturan bisnis yang tercakup.
 ```
 
 Catatan khusus:
+- 5.1: filter C-07 tetap BottomSheet di < 768 dan dialog di ≥ 768; di desktop (≥ 1024) tambahkan sidebar filter di kiri grid Katalog (ditunda dari Step 2.5 PR B karena isi filter baru dibuat di step ini). Grid produk memakai ResponsiveGrid (2 kolom HP, 3 tablet, 4 desktop) menggantikan PlaceholderPanel.
 - 5.3: Bayar di Toko nonaktif bila ada item pre-order/custom atau delivery (BR-05); stok ready berkurang saat pesanan dibuat; tombol "Simulasikan Lunas" hanya muncul di mode development.
 - 5.4: tombol Batalkan hanya sebelum `sedang_disiapkan`; batal mengembalikan stok & poin.
 - 5.6: modal konfirmasi sebelum ubah status; pickup wajib verifikasi kode; Bayar di Toko wajib ditandai lunas sebelum Selesai.
