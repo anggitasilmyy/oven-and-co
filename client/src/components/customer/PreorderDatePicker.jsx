@@ -11,9 +11,10 @@ import { PREORDER_DATE_WINDOW_DAYS } from '../../constants/productDetail';
  * @param {string} earliestKey — tanggal siap tercepat (BR-02)
  * @param {string|null} value — kunci tanggal terpilih
  * @param {string} cutoffTime — store_settings.preorder_cutoff_time
+ * @param {number} [days] — Step 5.2: jumlah hari yang ditampilkan (C-11 memakai rentang lebih panjang)
  */
-export default function PreorderDatePicker({ todayKey, earliestKey, value, onChange, cutoffTime }) {
-  const options = buildDateOptions(todayKey, earliestKey, PREORDER_DATE_WINDOW_DAYS);
+export default function PreorderDatePicker({ todayKey, earliestKey, value, onChange, cutoffTime, days = PREORDER_DATE_WINDOW_DAYS }) {
+  const options = buildDateOptions(todayKey, earliestKey, days);
   return (
     <fieldset className="min-w-0">
       <legend className="text-sm font-bold text-cocoa mb-1">Tanggal ambil/antar</legend>

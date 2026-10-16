@@ -2,12 +2,13 @@
 // Step 4 · Pemilihan item pesanan contoh (ready, pre-order, custom cake)
 
 import { AVAILABILITY_TYPE } from '../../../constants/product';
+import { WRITING_COLORS as WRITING_COLOR_OPTIONS } from '../../../constants/customCake';
 
 /** Bobot popularitas produk ready (data contoh) */
 const READY_WEIGHTS = { 1: 6, 2: 4, 3: 3, 4: 2, 7: 3, 8: 5, 10: 2, 12: 2 };
 
 const WRITINGS = ['Happy Birthday!', 'Selamat Ulang Tahun', 'Happy Anniversary', 'Congrats!', 'Selamat & Sukses'];
-const WRITING_COLORS = ['Cokelat', 'Putih', 'Pink', 'Emas'];
+const WRITING_COLORS = WRITING_COLOR_OPTIONS.map((c) => c.name); // sama dengan pilihan di C-11
 
 /**
  * Pilih 1–3 produk ready yang masih punya stok.

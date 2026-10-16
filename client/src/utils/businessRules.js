@@ -11,3 +11,4 @@ export * from './rules/promo';
 export * from './rules/readyDate';
 export * from './rules/catalog';
 export * from './rules/cart';
+export * from './rules/customCake';
