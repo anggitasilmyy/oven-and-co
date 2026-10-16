@@ -1,72 +1,72 @@
 // layouts/FocusLayout.jsx
-// Step 2 · Layout & Komponen Dasar
+// Step 2 · Layout & Komponen Dasar — Step 2.5 (PR A): responsive (CR-01)
 // Dipakai untuk: C-09 Detail Produk, C-11 Custom Cake, C-12 Keranjang,
 //               C-13 Checkout, C-14 Metode Bayar, C-15 Halaman Bayar,
-//               dan layar sub-akun
+//               layar auth, dan layar sub-akun
+//
+// Header kembali selalu ada; tanpa bottom nav / top nav.
+// Halaman merangkai kontennya dengan <FocusPageGrid aside={<ActionBar/>}>:
+//   < lg : ActionBar fixed di bawah · ≥ lg : kartu sticky di kolom kanan.
+// Prop `bottomBar` (dipakai bila FocusLayout membungkus children langsung) dirender sebagai ActionBar.
 
 import { Outlet, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import BrandLogo from '../components/layout/BrandLogo';
+import ActionBar from '../components/layout/ActionBar';
 
 /**
- * Layout fokus: header kembali + konten + sticky bottom bar.
- * Tidak ada bottom nav.
- *
- * Komponen halaman dapat menyuntikkan konten ke sticky bottom bar
- * melalui prop `bottomBar` yang diteruskan oleh FocusLayout via context
- * (implementasi context ada di Step 3+; sekarang slot kosong).
- *
  * @param {string} title — judul opsional di header
  * @param {Function} onBack — override handler tombol kembali
  * @param {React.ReactNode} headerRight — slot kanan header
- * @param {React.ReactNode} bottomBar — slot sticky bottom bar
+ * @param {React.ReactNode} bottomBar — isi ActionBar (opsional)
  */
 export default function FocusLayout({ title, onBack, headerRight, bottomBar, children }) {
   const navigate = useNavigate();
-
   const handleBack = onBack ?? (() => navigate(-1));
 
   // FocusLayout bisa dipakai sebagai wrapper langsung (children) ATAU via <Outlet/>
   const content = children ?? <Outlet />;
 
   return (
-    <div className="min-h-screen bg-cream flex justify-center">
-      <div className="w-full max-w-[480px] flex flex-col min-h-screen bg-cream">
-
-        {/* ── Header kembali ────────────────────────────────────────────────── */}
-        <header className="sticky top-0 z-30 bg-surface/90 backdrop-blur-sm border-b border-beige px-4 h-14 flex items-center gap-3">
+    <div className="min-h-screen bg-cream flex flex-col">
+      {/* ── Header kembali ──────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-30 bg-surface/90 backdrop-blur-sm border-b border-beige">
+        <div className="page-container h-14 md:h-16 flex items-center gap-3 md:gap-4">
           <button
+            type="button"
             onClick={handleBack}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-beige transition-colors shrink-0"
+            className="w-11 h-11 -ml-2 flex items-center justify-center rounded-full shrink-0
+                       text-cocoa hover:bg-beige active:scale-95 transition
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             aria-label="Kembali"
           >
-            <ArrowLeft size={20} className="text-cocoa" />
+            <ArrowLeft size={20} aria-hidden="true" />
           </button>
 
+          {/* Logo hanya ≥ md (di HP ruang header dipakai untuk judul) */}
+          <BrandLogo className={title ? 'hidden md:inline-flex' : ''} />
+
           {title && (
-            <h1 className="flex-1 font-sans font-semibold text-base text-cocoa truncate">
+            <h1 className="flex-1 min-w-0 font-sans font-semibold text-base text-cocoa truncate md:border-l md:border-beige md:pl-4">
               {title}
             </h1>
           )}
 
-          {/* Slot kanan — ikon wishlist, share, dll */}
-          {headerRight && (
-            <div className="ml-auto flex items-center gap-1">{headerRight}</div>
-          )}
-        </header>
+          {headerRight && <div className="ml-auto flex items-center gap-1">{headerRight}</div>}
+        </div>
+      </header>
 
-        {/* ── Konten ────────────────────────────────────────────────────────── */}
-        <main className={`flex-1 overflow-y-auto ${bottomBar ? 'pb-[88px]' : 'pb-6'}`}>
-          {content}
-        </main>
-
-        {/* ── Sticky Bottom Bar (slot tombol aksi) ──────────────────────────── */}
+      {/* ── Konten ──────────────────────────────────────────────────────────── */}
+      {/* Tanpa overflow-y-auto agar position: sticky (ActionBar ≥ lg) bekerja terhadap viewport.
+          Bingkai max-w-content menjaga halaman lama tetap rata dengan header. */}
+      <main className={`flex-1 flex flex-col w-full max-w-content mx-auto ${bottomBar ? 'pb-36 lg:pb-6' : 'pb-6'}`}>
+        {content}
         {bottomBar && (
-          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-30
-                          bg-surface/95 backdrop-blur-sm border-t border-beige px-5 py-4">
-            {bottomBar}
+          <div className="page-container lg:max-w-sm lg:ml-auto lg:mr-0">
+            <ActionBar>{bottomBar}</ActionBar>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

@@ -1,20 +1,17 @@
 // pages/dev/DesignSystemPage.jsx
 // /dev/design — Halaman uji Design System (dipindahkan dari App.jsx Step 1)
 // Step 2 · Hanya untuk development
+// Step 2.5 (PR A): contoh komponen layout responsif (LayoutShowcase, OverlayShowcase)
 
 import {
   ShoppingBag,
   Heart,
-  Star,
   Clock,
   MapPin,
   ChevronRight,
-  Cake,
-  Coffee,
   Package,
   CheckCircle,
   AlertCircle,
-  Bell,
 } from 'lucide-react';
 
 import Button from '../../components/ui/Button';
@@ -27,6 +24,13 @@ import Stepper from '../../components/ui/Stepper';
 import { useToast } from '../../components/ui/Toast';
 import Toast from '../../components/ui/Toast';
 import { formatRupiah, formatDate } from '../../utils/format';
+import PageContainer from '../../components/layout/PageContainer';
+import Section from './ShowcaseSection';
+import LayoutShowcase from './LayoutShowcase';
+import OverlayShowcase from './OverlayShowcase';
+
+/** Tanggal contoh (dihitung sekali saat modul dimuat agar render tetap murni) */
+const SAMPLE_DATE = new Date();
 
 const COLORS = [
   { name: 'cream', hex: '#FBF6EE', label: 'Background', textDark: true },
@@ -46,8 +50,8 @@ export default function DesignSystemPage() {
   const { toast, showToast, hideToast } = useToast();
 
   return (
-    <div className="min-h-screen bg-cream py-10 px-4">
-      <div className="max-w-3xl mx-auto mb-12 text-center">
+    <div className="min-h-screen bg-cream py-10">
+      <PageContainer className="mb-12 text-center">
         <p className="text-primary text-sm font-semibold tracking-widest uppercase mb-2">
           Design System · Step 1 → /dev/design
         </p>
@@ -57,11 +61,11 @@ export default function DesignSystemPage() {
         </p>
         <div className="mt-4 inline-flex items-center gap-2 bg-sage/60 text-cocoa px-4 py-2 rounded-pill text-sm font-semibold">
           <CheckCircle size={16} />
-          Step 2 selesai — layout, komponen, rute tersedia
+          Step 2.5 — responsive foundation (PR A)
         </div>
-      </div>
+      </PageContainer>
 
-      <div className="max-w-3xl mx-auto space-y-10">
+      <PageContainer className="space-y-10">
 
         {/* Palet Warna */}
         <Section title="🎨 Palet Warna">
@@ -99,7 +103,7 @@ export default function DesignSystemPage() {
                   Plus Jakarta Sans — Body / UI
                 </p>
                 <p className="font-sans font-semibold text-lg text-cocoa">
-                  {formatRupiah(28000)} · {formatDate(new Date())}
+                  {formatRupiah(28000)} · {formatDate(SAMPLE_DATE)}
                 </p>
                 <p className="font-sans text-base text-cocoa/80 mt-1">
                   Classic Butter Croissant — tersedia hari ini.
@@ -245,20 +249,18 @@ export default function DesignSystemPage() {
           </Card>
         </Section>
 
-        <div className="text-center text-xs text-cocoa/40 pb-4">
-          <p>Oven &amp; Co. Design System · Step 2 selesai ✅</p>
-          <p className="mt-1">Selanjutnya: Step 3 — Authentication</p>
-        </div>
-      </div>
-    </div>
-  );
-}
+        {/* Overlay responsif */}
+        <Section title="🪟 Modal & BottomSheet">
+          <OverlayShowcase />
+        </Section>
 
-function Section({ title, children }) {
-  return (
-    <section>
-      <h2 className="font-display text-xl text-cocoa mb-4">{title}</h2>
-      {children}
-    </section>
+        {/* Komponen layout responsif */}
+        <LayoutShowcase />
+
+        <div className="text-center text-xs text-cocoa/60 pb-4">
+          <p>Oven &amp; Co. Design System · Step 2.5 (PR A)</p>
+        </div>
+      </PageContainer>
+    </div>
   );
 }

@@ -43,7 +43,7 @@ Buat README berisi cara install dan menjalankan keduanya.
 
 **Tujuan:** kerangka navigasi lengkap untuk 35 layar.
 
-**File:** `layouts/CustomerLayout.jsx` (header + ikon keranjang + bottom nav 4 tab, max-width 480 px),
+**File:** `layouts/CustomerLayout.jsx` (header + ikon keranjang + bottom nav 4 tab),
 `layouts/FocusLayout.jsx` (header kembali + sticky bottom bar), `layouts/AdminLayout.jsx` (sidebar 9 menu + topbar),
 `routes/` (semua rute dari SPEC bagian 7), `components/ui/` (Button, Input, Badge, Card, BottomSheet,
 Toast, EmptyState, Skeleton, Stepper, Modal), `constants/` (orderStatus, roles, routes),
@@ -57,6 +57,21 @@ Buat tiga layout, seluruh rute dari docs/SPEC.md bagian 7 dengan halaman placeho
 (judul + kode layar), komponen UI dasar di components/ui, constants status pesanan dan peran,
 serta utils format Rupiah dan tanggal Indonesia. Belum perlu proteksi login.
 ```
+
+---
+
+## Step 2.5 — Responsive foundation (PR A) dan penerapan halaman (PR B)
+
+**Tujuan:** aplikasi pelanggan menjadi responsive web application (CR-01, lihat `docs/SPEC.md` bagian 11).
+CSS tetap mobile-first; desktop memakai layout desktop sungguhan.
+
+| Bagian | Cakupan |
+|---|---|
+| PR A — Foundation | Token `max-w-content/narrow/auth`, `.page-container`, `components/layout/` (PageContainer, PageHeader, ResponsiveGrid, SiteHeader, BottomNav, FocusPageGrid + ActionBar, AuthSplitLayout, TableScroll, AccountSidebar), `constants/breakpoints.js`, `hooks/useMediaQuery.js`, layout Customer/Focus/Admin responsif, `layouts/AccountLayout.jsx` (belum dipasang), overlay responsif (BottomSheet, Modal, Toast), badge keranjang, dokumentasi |
+| PR B — Penerapan halaman | Halaman existing (auth, onboarding, katalog, placeholder) dirangkai ulang dengan `components/layout/`, AccountLayout dipasang ke rute `/akun/*`, AD-01 memakai AuthSplitLayout |
+
+**Hasil:** bottom nav hanya < 768 px, top nav ≥ 768 px, drawer admin < 1024 px, tanpa horizontal overflow
+di semua rute pada 375–1920 px.
 
 ---
 
@@ -189,12 +204,15 @@ untuk setiap business rule dan validation rule di SPEC. Jalankan test dan lapork
 
 **Hasil:** kontras & area sentuh sesuai NFR-02; skeleton, empty state, toast di semua layar;
 admin rapi di 1440 px dan tablet; data demo konsisten; aplikasi ter-deploy.
+Viewport uji wajib (CR-01): 360, 375, 430 (mobile), 768, 1024 (tablet/desktop kecil), 1280, 1366, 1440,
+1536, 1920 (desktop) — tanpa horizontal overflow, bottom nav hanya < 768, top nav ≥ 768, drawer admin < 1024.
 
 ```
 Kerjakan Step 8 dari docs/ROADMAP.md.
 Bandingkan setiap layar dengan export Stitch di docs/stitch dan aturan desain AGENTS.md bagian 5.
 Buat daftar perbedaan dulu, tunggu persetujuan, baru perbaiki.
-Periksa kontras 4.5:1, area sentuh 44 px, label input, loading, empty state, dan toast.
+Periksa kontras 4.5:1, area sentuh 44 px, label input, loading, empty state, dan toast
+di seluruh viewport uji Step 8.
 ```
 
 Setelah itu: deploy client ke Vercel dan server + MySQL ke Railway, lalu siapkan skenario demo

@@ -1,7 +1,9 @@
 // components/ui/Toast.jsx
-// Step 2 · Layout & Komponen Dasar
+// Step 2 · Layout & Komponen Dasar — Step 2.5 (PR A): posisi responsif
+// < md : di tengah bawah, di atas BottomNav · ≥ md : pojok kanan bawah
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle, AlertCircle, Info, X } from 'lucide-react';
 
 /**
@@ -50,12 +52,14 @@ export default function Toast({ type = 'info', message, show, onClose, duration 
 
   const { bg, text, Icon } = styles[type] ?? styles.info;
 
-  return (
+  // Portal ke <body>: overlay fixed tidak terpengaruh margin (space-y-*) atau transform milik induknya
+  return createPortal(
     <div
       role="alert"
       aria-live="assertive"
-      className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[60]
-        w-[calc(100%-40px)] max-w-[440px]
+      className={`fixed z-[60] inset-x-5 mx-auto max-w-[440px]
+        bottom-[calc(88px+env(safe-area-inset-bottom))]
+        md:inset-x-auto md:right-6 md:bottom-6 md:mx-0 md:w-[380px] md:max-w-[calc(100vw-48px)]
         flex items-center gap-3 px-4 py-3
         rounded-btn border shadow-lg
         ${bg} ${text}
@@ -65,12 +69,16 @@ export default function Toast({ type = 'info', message, show, onClose, duration 
       <p className="flex-1 text-sm font-medium">{message}</p>
       <button
         onClick={() => { setVisible(false); onClose?.(); }}
-        className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+        type="button"
+        className="shrink-0 w-11 h-11 -my-2 -mr-2 flex items-center justify-center rounded-full
+                   opacity-70 hover:opacity-100 hover:bg-black/5 active:bg-black/10 transition
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
         aria-label="Tutup notifikasi"
       >
         <X size={16} />
       </button>
-    </div>
+    </div>,
+    document.body
   );
 }
 

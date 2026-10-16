@@ -38,10 +38,12 @@ oven-and-co/
 │   └── src/
 │       ├── main.jsx, App.jsx
 │       ├── routes/            # definisi rute, ProtectedRoute, RoleRoute
-│       ├── layouts/           # CustomerLayout, FocusLayout, AdminLayout
+│       ├── layouts/           # CustomerLayout, FocusLayout, AdminLayout, AccountLayout
 │       ├── pages/customer/    # satu folder per layar C-xx
 │       ├── pages/admin/       # satu folder per layar AD-xx
 │       ├── components/ui/     # komponen dasar reusable (Button, Input, Badge, ...)
+│       ├── components/layout/ # kerangka responsif (PageContainer, PageHeader, ResponsiveGrid,
+│       │                      #   SiteHeader, BottomNav, FocusPageGrid, ActionBar, AuthSplitLayout, TableScroll)
 │       ├── components/customer/
 │       ├── components/admin/
 │       ├── services/          # apiClient + service per domain + mock/
@@ -77,15 +79,28 @@ oven-and-co/
 
 ## 5. Aturan Desain (dari UI/UX Spec)
 
-- Pelanggan: mobile-first 390 × 844 px; konten dibatasi max-width 480 px di layar lebar.
-- Admin: desktop 1440 × 1024 px, sidebar kiri, tetap rapi di tablet.
+- Aplikasi adalah **responsive web application** (CR-01). CSS tetap mobile-first: kelas dasar untuk HP,
+  lalu `md:` / `lg:` / `xl:`. Desktop memakai layout desktop sungguhan, bukan tampilan HP yang diperbesar.
+- Breakpoint (default Tailwind, konstanta di `constants/breakpoints.js`):
+  - Mobile < 768 px: bottom navigation 4 tab, satu kolom, sticky action bar, bottom sheet.
+  - Tablet 768–1023 px: top navigation ringkas (logo, 4 menu, keranjang), area sentuh ≥ 44 px,
+    grid 2–3 kolom, action bar tetap di bawah.
+  - Desktop ≥ 1024 / 1280 / 1536 px: top navigation penuh, container lebar (maks. 1280 px), grid multi-kolom;
+    panel aksi menjadi kartu sticky di kolom kanan bila halaman membutuhkannya.
+  - Jangan memaksakan dua kolom di semua halaman; pakai sesuai kebutuhan halaman.
+- Halaman baru WAJIB dirangkai dengan komponen di `components/layout/` (PageContainer, PageHeader,
+  ResponsiveGrid, FocusPageGrid + ActionBar, AuthSplitLayout, TableScroll). DILARANG memakai
+  `max-w-[480px]` atau kelas `mobile-container` (sudah dihapus); gunakan `max-w-content` / `max-w-narrow` /
+  `max-w-auth` atau `.page-container`.
+- `hooks/useMediaQuery` hanya untuk perubahan perilaku komponen; perubahan tampilan memakai kelas CSS responsif.
+- Admin: desktop 1440 × 1024 px, sidebar kiri; < 1024 px sidebar menjadi drawer; tabel dibungkus `TableScroll`.
 - Warna (daftarkan di Tailwind config):
   cream `#FBF6EE` (background), surface `#FFFDF9`, beige `#F1E6D6`, primary `#8B5E3C`,
   cocoa `#5C3D2E` (judul), peach `#F4C7AB` (pre-order/promo), pink `#F2D4D7` (custom cake),
   sage `#C9D8C5` (ready/sukses), error `#C0564B`.
 - Font: Playfair Display (judul), Plus Jakarta Sans (teks, tombol, harga).
 - Komponen: kartu radius 20 px, tombol 52 px radius 14 px, input 48 px, badge pill, grid 8 px,
-  margin samping 20 px. Admin: kartu putih radius 16 px, gap 24 px, angka tabel tabular.
+  margin samping 20 px (mobile) / 32 px (tablet) / 40 px (desktop) lewat `.page-container`. Admin: kartu putih radius 16 px, gap 24 px, angka tabel tabular.
 - Aksesibilitas: kontras teks ≥ 4.5:1, area sentuh ≥ 44 × 44 px, setiap input punya label.
 - Format: `Rp 28.000`, tanggal `Selasa, 13 Okt`, nomor pesanan `OVC-YYMMDD-NNN`.
 - Selalu sediakan loading (skeleton), empty state, dan umpan balik (toast/pesan error).

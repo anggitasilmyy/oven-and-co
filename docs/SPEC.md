@@ -122,7 +122,7 @@ Harga custom cake = harga dasar + Σ extra_price opsi terpilih.
 
 ## 7. Daftar Layar & Rute
 
-Pelanggan (layout mobile):
+Pelanggan (responsive — lihat CR-01):
 
 | Kode | Layar | Rute | Login? |
 |---|---|---|---|
@@ -151,10 +151,15 @@ Pelanggan (layout mobile):
 | C-23 | Wishlist | /akun/wishlist | Ya |
 | C-24 | Notifikasi | /notifikasi | Ya |
 
-Bottom nav 4 tab: Beranda, Katalog, Pesanan, Akun. Ikon keranjang di header.
-Alur fokus (Detail, Builder, Keranjang, Checkout, Pembayaran, Bayar) memakai sticky bottom bar tanpa bottom nav.
+Navigasi 4 menu: Beranda, Katalog, Pesanan, Akun. Ikon keranjang (dengan jumlah item) di header.
+- Lebar < 768 px: bottom nav 4 tab; header berisi logo + keranjang.
+- Lebar ≥ 768 px: top navigation di header (logo, 4 menu, keranjang); tanpa bottom nav.
 
-Admin (layout desktop, sidebar):
+Alur fokus (Detail, Builder, Keranjang, Checkout, Pembayaran, Bayar) memakai header kembali tanpa bottom nav:
+sticky bottom bar untuk aksi utama di mobile/tablet (< 1024 px) dan panel aksi sticky di kolom kanan
+pada desktop (≥ 1024 px).
+
+Admin (layout desktop, sidebar; < 1024 px sidebar menjadi drawer):
 
 | Kode | Layar | Rute | Peran |
 |---|---|---|---|
@@ -272,3 +277,17 @@ Simpan semua nilai berikut di store_settings / konstanta agar mudah diganti:
 | Riwayat pencarian | localStorage perangkat | TF-13 |
 | Kata sandi | Minimal 8 karakter | TF-15 |
 | Login Google | Tombol tersedia; OAuth asli opsional di akhir | FR-02 |
+
+## 11. Catatan Perubahan Requirement — CR-01 (Responsive Web)
+
+- Tanggal diusulkan: 16 Oktober 2026
+- Status: **Diusulkan — menunggu persetujuan kelompok/dosen**
+- Implementasi: Step 2.5 di `docs/ROADMAP.md` (PR A: responsive foundation; PR B: penerapan halaman)
+
+| Requirement | Lama (dokumen Analisis v1.0) | Usulan baru |
+|---|---|---|
+| NFR-06 Compatibility | Web pelanggan dirancang untuk lebar 360–430 px dan tetap rapi di tablet/desktop dengan konten di tengah (maks. 480 px); admin panel dirancang untuk desktop 1440 px; berjalan pada browser HP modern. | Web pelanggan responsif untuk lebar 360–1920 px (mobile < 768, tablet 768–1023, desktop ≥ 1024) dengan layout desktop sungguhan, kontainer maks. 1280 px; admin panel dirancang untuk desktop 1440 px dan memakai drawer pada lebar < 1024 px; berjalan pada browser HP dan desktop modern. |
+| NFR-01 Usability | … aksi utama berada pada sticky bottom bar … | … aksi utama berada pada sticky bottom bar di mobile/tablet dan pada panel aksi sticky di kolom kanan pada desktop (≥ 1024 px) … (bagian lain NFR-01 tetap). |
+
+Yang TIDAK berubah: daftar layar & rute (bagian 7), FR, business rules, validation rules, data dictionary,
+warna, font, dan identitas visual Oven & Co.

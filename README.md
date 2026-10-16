@@ -4,6 +4,10 @@
 
 Aplikasi pemesanan online mandiri untuk UMKM bakery Oven & Co., menggantikan pemesanan manual via WhatsApp.
 
+Aplikasi berbentuk **responsive web application**: tampilan pelanggan menyesuaikan HP (< 768 px, bottom
+navigation), tablet (768–1023 px), dan desktop (≥ 1024 px, top navigation & layout multi-kolom); panel admin
+dirancang untuk desktop dengan sidebar yang menjadi drawer di layar < 1024 px. Lihat CR-01 di `docs/SPEC.md`.
+
 ## Struktur Monorepo
 
 ```
