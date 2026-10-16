@@ -30,7 +30,8 @@ const product = (product_id, category_id, name, price, availability_type, extra 
 // products — 6 produk pertama dari SPEC §9 (harga croissant dari SPEC), sisanya data contoh
 export const PRODUCTS = [
   product(1, 3, 'Classic Butter Croissant', 28000, 'ready', {
-    description: 'Croissant berlapis butter Prancis, renyah di luar dan lembut di dalam.',
+    description: 'Croissant butter berlapis, renyah di luar dan lembut di dalam, dipanggang setiap pagi.',
+    ingredients: 'Tepung terigu, butter Prancis, susu, telur, gula, ragi, garam', // data contoh
     allergens: 'Gluten, susu, telur',
   }),
   product(2, 1, 'Signature Cinnamon Roll', 32000, 'ready', { // data contoh
@@ -47,6 +48,7 @@ export const PRODUCTS = [
   }),
   product(5, 2, 'Premium Birthday Cake', 385000, 'preorder', { // data contoh
     description: 'Cake ulang tahun 20 cm dengan dekorasi buttercream.',
+    ingredients: 'Tepung terigu, telur, gula, butter, susu, buttercream, pewarna makanan', // data contoh
     allergens: 'Gluten, susu, telur',
   }),
   product(6, 5, 'Custom Celebration Cake', 450000, 'custom', { // data contoh — harga dasar
@@ -61,19 +63,7 @@ export const PRODUCTS = [
   product(12, 4, 'Choco Chip Cookies Jar', 75000, 'ready', { allergens: 'Gluten, susu, telur' }), // data contoh
 ];
 
-const IMAGE_SLUGS = {
-  1: 'butter-croissant', 2: 'cinnamon-roll', 3: 'lava-cake', 4: 'cookies-box',
-  5: 'birthday-cake', 6: 'custom-cake', 7: 'almond-croissant', 8: 'pain-au-chocolat',
-  9: 'sourdough', 10: 'milk-bun', 11: 'red-velvet', 12: 'cookies-jar',
-};
-
-// product_images — ilustrasi lokal di client/public/images/products
-export const PRODUCT_IMAGES = PRODUCTS.map((p) => ({
-  image_id: p.product_id,
-  product_id: p.product_id,
-  image_url: `/images/products/${IMAGE_SLUGS[p.product_id]}.svg`,
-  sort_order: 1,
-}));
+// product_images ada di seed/productMedia.js (Step 5.1)
 
 /**
  * Rencana produksi harian (qty_planned di daily_stocks) per produk ready — data contoh.

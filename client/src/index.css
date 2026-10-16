@@ -116,6 +116,25 @@
   }
 }
 
+/* ── Step 5.1 · Slider rentang harga ganda (C-07) ───────────────────────────── */
+/* Dua input range ditumpuk; hanya thumb yang menerima pointer agar keduanya bisa digeser. */
+@layer components {
+  .dual-range {
+    @apply absolute inset-x-0 top-0 w-full h-11 m-0 bg-transparent appearance-none pointer-events-none;
+  }
+  .dual-range::-webkit-slider-runnable-track { background: transparent; }
+  .dual-range::-moz-range-track { background: transparent; }
+  .dual-range::-webkit-slider-thumb {
+    @apply appearance-none pointer-events-auto w-6 h-6 rounded-full bg-surface border-[3px] border-primary shadow cursor-pointer;
+  }
+  .dual-range::-moz-range-thumb {
+    @apply pointer-events-auto w-5 h-5 rounded-full bg-surface border-[3px] border-primary shadow cursor-pointer;
+  }
+  .dual-range:focus-visible { outline: none; }
+  .dual-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgb(139 94 60 / 0.3); }
+  .dual-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px rgb(139 94 60 / 0.3); }
+}
+
 /* ── Animasi ─────────────────────────────────────────────────────────────── */
 /* Keyframe & kelas animasi didaftarkan di tailwind.config.js (theme.extend.animation)
    agar varian responsif seperti md:animate-modal-in tersedia. */

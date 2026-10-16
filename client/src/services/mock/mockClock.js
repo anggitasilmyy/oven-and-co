@@ -29,3 +29,14 @@ export function atTime(dateKey, hhmm) {
 export function getMockNow() {
   return atTime(getMockTodayKey(), MOCK_REFERENCE_TIME);
 }
+
+/**
+ * Step 5.1: waktu sekarang pada tanggal mock — jam mengikuti jam perangkat.
+ * Dipakai aturan batas jam pemesanan pre-order (BR-02) agar sesuai waktu nyata pengguna.
+ */
+export function getMockCurrentTime() {
+  const real = new Date();
+  const d = parseDateKey(getMockTodayKey());
+  d.setHours(real.getHours(), real.getMinutes(), real.getSeconds(), 0);
+  return d;
+}

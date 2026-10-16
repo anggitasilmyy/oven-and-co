@@ -32,5 +32,6 @@ export default function useQuickAddToCart() {
     showToast('success', `${product.name} ditambahkan ke keranjang.`);
   };
 
-  return { addProduct, toast, hideToast };
+  // showToast ikut dikembalikan agar halaman memakai satu Toast untuk aksi lain (mis. wishlist, Step 5.1)
+  return { addProduct, toast, showToast, hideToast };
 }
