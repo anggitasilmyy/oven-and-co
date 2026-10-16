@@ -4,12 +4,10 @@
 import { FULFILLMENT_TYPE, ORDER_STATUS, PAYMENT_STATUS } from '../../../constants/orderStatus';
 import { STORE_SETTINGS_DEFAULT } from '../../../constants/storeConfig';
 import { atTime } from '../mockClock';
+import { formatOrderNumber } from '../../../utils/rules/order';
 
-/** Nomor pesanan OVC-YYMMDD-NNN (AGENTS.md §5) */
-export function buildOrderNumber(dateKey, seq) {
-  const [y, m, d] = dateKey.split('-');
-  return `OVC-${y.slice(2)}${m}${d}-${String(seq).padStart(3, '0')}`;
-}
+/** Nomor pesanan OVC-YYMMDD-NNN (AGENTS.md §5) — Step 5.3: format dipusatkan di utils/rules/order.js */
+export const buildOrderNumber = formatOrderNumber;
 
 /** n waktu pesanan menyebar antara 07.05 dan batas akhir, urut naik */
 export function buildTimes(rng, dateKey, n, end) {
