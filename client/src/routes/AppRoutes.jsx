@@ -1,7 +1,8 @@
 // routes/AppRoutes.jsx
-// Step 3 · Authentication (update dari Step 2)
+// Step 3 · Authentication (update dari Step 2) · Step 4: DashboardPage lazy-load
 // Semua rute dari SPEC.md bagian 7 + proteksi ProtectedRoute & RoleRoute
 
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Layouts
@@ -41,7 +42,8 @@ import NotifikasiPage from '../pages/customer/NotifikasiPage';
 
 // ── Halaman Admin ────────────────────────────────────────────────────────────
 import AdminLoginPage from '../pages/admin/AdminLoginPage';
-import DashboardPage from '../pages/admin/DashboardPage';
+// Step 4: Dashboard dimuat terpisah (lazy) karena memakai Recharts — bundle awal pelanggan tetap ringan
+const DashboardPage = lazy(() => import('../pages/admin/DashboardPage'));
 import PesananAdminPage from '../pages/admin/PesananAdminPage';
 import DetailPesananAdminPage from '../pages/admin/DetailPesananAdminPage';
 import KalenderPage from '../pages/admin/KalenderPage';
@@ -51,6 +53,8 @@ import LaporanPage from '../pages/admin/LaporanPage';
 import PromoPage from '../pages/admin/PromoPage';
 import PelangganPage from '../pages/admin/PelangganPage';
 import PengaturanPage from '../pages/admin/PengaturanPage';
+
+import DashboardSkeleton from '../components/admin/DashboardSkeleton';
 
 // ── Halaman Dev (hanya development) ─────────────────────────────────────────
 import DesignSystemPage from '../pages/dev/DesignSystemPage';
@@ -171,7 +175,11 @@ export default function AppRoutes() {
         {/* Owner only */}
         <Route
           path="dashboard"
-          element={<RoleRoute roles={['owner']}><DashboardPage /></RoleRoute>}
+          element={
+            <RoleRoute roles={['owner']}>
+              <Suspense fallback={<DashboardSkeleton />}><DashboardPage /></Suspense>
+            </RoleRoute>
+          }
         />
 
         {/* Staf & Owner */}
