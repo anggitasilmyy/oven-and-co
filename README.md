@@ -140,5 +140,10 @@ Health check: [http://localhost:4000/api/health](http://localhost:4000/api/healt
 - Step 5.2: desain Custom Cake Builder (C-11) disimpan di `ovenco_mock_custom_cake_designs` dan
   `ovenco_mock_custom_cake_design_options` dengan `design_id` ≥ 1.000.000; baris ini tidak ikut ditimpa
   saat data contoh dibuat ulang. Foto referensi diperkecil (sisi maks. 640 px) dan disimpan sebagai data URL.
+- Step 5.3: pesanan pelanggan (`orders`, `order_items`, `payments`, `point_transactions`) memakai id ≥ 1.000.000
+  dan juga dipertahankan; efeknya pada stok harian & kuota voucher diterapkan ulang. Alamat (`addresses`) dan
+  voucher milik pelanggan (`user_vouchers`) adalah tabel pengguna. Pembayaran disimulasikan: tombol
+  "Simulasikan Lunas" hanya muncul di `npm run dev`; pesanan online yang tidak dibayar 30 menit dibatalkan
+  otomatis saat pesanan dibuka lagi (pengganti job `autoCancelOrders` Step 6.5).
 - Riwayat pencarian dan status onboarding menggunakan awalan `ovenco_` (persisten di kedua mode).
 - Semua halaman menggunakan lapisan `client/src/services/` — **jangan** memanggil `fetch`/`axios` langsung dari komponen/halaman.

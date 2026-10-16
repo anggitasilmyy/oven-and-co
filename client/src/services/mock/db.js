@@ -11,8 +11,8 @@
 // Step 5.1: tabel yang ditulis pengguna (wishlists) masuk USER_TABLES — hanya diisi dari seed bila tabelnya
 // belum ada di perangkat. Refresh, pergantian tanggal, dan kenaikan SEED_VERSION TIDAK menimpanya.
 // Tabel pengguna hanya dibuat ulang bila USER_SCHEMA_VERSION dinaikkan (perubahan skema yang butuh migrasi).
-// Step 5.2: desain custom cake buatan pelanggan (C-11) disimpan di tabel yang juga berisi data contoh.
-// Baris dengan id ≥ USER_ROW_ID_START dipertahankan saat data contoh dibuat ulang (lihat PRESERVED_USER_ROWS).
+// Step 5.2 – 5.3: desain custom cake & pesanan buatan pelanggan disimpan di tabel yang juga berisi data contoh.
+// Baris dengan id ≥ USER_ROW_ID_START dipertahankan saat data contoh dibuat ulang (lihat mock/userRows.js).
 
 import { lastNDateKeys } from '../../utils/date';
 import { SALES_WINDOW_DAYS } from '../../constants/dashboard';
@@ -28,6 +28,8 @@ import { PRODUCT_VARIANTS, withAdminReplies, buildWishlists } from './seed/produ
 import { SAMPLE_CUSTOMERS, DEMO_CUSTOMER_ID, DEMO_CUSTOMER_POINT_BALANCE } from './seed/customers';
 import { generateOrders } from './seed/orderGenerator';
 import { buildDailyStocks, buildReviews, buildPointTransactions } from './seed/derivedRecords';
+import { buildAddresses, buildUserVouchers } from './seed/customerExtras';
+import { PRESERVED_USER_ROWS, isUserRow, reapplyUserOrderEffects } from './userRows';
 
 /** Naikkan bila struktur/isi seed berubah agar data lama di browser diganti */
 const SEED_VERSION = 4; // v4: foto produk asli (WebP) & review_photos dikosongkan
@@ -43,7 +45,7 @@ export const TABLES = [
 ];
 
 /** Tabel yang ditulis pengguna — tidak pernah ditimpa oleh pembuatan ulang data contoh */
-export const USER_TABLES = ['wishlists'];
+export const USER_TABLES = ['wishlists', 'addresses', 'user_vouchers']; // Step 5.3: alamat & voucher pelanggan
 
 /**
  * Versi skema tabel pengguna. Naikkan HANYA bila struktur USER_TABLES berubah dan data lama tidak bisa
@@ -51,18 +53,8 @@ export const USER_TABLES = ['wishlists'];
  */
 const USER_SCHEMA_VERSION = 1;
 
-/** Id awal baris buatan pengguna di tabel data contoh — tidak pernah dipakai seed */
-export const USER_ROW_ID_START = 1_000_000;
-
-/** Tabel data contoh yang juga ditulis pengguna → kolom id penanda baris pengguna (Step 5.2) */
-const PRESERVED_USER_ROWS = { custom_cake_designs: 'design_id', custom_cake_design_options: 'design_id' };
-
-const isUserRow = (row, idKey) => Number(row?.[idKey]) >= USER_ROW_ID_START;
-
-/** Id baru untuk baris buatan pengguna (≥ USER_ROW_ID_START, lebih besar dari id yang ada) */
-export function nextUserRowId(rows, idKey) {
-  return rows.reduce((max, r) => (isUserRow(r, idKey) ? Math.max(max, Number(r[idKey])) : max), USER_ROW_ID_START - 1) + 1;
-}
+// Step 5.2 – 5.3: baris buatan pengguna di tabel data contoh — lihat ./userRows.js
+export { USER_ROW_ID_START, nextUserRowId } from './userRows';
 
 function buildSeed(todayKey) {
   const now = getMockNow();
@@ -103,6 +95,8 @@ function buildSeed(todayKey) {
     }),
     store_settings: STORE_SETTINGS,
     wishlists: buildWishlists(DEMO_CUSTOMER_ID, now),
+    addresses: buildAddresses(DEMO_CUSTOMER_ID),
+    user_vouchers: buildUserVouchers(DEMO_CUSTOMER_ID, now),
   };
 }
 
@@ -119,6 +113,7 @@ function ensureSeed() {
   const keptRows = Object.fromEntries(
     Object.entries(PRESERVED_USER_ROWS).map(([t, idKey]) => [t, [readMock(t, [])].flat().filter((r) => isUserRow(r, idKey))])
   );
+  reapplyUserOrderEffects(seed, keptRows);
   TABLES.forEach((t) => writeMock(t, keptRows[t] ? [...seed[t], ...keptRows[t]] : seed[t]));
   // Data pengguna: hanya dibuat bila belum ada (atau skemanya berubah), tidak pernah ditimpa
   missingUserTables.forEach((t) => writeMock(t, seed[t]));
