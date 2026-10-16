@@ -4,6 +4,10 @@
 // Data contoh dibuat ulang otomatis bila versi seed berubah atau tanggal hari ini berganti,
 // sehingga "hari ini" pada KPI, stok harian, dan Fresh from Oven Today selalu terisi.
 // Hasil pembuatan deterministik → refresh halaman tidak mengubah angka.
+//
+// PERHATIAN untuk Step 5: pembuatan ulang MENIMPA semua tabel di TABLES (pesanan, stok, poin, ulasan).
+// Saat pelanggan/admin mulai menulis data (checkout, ubah status), mekanisme ini harus diputuskan ulang
+// agar data buatan pengguna tidak hilang saat tanggal berganti. Tabel users & keranjang tidak tersentuh.
 
 import { lastNDateKeys } from '../../utils/date';
 import { SALES_WINDOW_DAYS } from '../../constants/dashboard';
@@ -19,7 +23,7 @@ import { generateOrders } from './seed/orderGenerator';
 import { buildDailyStocks, buildReviews, buildPointTransactions } from './seed/derivedRecords';
 
 /** Naikkan bila struktur/isi seed berubah agar data lama di browser diganti */
-const SEED_VERSION = 1;
+const SEED_VERSION = 2;
 const META_KEY = 'meta';
 
 /** Produk ready yang dibuat habis hari ini (contoh: tidak boleh tampil di Fresh from Oven Today) */

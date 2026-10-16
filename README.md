@@ -55,10 +55,14 @@ npm install
 
 ### Client (`client/.env`)
 
-Salin dari contoh:
+Salin dari contoh (**wajib** sebelum `npm run dev`):
 ```bash
 cp client/.env.example client/.env
 ```
+
+> Tanpa `client/.env`, `VITE_USE_MOCK` tidak bernilai `true` sehingga aplikasi memanggil REST API
+> (baru tersedia di Step 6) dan bagian Beranda/Dashboard menampilkan pesan "gagal dimuat".
+> Setelah mengubah `.env`, hentikan lalu jalankan ulang `npm run dev`.
 
 | Variabel | Default | Keterangan |
 |---|---|---|
@@ -92,6 +96,16 @@ npm run dev
 ```
 
 Buka: [http://localhost:5173](http://localhost:5173)
+
+#### Cek cepat mode mock (`VITE_USE_MOCK=true`)
+
+| Peran | Login | Email | Sandi | Halaman awal |
+|---|---|---|---|---|
+| Pelanggan | `/masuk` | `pelanggan@demo.com` | `demo1234` | `/` Beranda (C-05) — kartu 1.250 poin · Gold |
+| Owner | `/admin/login` | `owner@demo.com` | `demo1234` | `/admin/dashboard` (AD-02) |
+| Staf | `/admin/login` | `staf@demo.com` | `demo1234` | `/admin/pesanan` (AD-03) |
+
+Akun di atas hanya data demo mode mock (bukan kredensial nyata).
 
 ### Server (development)
 

@@ -4,7 +4,7 @@
 
 import { ORDER_STATUS } from '../../../constants/orderStatus';
 import { STORE_SETTINGS_DEFAULT } from '../../../constants/storeConfig';
-import { pointsEarnedFor } from '../../../utils/businessRules';
+import { pointsEarnedFor, getYearlyEarnedPoints } from '../../../utils/businessRules';
 import { atTime } from '../mockClock';
 import { createRandom } from './random';
 
@@ -95,14 +95,18 @@ export function buildPointTransactions({ orders, reviews, todayKey, now, demoCus
     });
   }
 
-  // Riwayat sebelum periode data contoh (pesanan lama tidak ikut di-seed)
-  const generated = txs.filter((t) => t.user_id === demoCustomerId).reduce((s, t) => s + t.points, 0);
+  // Riwayat sebelum periode data contoh (pesanan lama tidak ikut di-seed).
+  // Dicatat 1 Januari pukul 08.00/09.00 agar tidak pernah bertanggal di masa depan, dan dihitung
+  // supaya saldo = SPEC §9 serta poin tahun berjalan tetap di rentang Gold walau hari ini awal Januari.
   const year = Number(todayKey.slice(0, 4));
-  const opening = Math.max(300, demoBalance + 200 - generated);
-  add({ user_id: demoCustomerId, type: 'earn', points: opening, created_at: new Date(year, 0, 2, 10).toISOString() });
+  const demoTxs = txs.filter((t) => t.user_id === demoCustomerId);
+  const generated = demoTxs.reduce((s, t) => s + t.points, 0);
+  const generatedThisYear = getYearlyEarnedPoints(demoTxs, year);
+  const opening = Math.max(300, demoBalance + 200 - generated, STORE_SETTINGS_DEFAULT.gold_min_points - generatedThisYear);
+  add({ user_id: demoCustomerId, type: 'earn', points: opening, created_at: new Date(year, 0, 1, 8).toISOString() });
   add({
     user_id: demoCustomerId, type: 'redeem', points: demoBalance - generated - opening,
-    created_at: new Date(year, 0, 3, 10).toISOString(),
+    created_at: new Date(year, 0, 1, 9).toISOString(),
   });
   return txs.sort((a, b) => a.created_at.localeCompare(b.created_at)).map((t, i) => ({ ...t, point_tx_id: i + 1 }));
 }

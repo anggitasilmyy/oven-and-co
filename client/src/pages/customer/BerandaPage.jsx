@@ -87,7 +87,7 @@ export default function BerandaPage() {
         onAdd={addProduct}
         renderExtras={(p, i) => ({
           topRight: <BestSellerRank rank={i + 1} />,
-          footnote: `${formatNumber(p.quantity_sold)} terjual minggu ini`,
+          footnote: `${formatNumber(p.quantity_sold)} terjual 7 hari terakhir`,
         })}
       />
 

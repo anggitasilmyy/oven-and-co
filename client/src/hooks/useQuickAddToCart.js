@@ -6,16 +6,20 @@ import useCartStore from '../stores/useCartStore';
 import { useToast } from '../components/ui/Toast';
 
 export default function useQuickAddToCart() {
-  const items = useCartStore((s) => s.items);
   const addItem = useCartStore((s) => s.addItem);
   const { toast, showToast, hideToast } = useToast();
 
   const addProduct = (product) => {
-    const inCart = items
-      .filter((i) => i.product_id === product.product_id && !i.variant_id && !i.design_id)
+    // Baca isi keranjang terbaru saat klik (bukan dari render terakhir) agar klik beruntun tetap dibatasi stok
+    const inCart = useCartStore
+      .getState()
+      .items.filter((i) => i.product_id === product.product_id && !i.variant_id && !i.design_id)
       .reduce((sum, i) => sum + i.quantity, 0);
     if (inCart + 1 > product.remaining_today) {
-      showToast('error', `Stok ${product.name} hari ini tinggal ${product.remaining_today}.`);
+      showToast(
+        'error',
+        `Stok ${product.name} hari ini tinggal ${product.remaining_today} dan ${inCart} sudah ada di keranjang.`
+      );
       return;
     }
     addItem({
