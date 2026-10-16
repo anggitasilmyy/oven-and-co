@@ -5,6 +5,9 @@
 //
 // Semua data mock disimpan di localStorage dengan awalan "ovenco_mock_"
 // Saldo poin, level, dll. ada di SPEC §9
+// Step 4: pelanggan contoh (seed/customers.js) ikut ditambahkan untuk pesanan contoh admin
+
+import { SAMPLE_CUSTOMERS } from './seed/customers';
 
 /** Key localStorage untuk data pengguna mock */
 export const MOCK_USERS_KEY = 'ovenco_mock_users';
@@ -55,14 +58,25 @@ export function getMockUsers() {
   const raw = localStorage.getItem(MOCK_USERS_KEY);
   if (raw) {
     try {
-      return JSON.parse(raw);
+      return withSampleCustomers(JSON.parse(raw));
     } catch {
       // Data rusak — reset ke seed
     }
   }
   // Inisialisasi pertama kali
-  saveMockUsers(DEMO_USERS);
-  return DEMO_USERS;
+  return withSampleCustomers(DEMO_USERS);
+}
+
+/**
+ * Step 4: tambahkan pelanggan contoh yang belum ada (berdasarkan user_id) tanpa menghapus
+ * akun yang sudah terdaftar di browser.
+ */
+function withSampleCustomers(users) {
+  const missing = SAMPLE_CUSTOMERS.filter((c) => !users.some((u) => u.user_id === c.user_id));
+  if (missing.length === 0 && localStorage.getItem(MOCK_USERS_KEY)) return users;
+  const merged = [...users, ...missing];
+  saveMockUsers(merged);
+  return merged;
 }
 
 /**
