@@ -109,26 +109,13 @@
            transition-all duration-200;
   }
 
-  /* Container konten mobile (max 480 px, center) */
-  .mobile-container {
-    @apply w-full max-w-mobile mx-auto px-side;
+  /* Kontainer halaman responsif (CR-01): mobile-first, melebar sampai 1280 px.
+     Komponen React-nya: components/layout/PageContainer.jsx */
+  .page-container {
+    @apply w-full max-w-content mx-auto px-5 md:px-8 lg:px-10;
   }
 }
 
 /* ── Animasi ─────────────────────────────────────────────────────────────── */
-/* Dipakai oleh BottomSheet dan Toast */
-@keyframes slide-up {
-  from { transform: translateY(100%); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
-}
-@keyframes fade-in-up {
-  from { transform: translateY(12px) translateX(-50%); opacity: 0; }
-  to   { transform: translateY(0)    translateX(-50%); opacity: 1; }
-}
-
-.animate-slide-up {
-  animation: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
-}
-.animate-fade-in-up {
-  animation: fade-in-up 0.22s ease-out both;
-}
+/* Keyframe & kelas animasi didaftarkan di tailwind.config.js (theme.extend.animation)
+   agar varian responsif seperti md:animate-modal-in tersedia. */

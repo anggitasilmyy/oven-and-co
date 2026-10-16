@@ -1,8 +1,13 @@
 // tailwind.config.js
 // Step 1 — Design tokens dari AGENTS.md bagian 5
+// Step 2.5 (PR A) — token max-width responsif, NFR-06 (CR-01)
 
 /** @type {import('tailwindcss').Config} */
 export default {
+  // Hover hanya aktif di perangkat yang mendukung hover (hindari hover "lengket" di layar sentuh)
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
@@ -57,12 +62,41 @@ export default {
         'touch-min': '44px',
       },
 
-      // Max-width konten pelanggan
+      // Max-width kontainer responsif (CR-01) — dipakai PageContainer & AuthSplitLayout
       maxWidth: {
-        mobile: '480px',
+        content: '1280px', // kontainer halaman default (desktop)
+        narrow: '720px',   // halaman fokus satu kolom (form, detail sempit)
+        auth: '440px',     // form autentikasi
       },
 
-      // ── Animasi halus ─────────────────────────────────────────────────────
+      // ── Animasi ───────────────────────────────────────────────────────────
+      // slide-up  : BottomSheet di mobile
+      // fade-in-up: Toast (naik 12 px + fade). Toast diposisikan dengan inset/margin,
+      //             bukan translateX, jadi keyframe ini tidak menggeser elemen.
+      // modal-in  : Modal & BottomSheet versi dialog (≥ md) — fade + scale tanpa translate.
+      //             (Bug lama: Modal memakai fade-in-up berisi translateX(-50%) milik Toast
+      //             sehingga modal tergeser ke kiri.)
+      keyframes: {
+        'slide-up': {
+          from: { transform: 'translateY(100%)', opacity: '0' },
+          to: { transform: 'translateY(0)', opacity: '1' },
+        },
+        'fade-in-up': {
+          from: { transform: 'translateY(12px)', opacity: '0' },
+          to: { transform: 'translateY(0)', opacity: '1' },
+        },
+        'modal-in': {
+          from: { transform: 'scale(0.96)', opacity: '0' },
+          to: { transform: 'scale(1)', opacity: '1' },
+        },
+      },
+      animation: {
+        'slide-up': 'slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
+        'fade-in-up': 'fade-in-up 0.22s ease-out both',
+        'modal-in': 'modal-in 0.2s ease-out both',
+      },
+
+      // ── Transisi halus ────────────────────────────────────────────────────
       transitionTimingFunction: {
         smooth: 'cubic-bezier(0.4, 0, 0.2, 1)',
       },

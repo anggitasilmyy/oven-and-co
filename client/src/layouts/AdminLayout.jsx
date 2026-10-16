@@ -2,6 +2,7 @@
 // Step 3 · Authentication (update dari Step 2)
 // FR-26 – FR-36 · AD-01 – AD-11 · Desktop 1440px, sidebar kiri 9 menu
 // Step 3: filter menu per role, info user di topbar, tombol logout
+// Step 2.5 (PR A): padding responsif, max-width konten, sidebar sticky ≥ lg, drawer < lg dipertahankan
 
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
@@ -83,7 +84,7 @@ export default function AdminLayout() {
             'w-64 bg-cocoa text-cream',
             'transition-transform duration-300',
             sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-            'lg:relative lg:translate-x-0 lg:z-auto lg:flex',
+            'lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:translate-x-0 lg:z-auto lg:flex',
           ].join(' ')}
           aria-label="Sidebar admin"
         >
@@ -99,7 +100,8 @@ export default function AdminLayout() {
             {/* Tombol tutup (mobile) */}
             <button
               onClick={() => setSidebarOpen(false)}
-              className="ml-auto lg:hidden w-7 h-7 flex items-center justify-center rounded hover:bg-white/10"
+              className="ml-auto lg:hidden w-11 h-11 -mr-2 flex items-center justify-center rounded-lg
+                         hover:bg-white/10 active:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cream/60"
               aria-label="Tutup sidebar"
             >
               <X size={16} />
@@ -113,10 +115,11 @@ export default function AdminLayout() {
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-sans font-medium transition-colors duration-150 ` +
+                  `flex items-center gap-3 px-3 py-2.5 min-h-touch-min rounded-lg text-sm font-sans font-medium transition-colors duration-150 ` +
+                  `active:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cream/60 ` +
                   (isActive
                     ? 'bg-primary/80 text-cream'
-                    : 'text-cream/60 hover:bg-white/8 hover:text-cream')
+                    : 'text-cream/70 hover:bg-white/10 hover:text-cream')
                 }
                 aria-label={label}
                 onClick={() => setSidebarOpen(false)}
@@ -144,8 +147,9 @@ export default function AdminLayout() {
             <button
               id="admin-logout-btn"
               onClick={handleLogout}
-              className="w-full flex items-center gap-2 text-cream/60 hover:text-cream text-xs font-medium
-                         px-1 py-1.5 rounded hover:bg-white/8 transition-colors"
+              className="w-full flex items-center gap-2 text-cream/70 hover:text-cream text-xs font-medium
+                         px-2 min-h-touch-min rounded hover:bg-white/10 active:bg-white/20 transition-colors
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cream/60"
               aria-label="Keluar dari panel admin"
             >
               <LogOut size={14} />
@@ -159,11 +163,13 @@ export default function AdminLayout() {
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* Topbar */}
-        <header className="sticky top-0 z-30 bg-surface border-b border-beige h-14 flex items-center px-6 gap-4">
+        <header className="sticky top-0 z-30 bg-surface border-b border-beige h-14 lg:h-16 flex items-center px-4 md:px-6 lg:px-8 gap-4">
           {/* Hamburger mobile */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg hover:bg-beige transition-colors"
+            className="lg:hidden w-11 h-11 -ml-2 flex items-center justify-center rounded-lg hover:bg-beige active:bg-beige/70
+                       transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            aria-expanded={sidebarOpen}
             aria-label="Buka menu"
           >
             <Menu size={20} className="text-cocoa" />
@@ -186,8 +192,10 @@ export default function AdminLayout() {
         </header>
 
         {/* Konten halaman admin */}
-        <main className="flex-1 overflow-y-auto p-6">
-          <Outlet />
+        <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8">
+          <div className="w-full max-w-content mx-auto">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
