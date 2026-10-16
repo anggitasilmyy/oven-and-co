@@ -31,7 +31,7 @@ export default function ProductDetailContent({ product, wishlist, notify }) {
     >
       <div className="flex flex-col gap-1.5 min-w-0">
         <Button fullWidth onClick={p.addToCart} disabled={Boolean(p.blockedReason)}>
-          {p.blockedReason && p.isReady ? 'Stok habis' : 'Tambah ke Keranjang'}
+          {p.isReady && product.remaining_today === 0 ? 'Stok habis' : 'Tambah ke Keranjang'}
         </Button>
         {p.blockedReason && <p className="text-xs text-error text-center lg:text-left" role="status">{p.blockedReason}</p>}
       </div>

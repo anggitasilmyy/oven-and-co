@@ -8,12 +8,13 @@
 // PERHATIAN untuk Step 5: pembuatan ulang MENIMPA semua tabel di TABLES (pesanan, stok, poin, ulasan).
 // Saat pelanggan/admin mulai menulis data (checkout, ubah status), mekanisme ini harus diputuskan ulang
 // agar data buatan pengguna tidak hilang saat tanggal berganti. Tabel users & keranjang tidak tersentuh.
-// Step 5.1: tabel yang ditulis pengguna (wishlists) masuk USER_TABLES — diisi sekali per versi seed dan
-// TIDAK ditimpa saat tanggal berganti.
+// Step 5.1: tabel yang ditulis pengguna (wishlists) masuk USER_TABLES — hanya diisi dari seed bila tabelnya
+// belum ada di perangkat. Refresh, pergantian tanggal, dan kenaikan SEED_VERSION TIDAK menimpanya.
+// Tabel pengguna hanya dibuat ulang bila USER_SCHEMA_VERSION dinaikkan (perubahan skema yang butuh migrasi).
 
 import { lastNDateKeys } from '../../utils/date';
 import { SALES_WINDOW_DAYS } from '../../constants/dashboard';
-import { readMock, writeMock } from './storage';
+import { readMock, writeMock, hasMock } from './storage';
 import { getMockTodayKey, getMockNow } from './mockClock';
 import { getMockUsers } from './users';
 import {
@@ -39,8 +40,14 @@ export const TABLES = [
   'orders', 'order_items', 'payments', 'reviews', 'review_photos', 'point_transactions', 'store_settings',
 ];
 
-/** Tabel yang ditulis pengguna — hanya diisi ulang saat SEED_VERSION berubah */
+/** Tabel yang ditulis pengguna — tidak pernah ditimpa oleh pembuatan ulang data contoh */
 export const USER_TABLES = ['wishlists'];
+
+/**
+ * Versi skema tabel pengguna. Naikkan HANYA bila struktur USER_TABLES berubah dan data lama tidak bisa
+ * dipakai lagi; saat itu tabel pengguna diisi ulang dari seed (prototype belum punya migrasi).
+ */
+const USER_SCHEMA_VERSION = 1;
 
 function buildSeed(todayKey) {
   const now = getMockNow();
@@ -87,12 +94,15 @@ function buildSeed(todayKey) {
 function ensureSeed() {
   const todayKey = getMockTodayKey();
   const meta = readMock(META_KEY);
-  if (meta?.version === SEED_VERSION && meta?.anchor_date === todayKey) return;
+  const userSchemaChanged = meta?.user_schema != null && meta.user_schema !== USER_SCHEMA_VERSION;
+  const missingUserTables = USER_TABLES.filter((t) => userSchemaChanged || !hasMock(t));
+  if (meta?.version === SEED_VERSION && meta?.anchor_date === todayKey && missingUserTables.length === 0) return;
+
   const seed = buildSeed(todayKey);
   TABLES.forEach((t) => writeMock(t, seed[t]));
-  // Data pengguna dipertahankan bila hanya tanggal yang berganti
-  if (meta?.version !== SEED_VERSION) USER_TABLES.forEach((t) => writeMock(t, seed[t]));
-  writeMock(META_KEY, { version: SEED_VERSION, anchor_date: todayKey });
+  // Data pengguna: hanya dibuat bila belum ada (atau skemanya berubah), tidak pernah ditimpa
+  missingUserTables.forEach((t) => writeMock(t, seed[t]));
+  writeMock(META_KEY, { version: SEED_VERSION, anchor_date: todayKey, user_schema: USER_SCHEMA_VERSION });
 }
 
 /**

@@ -13,7 +13,8 @@ export default function useQuickAddToCart() {
     // Baca isi keranjang terbaru saat klik (bukan dari render terakhir) agar klik beruntun tetap dibatasi stok
     const inCart = useCartStore
       .getState()
-      .items.filter((i) => i.product_id === product.product_id && !i.variant_id && !i.design_id)
+      // Step 5.1 (review PR #5): stok harian dipakai bersama semua varian & tanggal → hitung semua item produk ini
+      .items.filter((i) => i.product_id === product.product_id && !i.design_id)
       .reduce((sum, i) => sum + i.quantity, 0);
     if (inCart + 1 > product.remaining_today) {
       showToast(
