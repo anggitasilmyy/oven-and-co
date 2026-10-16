@@ -3,6 +3,7 @@
 // Step 3 · Authentication
 // FR-02 · UC-02 · Masuk email/HP + sandi atau Google
 // Validation rules SPEC §6: "Email/HP atau kata sandi salah"
+// Step 2.5 (PR B): split-screen ≥ lg lewat CustomerAuthShell
 
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -12,6 +13,7 @@ import Input from '../../components/ui/Input';
 import PasswordInput from '../../components/ui/PasswordInput';
 import FormError from '../../components/ui/FormError';
 import AuthHeader from '../../components/customer/AuthHeader';
+import CustomerAuthShell from '../../components/customer/CustomerAuthShell';
 import GoogleLoginButton from '../../components/customer/GoogleLoginButton';
 import { login, loginWithGoogle } from '../../services/authService';
 import useAuthStore from '../../stores/useAuthStore';
@@ -76,7 +78,7 @@ export default function MasukPage() {
   const isFormValid = form.identifier.trim() && form.password.length >= 1;
 
   return (
-    <div className="flex-1 flex flex-col justify-center px-5 py-10 w-full max-w-sm mx-auto">
+    <CustomerAuthShell>
       <AuthHeader title="Selamat datang" subtitle="Masuk ke akun Oven & Co. kamu" />
 
       <form id="masuk-form" onSubmit={handleSubmit} noValidate className="space-y-4">
@@ -140,6 +142,6 @@ export default function MasukPage() {
           Daftar sekarang
         </Link>
       </p>
-    </div>
+    </CustomerAuthShell>
   );
 }

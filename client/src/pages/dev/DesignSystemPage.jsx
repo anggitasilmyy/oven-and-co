@@ -2,6 +2,7 @@
 // /dev/design — Halaman uji Design System (dipindahkan dari App.jsx Step 1)
 // Step 2 · Hanya untuk development
 // Step 2.5 (PR A): contoh komponen layout responsif (LayoutShowcase, OverlayShowcase)
+// Step 2.5 (PR B): pola halaman per layar & PlaceholderPanel (PagePatternShowcase)
 
 import {
   ShoppingBag,
@@ -28,6 +29,7 @@ import PageContainer from '../../components/layout/PageContainer';
 import Section from './ShowcaseSection';
 import LayoutShowcase from './LayoutShowcase';
 import OverlayShowcase from './OverlayShowcase';
+import PagePatternShowcase from './PagePatternShowcase';
 
 /** Tanggal contoh (dihitung sekali saat modul dimuat agar render tetap murni) */
 const SAMPLE_DATE = new Date();
@@ -61,7 +63,7 @@ export default function DesignSystemPage() {
         </p>
         <div className="mt-4 inline-flex items-center gap-2 bg-sage/60 text-cocoa px-4 py-2 rounded-pill text-sm font-semibold">
           <CheckCircle size={16} />
-          Step 2.5 — responsive foundation (PR A)
+          Step 2.5 — responsive UI (PR A + PR B)
         </div>
       </PageContainer>
 
@@ -257,8 +259,11 @@ export default function DesignSystemPage() {
         {/* Komponen layout responsif */}
         <LayoutShowcase />
 
+        {/* Pola halaman yang diterapkan (PR B) */}
+        <PagePatternShowcase />
+
         <div className="text-center text-xs text-cocoa/60 pb-4">
-          <p>Oven &amp; Co. Design System · Step 2.5 (PR A)</p>
+          <p>Oven &amp; Co. Design System · Step 2.5 (PR A + PR B)</p>
         </div>
       </PageContainer>
     </div>

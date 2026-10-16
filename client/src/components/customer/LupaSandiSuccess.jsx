@@ -5,7 +5,7 @@ import Button from '../ui/Button';
 
 export default function LupaSandiSuccess({ onLogin }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-5 py-10 text-center">
+    <div className="flex flex-col items-center text-center">
       <div className="text-6xl mb-6" aria-hidden="true">✅</div>
       <h1 className="font-display text-2xl text-cocoa mb-2">Kata Sandi Diperbarui!</h1>
       <p className="text-sm text-cocoa/60 mb-8">

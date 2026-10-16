@@ -1,15 +1,21 @@
 // pages/customer/CariPage.jsx
 // C-08 · Pencarian
-// Step 2 · Placeholder
+// Step 2.5 (PR B): kerangka responsif — konten asli dijadwalkan sesuai ROADMAP
+
+import PageContainer from '../../components/layout/PageContainer';
+import PageHeader from '../../components/layout/PageHeader';
+import PlaceholderPanel from '../../components/layout/PlaceholderPanel';
 
 export default function CariPage() {
   return (
-    <div className="px-5 py-6 space-y-4">
-      <p className="text-xs font-semibold text-primary tracking-widest uppercase">C-08</p>
-      <h1 className="font-display text-3xl text-cocoa">Pencarian</h1>
-      <p className="text-sm text-cocoa/60">
-        Cari produk, riwayat pencarian tersimpan di localStorage
-      </p>
-    </div>
+    <PageContainer className="py-6 lg:py-10 space-y-6">
+      <PageHeader
+        screenCode="C-08"
+        title="Pencarian"
+      />
+      <PlaceholderPanel step="Step 5.1" refs="FR-07">
+        Cari produk, riwayat pencarian tersimpan di localStorage perangkat.
+      </PlaceholderPanel>
+    </PageContainer>
   );
 }

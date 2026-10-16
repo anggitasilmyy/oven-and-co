@@ -3,10 +3,12 @@
 // Step 3 · Authentication
 // FR-01 · UC-01 · Daftar akun pelanggan; setelah berhasil langsung masuk dan gabung keranjang (FR-04)
 // Validation rules SPEC §6: email valid; HP diawali +62; unik; sandi ≥ 8; S&K dicentang
+// Step 2.5 (PR B): split-screen ≥ lg lewat CustomerAuthShell
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthHeader from '../../components/customer/AuthHeader';
+import CustomerAuthShell from '../../components/customer/CustomerAuthShell';
 import DaftarForm from '../../components/customer/DaftarForm';
 import { register } from '../../services/authService';
 import useAuthStore from '../../stores/useAuthStore';
@@ -91,7 +93,7 @@ export default function DaftarPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-center px-5 py-8 w-full max-w-sm mx-auto">
+    <CustomerAuthShell>
       <AuthHeader
         title="Buat Akun"
         subtitle="Daftar gratis, mulai pesan sekarang"
@@ -116,6 +118,6 @@ export default function DaftarPage() {
           Masuk
         </Link>
       </p>
-    </div>
+    </CustomerAuthShell>
   );
 }

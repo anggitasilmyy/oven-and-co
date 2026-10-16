@@ -1,16 +1,23 @@
 // pages/customer/AlamatPage.jsx
 // C-22 · Alamat Tersimpan
-// Step 2 · Placeholder
+// Step 2.5 (PR B): kerangka responsif — konten asli dijadwalkan sesuai ROADMAP
+
+import AccountLayout from '../../layouts/AccountLayout';
+import PageHeader from '../../components/layout/PageHeader';
+import PlaceholderPanel from '../../components/layout/PlaceholderPanel';
 
 export default function AlamatPage() {
   return (
-    <div className="px-5 py-6 space-y-4">
-      <p className="text-xs font-semibold text-primary tracking-widest uppercase">C-22</p>
-      <h1 className="font-display text-3xl text-cocoa">Alamat Tersimpan</h1>
-      <p className="text-sm text-cocoa/60">
-        Daftar alamat, tambah/ubah/hapus, atur sebagai utama (FR-24)
-      </p>
-      <p className="text-xs text-cocoa/40">(diimplementasi di Step 5.5)</p>
-    </div>
+    <AccountLayout>
+      <div className="space-y-6">
+        <PageHeader
+          screenCode="C-22"
+          title="Alamat Tersimpan"
+        />
+        <PlaceholderPanel step="Step 5.5" refs="FR-24">
+          Daftar alamat, tambah/ubah/hapus, atur sebagai utama.
+        </PlaceholderPanel>
+      </div>
+    </AccountLayout>
   );
 }

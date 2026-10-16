@@ -1,16 +1,23 @@
 // pages/customer/WishlistPage.jsx
 // C-23 · Wishlist
-// Step 2 · Placeholder
+// Step 2.5 (PR B): kerangka responsif — konten asli dijadwalkan sesuai ROADMAP
+
+import AccountLayout from '../../layouts/AccountLayout';
+import PageHeader from '../../components/layout/PageHeader';
+import PlaceholderPanel from '../../components/layout/PlaceholderPanel';
 
 export default function WishlistPage() {
   return (
-    <div className="px-5 py-6 space-y-4">
-      <p className="text-xs font-semibold text-primary tracking-widest uppercase">C-23</p>
-      <h1 className="font-display text-3xl text-cocoa">Wishlist</h1>
-      <p className="text-sm text-cocoa/60">
-        Produk yang disimpan pelanggan, toggle wishlist (FR-25)
-      </p>
-      <p className="text-xs text-cocoa/40">(diimplementasi di Step 5.5)</p>
-    </div>
+    <AccountLayout>
+      <div className="space-y-6">
+        <PageHeader
+          screenCode="C-23"
+          title="Wishlist"
+        />
+        <PlaceholderPanel step="Step 5.5" refs="FR-25">
+          Produk yang disimpan pelanggan, toggle wishlist.
+        </PlaceholderPanel>
+      </div>
+    </AccountLayout>
   );
 }
