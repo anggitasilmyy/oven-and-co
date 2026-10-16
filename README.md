@@ -64,6 +64,7 @@ cp client/.env.example client/.env
 |---|---|---|
 | `VITE_USE_MOCK` | `true` | `true` = data mock localStorage; `false` = REST API |
 | `VITE_API_URL` | `http://localhost:4000/api` | Base URL backend |
+| `VITE_MOCK_TODAY` | (kosong) | Opsional, mode mock: tanggal "hari ini" data contoh (`YYYY-MM-DD`) agar hasil uji bisa diulang |
 
 ### Server (`server/.env`)
 
@@ -118,5 +119,9 @@ Health check: [http://localhost:4000/api/health](http://localhost:4000/api/healt
 ## Catatan Pengembangan
 
 - Mode mock (`VITE_USE_MOCK=true`) menyimpan data di `localStorage` dengan awalan `ovenco_mock_`.
+- Step 4: data contoh (produk, stok harian, pesanan 7 hari, ulasan, poin) disimpan per tabel SPEC §8
+  (`ovenco_mock_products`, `ovenco_mock_orders`, …). Data dibuat deterministik relatif terhadap hari ini
+  (status pesanan hari ini dihitung terhadap jam referensi 14.00) dan dibuat ulang otomatis saat tanggal
+  berganti atau versi seed naik. Hapus key `ovenco_mock_meta` untuk memaksa pembuatan ulang.
 - Riwayat pencarian dan status onboarding menggunakan awalan `ovenco_` (persisten di kedua mode).
 - Semua halaman menggunakan lapisan `client/src/services/` — **jangan** memanggil `fetch`/`axios` langsung dari komponen/halaman.
