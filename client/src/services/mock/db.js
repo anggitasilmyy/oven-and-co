@@ -17,7 +17,7 @@
 import { lastNDateKeys } from '../../utils/date';
 import { SALES_WINDOW_DAYS } from '../../constants/dashboard';
 import { readMock, writeMock, hasMock } from './storage';
-import { getMockTodayKey, getMockNow } from './mockClock';
+import { getMockTodayKey, getMockNow, getMockCurrentTime } from './mockClock';
 import { getMockUsers } from './users';
 import {
   CATEGORIES, PRODUCTS, DAILY_STOCK_PLAN, RAW_MATERIALS,
@@ -30,6 +30,7 @@ import { generateOrders } from './seed/orderGenerator';
 import { buildDailyStocks, buildReviews, buildPointTransactions } from './seed/derivedRecords';
 import { buildAddresses, buildUserVouchers } from './seed/customerExtras';
 import { PRESERVED_USER_ROWS, isUserRow, reapplyUserOrderEffects } from './userRows';
+import { expireOverdueUserOrders } from './orderCancellation';
 
 /** Naikkan bila struktur/isi seed berubah agar data lama di browser diganti */
 const SEED_VERSION = 4; // v4: foto produk asli (WebP) & review_photos dikosongkan
@@ -127,6 +128,9 @@ function ensureSeed() {
  */
 export function getTables(...names) {
   ensureSeed();
+  // BR-06 (Step 5.3): pesanan pelanggan yang lewat 30 menit dibatalkan sebelum data apa pun dibaca, sehingga
+  // katalog, keranjang, checkout, halaman bayar, dan admin melihat status & stok yang sama (pengganti job Step 6.5).
+  expireOverdueUserOrders({ read: readMock, write: writeMock, now: getMockCurrentTime() });
   return Object.fromEntries(names.map((n) => [n, readMock(n, [])]));
 }
 

@@ -1,38 +1,22 @@
 // services/orderService.js
 // Step 5.3 · FR-12 – FR-16 · BR-05 · BR-06 · C-14 – C-16 — buat pesanan, halaman bayar, ganti metode, pesanan berhasil.
 // Hanya pelanggan login (BR-04) dan hanya pesanan miliknya. Pembatalan otomatis 30 menit (BR-06) dijalankan
-// saat pesanan dibaca — pengganti job autoCancelOrders (Step 6.5).
+// terpusat di getTables (mock/db.js → mock/orderCancellation.js) — pengganti job autoCancelOrders (Step 6.5).
 
 import { apiClient } from './apiClient';
 import { getTables, updateTable } from './mock/db';
-import { isUserRow } from './mock/userRows';
 import { getMockCurrentTime } from './mock/mockClock';
 import { requireMockRole } from './mock/mockSession';
 import { createMockOrder } from './mock/orderWrites';
-import { cancelOrder, paymentCodeFor } from './mock/orderEffects';
+import { paymentCodeFor } from './mock/orderEffects';
 import { getPaymentSecondsLeft, pointsEarnedFor, isPayAtStoreAllowed } from '../utils/businessRules';
 import { ROLES } from '../constants/roles';
 import { ORDER_STATUS, PAYMENT_STATUS, PAYMENT_OPTION } from '../constants/orderStatus';
-import { PAY_AT_STORE_METHOD, PAYMENT_TIMEOUT_CANCEL_REASON, PAY_AT_STORE_DISABLED_TEXT } from '../constants/checkout';
-
-/** BR-06: pesanan online pelanggan yang belum lunas setelah 30 menit dibatalkan otomatis (stok kembali) */
-function expireOverdueOrders() {
-  const { orders, payments } = getTables('orders', 'payments');
-  const now = getMockCurrentTime();
-  orders
-    .filter((o) => isUserRow(o, 'order_id') && o.order_status === ORDER_STATUS.MENUNGGU_PEMBAYARAN)
-    .forEach((o) => {
-      const payment = payments.find((p) => p.order_id === o.order_id);
-      if (payment && getPaymentSecondsLeft(payment.expired_at, now) === 0) {
-        cancelOrder(o, { cancelReason: PAYMENT_TIMEOUT_CANCEL_REASON, paymentRowStatus: 'expired' });
-      }
-    });
-}
+import { PAY_AT_STORE_METHOD, PAY_AT_STORE_DISABLED_TEXT } from '../constants/checkout';
 
 /** Pesanan milik pelanggan login + data terkait; lempar error bila tidak ditemukan */
 function findMyOrder(orderNumber) {
   const user = requireMockRole(ROLES.CUSTOMER);
-  expireOverdueOrders();
   const t = getTables('orders', 'order_items', 'payments', 'payment_methods', 'products');
   const order = t.orders.find((o) => o.order_number === orderNumber && o.user_id === user.user_id);
   if (!order) throw new Error('Pesanan tidak ditemukan');

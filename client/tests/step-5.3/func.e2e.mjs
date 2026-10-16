@@ -144,6 +144,56 @@ check('Stok, voucher, dan poin kembali', (await stockOf(1)) === stockBefore && a
 await p.getByRole('button', { name: 'Belanja Lagi' }).click(); await wait(400);
 check('Belanja Lagi → /katalog', p.url().endsWith('/katalog'));
 
+// ── Skenario 1b (BR-06): pesanan ditinggal — halaman Bayar TIDAK dibuka lagi. Pembatalan harus terbaca dari
+// jalur lain (katalog, data admin AD-03) dan stok, voucher, serta poin kembali.
+const adminRow = (num) => p.evaluate(async (n) => {
+  const { getAdminOrderRows } = await import('/src/services/mock/orderViews.js');
+  return getAdminOrderRows().find((r) => r.order_number === n);
+}, num);
+const walletOf = () => db((getTables) => {
+  const t = getTables('user_vouchers', 'vouchers', 'point_transactions');
+  return { used: t.user_vouchers.find((c) => c.user_id === 1 && c.voucher_id === 2).used_at,
+    quota: t.vouchers.find((v) => v.voucher_id === 2).quota,
+    bal: t.point_transactions.filter((x) => x.user_id === 1).reduce((s, x) => s + x.points, 0) };
+});
+await addProduct(2);
+const stock1b = await stockOf(2);
+const wallet1b = await walletOf();
+await toPayment('13.00–15.00');
+await p.getByRole('button', { name: 'Pakai voucher' }).click();
+await p.getByRole('button', { name: 'HEMAT10' }).click(); await wait(200);
+await p.getByRole('switch').check({ force: true }); await wait(200);
+await p.getByRole('button', { name: 'Pilih Pembayaran' }).click(); await wait(900);
+await p.getByRole('radio', { name: /OVO/ }).click();
+await p.getByRole('button', { name: /Bayar Sekarang/ }).click(); await wait(1200);
+const order1b = p.url().split('/bayar/')[1];
+await p.goto(`${B}/katalog`); await wait();
+const placed1b = await walletOf();
+check('1b: pesanan dibuat dengan voucher & poin (stok, voucher, poin terpakai)', (await stockOf(2)) === stock1b - 1 && Boolean(placed1b.used)
+  && placed1b.quota === wallet1b.quota - 1 && placed1b.bal < wallet1b.bal, JSON.stringify({ wallet1b, placed1b }));
+await c.clock.fastForward('15:00'); await p.reload(); await wait();
+check('1b: masih dalam 30 menit → tetap Menunggu Pembayaran', (await adminRow(order1b))?.order_status === 'menunggu_pembayaran');
+await c.clock.fastForward('16:00'); await p.reload(); await wait();
+const row1b = await adminRow(order1b);
+check('1b: lewat 30 menit tanpa membuka /bayar → Dibatalkan di data admin AD-03', row1b?.order_status === 'dibatalkan', JSON.stringify(row1b));
+const after1b = await walletOf();
+check('1b: stok kembali (terbaca dari katalog)', (await stockOf(2)) === stock1b, `${stock1b} → ${await stockOf(2)}`);
+check('1b: voucher & kuota kembali, poin di-refund', after1b.used === null && after1b.quota === wallet1b.quota && after1b.bal === wallet1b.bal, JSON.stringify(after1b));
+const pay1b = await db((getTables, num) => {
+  const t = getTables('orders', 'payments');
+  const o = t.orders.find((x) => x.order_number === num);
+  return { pay: t.payments.find((x) => x.order_id === o.order_id).status, reason: o.cancel_reason };
+}, order1b);
+check('1b: payment expired + alasan BR-06', pay1b.pay === 'expired' && /BR-06/.test(pay1b.reason), JSON.stringify(pay1b));
+await p.goto(`${B}/bayar/${order1b}`); await wait(900);
+check('1b: halaman Bayar menampilkan pesan waktu habis', (await p.getByText('Waktu pembayaran habis, pesanan dibatalkan otomatis').count()) === 1);
+const refundCount = await db((getTables, num) => {
+  const t = getTables('orders', 'point_transactions');
+  const o = t.orders.find((x) => x.order_number === num);
+  return t.point_transactions.filter((x) => x.order_id === o.order_id && x.type === 'refund').length;
+}, order1b);
+check('1b: pembatalan tidak diproses dua kali (1 refund poin)', refundCount === 1, String(refundCount));
+
 // ── Skenario 2: pre-order campuran, WEEKEND15 + poin, QRIS → Ganti Metode VA → Simulasikan Lunas
 await addProduct(1, 2); await addProduct(4); await addProduct(5);
 await toPayment('09.00–11.00');
@@ -190,6 +240,16 @@ check('Bayar di Toko → Pesanan Berhasil, kode pickup, "Bayar saat ambil"', p.u
 await p.getByRole('button', { name: 'Lacak Pesanan' }).click(); await wait(400);
 check('Lacak Pesanan → /pesanan/:orderNumber', /\/pesanan\/OVC-261016-\d{3}$/.test(p.url()), p.url());
 
+// ── BR-06 tidak menyentuh pesanan yang sudah lunas / Bayar di Toko / data contoh
+const seedPendingBefore = await db((getTables) => getTables('orders').orders.filter((o) => o.order_id < 1000000 && o.order_status === 'menunggu_pembayaran').length);
+await c.clock.fastForward('31:00'); await p.goto(`${B}/katalog`); await wait();
+const paidRow = await adminRow(order2);
+check('Pesanan lunas tidak menjadi expired setelah 30 menit', paidRow?.order_status === 'dikonfirmasi' && paidRow.payment_status === 'paid', JSON.stringify(paidRow));
+const storeRows = await db((getTables) => getTables('orders').orders.filter((o) => o.order_id >= 1000000 && o.payment_option === 'pay_at_store').map((o) => o.order_status));
+check('Pesanan Bayar di Toko tidak dibatalkan BR-06', storeRows.length === 1 && storeRows[0] === 'dikonfirmasi', JSON.stringify(storeRows));
+const seedPendingAfter = await db((getTables) => getTables('orders').orders.filter((o) => o.order_id < 1000000 && o.order_status === 'menunggu_pembayaran').length);
+check('Pesanan data contoh tidak disentuh', seedPendingBefore === seedPendingAfter, `${seedPendingBefore} → ${seedPendingAfter}`);
+
 // ── Pesanan pengguna bertahan saat data contoh dibuat ulang
 const kept = await p.evaluate(async () => {
   const before = JSON.parse(localStorage.getItem('ovenco_mock_daily_stocks')).find((s) => s.product_id === 2 && s.stock_date === '2026-10-16').qty_sold;
@@ -201,7 +261,7 @@ const kept = await p.evaluate(async () => {
   return { orders: mine.length, items: t.order_items.filter((i) => i.order_id >= 1000000).length, before,
     after: t.daily_stocks.find((s) => s.product_id === 2 && s.stock_date === '2026-10-16').qty_sold };
 });
-check('Reseed: 3 pesanan pelanggan + item + stok terjual tetap', kept.orders === 3 && kept.items === 7 && kept.before === kept.after, JSON.stringify(kept));
+check('Reseed: 4 pesanan pelanggan + item + stok terjual tetap', kept.orders === 4 && kept.items === 8 && kept.before === kept.after, JSON.stringify(kept));
 await c.close();
 
 res.forEach((r) => console.log(r.join(' ')));
