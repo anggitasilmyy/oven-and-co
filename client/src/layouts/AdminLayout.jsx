@@ -5,7 +5,7 @@
 // Step 2.5 (PR A): padding responsif, max-width konten, sidebar sticky ≥ lg, drawer < lg dipertahankan
 
 import { useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -24,7 +24,7 @@ import {
 import { ADMIN_ROUTES } from '../constants/routes';
 import { ROLE_LABEL } from '../constants/roles';
 import useAuthStore from '../stores/useAuthStore';
-import useCartStore from '../stores/useCartStore';
+import useLogout from '../hooks/useLogout';
 
 /**
  * 9 menu sidebar sesuai SPEC §7.
@@ -43,9 +43,8 @@ const SIDEBAR_MENU = [
 ];
 
 export default function AdminLayout() {
-  const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
-  const { resetToGuest } = useCartStore();
+  const user = useAuthStore((s) => s.user);
+  const logoutAndLeave = useLogout();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   /** Filter menu berdasarkan peran pengguna yang sedang login */
@@ -53,11 +52,8 @@ export default function AdminLayout() {
     ? SIDEBAR_MENU.filter((m) => m.roles.includes(user.role))
     : [];
 
-  const handleLogout = () => {
-    logout();
-    resetToGuest();
-    navigate('/admin/login', { replace: true });
-  };
+  // Keluar → halaman login admin (sesi dihapus setelah layout admin ditinggalkan)
+  const handleLogout = () => logoutAndLeave(ADMIN_ROUTES.LOGIN);
 
   // Inisial nama untuk avatar
   const initials = user?.name
