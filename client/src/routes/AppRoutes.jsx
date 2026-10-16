@@ -1,7 +1,6 @@
 // routes/AppRoutes.jsx
-// Step 2 · Layout & Komponen Dasar
-// Semua rute dari SPEC.md bagian 7
-// Belum ada proteksi login (dikerjakan di Step 3)
+// Step 3 · Authentication (update dari Step 2)
+// Semua rute dari SPEC.md bagian 7 + proteksi ProtectedRoute & RoleRoute
 
 import { Routes, Route, Navigate } from 'react-router-dom';
 
@@ -9,6 +8,10 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import CustomerLayout from '../layouts/CustomerLayout';
 import FocusLayout from '../layouts/FocusLayout';
 import AdminLayout from '../layouts/AdminLayout';
+
+// Guards
+import ProtectedRoute from './ProtectedRoute';
+import RoleRoute from './RoleRoute';
 
 // ── Halaman Pelanggan ────────────────────────────────────────────────────────
 import OnboardingPage from '../pages/customer/OnboardingPage';
@@ -52,76 +55,140 @@ import PengaturanPage from '../pages/admin/PengaturanPage';
 // ── Halaman Dev (hanya development) ─────────────────────────────────────────
 import DesignSystemPage from '../pages/dev/DesignSystemPage';
 
+// ── Komponen redirect onboarding ─────────────────────────────────────────────
+import OnboardingGuard from './OnboardingGuard';
+
 export default function AppRoutes() {
   return (
     <Routes>
 
-      {/* ── Auth / Onboarding (standalone, tanpa layout utama) ─────────────── */}
+      {/* ── Onboarding (standalone, tanpa layout) ─────────────────────────── */}
       <Route path="/onboarding" element={<OnboardingPage />} />
 
-      {/* Auth menggunakan FocusLayout */}
+      {/* ── Auth — FocusLayout ─────────────────────────────────────────────── */}
       <Route element={<FocusLayout />}>
         <Route path="/masuk" element={<MasukPage />} />
         <Route path="/daftar" element={<DaftarPage />} />
         <Route path="/lupa-sandi" element={<LupaSandiPage />} />
       </Route>
 
-      {/* ── Halaman Pelanggan — CustomerLayout (bottom nav) ──────────────── */}
+      {/* ── Halaman Pelanggan — CustomerLayout (bottom nav) ────────────────── */}
       <Route element={<CustomerLayout />}>
-        <Route index element={<BerandaPage />} />              {/* C-05 / */}
-        <Route path="/katalog" element={<KatalogPage />} />    {/* C-06 + C-07 */}
-        <Route path="/cari" element={<CariPage />} />          {/* C-08 */}
-        <Route path="/pesanan" element={<RiwayatPesananPage />} />  {/* C-17 */}
-        <Route path="/akun" element={<AkunPage />} />          {/* C-20 */}
+        {/* Beranda: redirect ke onboarding jika kunjungan pertama */}
+        <Route index element={<OnboardingGuard><BerandaPage /></OnboardingGuard>} />
+        <Route path="/katalog" element={<KatalogPage />} />
+        <Route path="/cari" element={<CariPage />} />
+
+        {/* Keranjang TIDAK diproteksi — tamu boleh membuka (BR-04) */}
+        {/* Riwayat Pesanan & Akun memerlukan login */}
+        <Route
+          path="/pesanan"
+          element={<ProtectedRoute><RiwayatPesananPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/akun"
+          element={<ProtectedRoute><AkunPage /></ProtectedRoute>}
+        />
       </Route>
 
-      {/* ── Halaman Pelanggan — FocusLayout (tanpa bottom nav) ──────────── */}
+      {/* ── Halaman Pelanggan — FocusLayout (tanpa bottom nav) ───────────── */}
       <Route element={<FocusLayout />}>
-        {/* Produk */}
-        <Route path="/produk/:id" element={<DetailProdukPage />} />         {/* C-09 */}
-        <Route path="/produk/:id/ulasan" element={<UlasanProdukPage />} />  {/* C-10 */}
+        {/* Produk & Ulasan — publik */}
+        <Route path="/produk/:id" element={<DetailProdukPage />} />
+        <Route path="/produk/:id/ulasan" element={<UlasanProdukPage />} />
 
-        {/* Custom Cake */}
-        <Route path="/custom-cake" element={<CustomCakePage />} />          {/* C-11 */}
+        {/* Custom Cake — publik (login diminta saat checkout) */}
+        <Route path="/custom-cake" element={<CustomCakePage />} />
 
-        {/* Alur pembelian */}
-        <Route path="/keranjang" element={<KeranjangPage />} />             {/* C-12 */}
-        <Route path="/checkout" element={<CheckoutPage />} />               {/* C-13 */}
-        <Route path="/checkout/pembayaran" element={<PembayaranPage />} />  {/* C-14 */}
-        <Route path="/bayar/:orderNumber" element={<BayarPage />} />        {/* C-15 */}
-        <Route path="/pesanan-berhasil/:orderNumber" element={<PesananBerhasilPage />} /> {/* C-16 */}
+        {/* Keranjang — publik (tamu boleh) */}
+        <Route path="/keranjang" element={<KeranjangPage />} />
 
-        {/* Detail pesanan */}
-        <Route path="/pesanan/:orderNumber" element={<DetailPesananPage />} />          {/* C-18 */}
-        <Route path="/pesanan/:orderNumber/ulasan" element={<FormUlasanPage />} />      {/* C-19 */}
+        {/* Alur checkout & setelahnya — wajib login (BR-04) */}
+        <Route
+          path="/checkout"
+          element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/checkout/pembayaran"
+          element={<ProtectedRoute><PembayaranPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/bayar/:orderNumber"
+          element={<ProtectedRoute><BayarPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/pesanan-berhasil/:orderNumber"
+          element={<ProtectedRoute><PesananBerhasilPage /></ProtectedRoute>}
+        />
 
-        {/* Sub-akun */}
-        <Route path="/akun/ubah-profil" element={<UbahProfilPage />} />    {/* C-20b */}
-        <Route path="/akun/voucher-poin" element={<VoucherPoinPage />} />  {/* C-21 */}
-        <Route path="/akun/alamat" element={<AlamatPage />} />             {/* C-22 */}
-        <Route path="/akun/wishlist" element={<WishlistPage />} />         {/* C-23 */}
-        <Route path="/notifikasi" element={<NotifikasiPage />} />          {/* C-24 */}
+        {/* Detail & tracking pesanan — wajib login */}
+        <Route
+          path="/pesanan/:orderNumber"
+          element={<ProtectedRoute><DetailPesananPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/pesanan/:orderNumber/ulasan"
+          element={<ProtectedRoute><FormUlasanPage /></ProtectedRoute>}
+        />
+
+        {/* Sub-akun — wajib login */}
+        <Route
+          path="/akun/ubah-profil"
+          element={<ProtectedRoute><UbahProfilPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/akun/voucher-poin"
+          element={<ProtectedRoute><VoucherPoinPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/akun/alamat"
+          element={<ProtectedRoute><AlamatPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/akun/wishlist"
+          element={<ProtectedRoute><WishlistPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/notifikasi"
+          element={<ProtectedRoute><NotifikasiPage /></ProtectedRoute>}
+        />
       </Route>
 
-      {/* ── Admin — standalone login ─────────────────────────────────────── */}
-      <Route path="/admin/login" element={<AdminLoginPage />} />   {/* AD-01 */}
+      {/* ── Admin — standalone login ──────────────────────────────────────── */}
+      <Route path="/admin/login" element={<AdminLoginPage />} />
 
-      {/* ── Admin — AdminLayout (sidebar) ───────────────────────────────── */}
-      <Route path="/admin" element={<AdminLayout />}>
+      {/* ── Admin — AdminLayout (sidebar) dengan proteksi role ───────────── */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Navigate to="/admin/dashboard" replace />} />
-        <Route path="dashboard"  element={<DashboardPage />} />             {/* AD-02 */}
-        <Route path="pesanan"    element={<PesananAdminPage />} />          {/* AD-03 */}
-        <Route path="pesanan/:orderNumber" element={<DetailPesananAdminPage />} />  {/* AD-04 */}
-        <Route path="kalender"   element={<KalenderPage />} />              {/* AD-05 */}
-        <Route path="produk"     element={<ProdukAdminPage />} />           {/* AD-06 */}
-        <Route path="stok"       element={<StokPage />} />                  {/* AD-07 */}
-        <Route path="laporan"    element={<LaporanPage />} />               {/* AD-08 */}
-        <Route path="promo"      element={<PromoPage />} />                 {/* AD-09 */}
-        <Route path="pelanggan"  element={<PelangganPage />} />             {/* AD-10 */}
-        <Route path="pengaturan" element={<PengaturanPage />} />            {/* AD-11 */}
+
+        {/* Owner only */}
+        <Route
+          path="dashboard"
+          element={<RoleRoute roles={['owner']}><DashboardPage /></RoleRoute>}
+        />
+
+        {/* Staf & Owner */}
+        <Route path="pesanan" element={<RoleRoute roles={['staf', 'owner']}><PesananAdminPage /></RoleRoute>} />
+        <Route path="pesanan/:orderNumber" element={<RoleRoute roles={['staf', 'owner']}><DetailPesananAdminPage /></RoleRoute>} />
+        <Route path="kalender" element={<RoleRoute roles={['staf', 'owner']}><KalenderPage /></RoleRoute>} />
+        <Route path="produk" element={<RoleRoute roles={['staf', 'owner']}><ProdukAdminPage /></RoleRoute>} />
+        <Route path="stok" element={<RoleRoute roles={['staf', 'owner']}><StokPage /></RoleRoute>} />
+        <Route path="pelanggan" element={<RoleRoute roles={['staf', 'owner']}><PelangganPage /></RoleRoute>} />
+
+        {/* Owner only */}
+        <Route path="laporan" element={<RoleRoute roles={['owner']}><LaporanPage /></RoleRoute>} />
+        <Route path="promo" element={<RoleRoute roles={['owner']}><PromoPage /></RoleRoute>} />
+        <Route path="pengaturan" element={<RoleRoute roles={['owner']}><PengaturanPage /></RoleRoute>} />
       </Route>
 
-      {/* ── Dev only ─────────────────────────────────────────────────────── */}
+      {/* ── Dev only ──────────────────────────────────────────────────────── */}
       <Route path="/dev/design" element={<DesignSystemPage />} />
 
       {/* Fallback */}

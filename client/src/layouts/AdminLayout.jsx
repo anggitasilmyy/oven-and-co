@@ -1,6 +1,7 @@
 // layouts/AdminLayout.jsx
-// Step 2 · Layout & Komponen Dasar
+// Step 3 · Authentication (update dari Step 2)
 // FR-26 – FR-36 · AD-01 – AD-11 · Desktop 1440px, sidebar kiri 9 menu
+// Step 3: filter menu per role, info user di topbar, tombol logout
 
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
@@ -17,12 +18,16 @@ import {
   Menu,
   X,
   ChefHat,
+  LogOut,
 } from 'lucide-react';
 import { ADMIN_ROUTES } from '../constants/routes';
+import { ROLE_LABEL } from '../constants/roles';
+import useAuthStore from '../stores/useAuthStore';
+import useCartStore from '../stores/useCartStore';
 
 /**
  * 9 menu sidebar sesuai SPEC §7.
- * Catatan peran dipakai di Step 3 (RoleRoute); sekarang semua visible.
+ * Field `roles` menentukan siapa yang bisa melihat menu tersebut.
  */
 const SIDEBAR_MENU = [
   { label: 'Dashboard', to: ADMIN_ROUTES.DASHBOARD, Icon: LayoutDashboard, roles: ['owner'] },
@@ -38,14 +43,30 @@ const SIDEBAR_MENU = [
 
 export default function AdminLayout() {
   const navigate = useNavigate();
-  // State untuk mobile sidebar toggle
+  const { user, logout } = useAuthStore();
+  const { resetToGuest } = useCartStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  /** Filter menu berdasarkan peran pengguna yang sedang login */
+  const visibleMenu = user
+    ? SIDEBAR_MENU.filter((m) => m.roles.includes(user.role))
+    : [];
+
+  const handleLogout = () => {
+    logout();
+    resetToGuest();
+    navigate('/admin/login', { replace: true });
+  };
+
+  // Inisial nama untuk avatar
+  const initials = user?.name
+    ? user.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+    : '?';
 
   return (
     <div className="min-h-screen bg-cream flex">
 
       {/* ── Sidebar Kiri ──────────────────────────────────────────────────── */}
-      {/* Desktop: always visible; Mobile: drawer */}
       <>
         {/* Backdrop mobile */}
         {sidebarOpen && (
@@ -85,9 +106,9 @@ export default function AdminLayout() {
             </button>
           </div>
 
-          {/* Menu navigasi */}
+          {/* Menu navigasi — difilter per role */}
           <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto" aria-label="Menu admin">
-            {SIDEBAR_MENU.map(({ label, to, Icon }) => (
+            {visibleMenu.map(({ label, to, Icon }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -106,19 +127,40 @@ export default function AdminLayout() {
             ))}
           </nav>
 
-          {/* Footer sidebar */}
-          <div className="px-5 py-4 border-t border-white/10">
-            <p className="text-xs text-cream/30 font-sans">© 2026 Oven &amp; Co.</p>
+          {/* Footer sidebar — info user & logout */}
+          <div className="px-4 py-4 border-t border-white/10 space-y-3">
+            {user && (
+              <div className="flex items-center gap-3">
+                {/* Avatar inisial */}
+                <div className="w-8 h-8 rounded-full bg-primary/60 flex items-center justify-center shrink-0">
+                  <span className="text-xs font-bold text-cream">{initials}</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-cream truncate leading-tight">{user.name}</p>
+                  <p className="text-[11px] text-cream/50 capitalize">{ROLE_LABEL[user.role]}</p>
+                </div>
+              </div>
+            )}
+            <button
+              id="admin-logout-btn"
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2 text-cream/60 hover:text-cream text-xs font-medium
+                         px-1 py-1.5 rounded hover:bg-white/8 transition-colors"
+              aria-label="Keluar dari panel admin"
+            >
+              <LogOut size={14} />
+              Keluar
+            </button>
           </div>
         </aside>
       </>
 
-      {/* ── Area Konten Kanan ────────────────────────────────────────────── */}
+      {/* ── Area Konten Kanan ─────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* Topbar */}
         <header className="sticky top-0 z-30 bg-surface border-b border-beige h-14 flex items-center px-6 gap-4">
-          {/* Tombol hamburger (mobile) */}
+          {/* Hamburger mobile */}
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg hover:bg-beige transition-colors"
@@ -129,16 +171,18 @@ export default function AdminLayout() {
 
           <div className="flex-1" />
 
-          {/* Info user — diisi di Step 3 */}
-          <div className="flex items-center gap-3">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-semibold text-cocoa leading-tight">Admin</p>
-              <p className="text-xs text-cocoa/50">Owner</p>
+          {/* Info user di topbar (desktop) */}
+          {user && (
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-semibold text-cocoa leading-tight">{user.name}</p>
+                <p className="text-xs text-cocoa/50 capitalize">{ROLE_LABEL[user.role]}</p>
+              </div>
+              <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center">
+                <span className="text-xs font-bold text-primary">{initials}</span>
+              </div>
             </div>
-            <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center">
-              <ChefHat size={18} className="text-primary" />
-            </div>
-          </div>
+          )}
         </header>
 
         {/* Konten halaman admin */}
