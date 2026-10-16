@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { CalendarClock, Sparkles } from 'lucide-react';
 import { CUSTOMER_ROUTES } from '../../constants/routes';
 import { formatRupiah } from '../../utils/format';
+import ProductImage from '../ui/ProductImage';
 
 /** @param {object|null} product — produk custom aktif; null = info harga belum tersedia */
 export default function CustomCakeBanner({ product }) {
@@ -43,9 +44,10 @@ export default function CustomCakeBanner({ product }) {
         </Link>
       </div>
       {product?.image_url && (
-        <img
+        <ProductImage
           src={product.image_url}
-          alt=""
+          loading="lazy"
+          sizes="256px"
           className="relative hidden md:block w-48 h-48 lg:w-64 lg:h-64 rounded-full object-cover shadow-lg ring-8 ring-surface/60"
         />
       )}

@@ -1,8 +1,6 @@
 // services/mock/seed/productExtras.js
-// Step 5.1 · FR-08 · FR-09 · FR-25 — product_variants, review_photos, balasan admin, wishlists (SPEC §8)
-// Semua isi = data contoh.
-
-import { createRandom } from './random';
+// Step 5.1 · FR-08 · FR-09 · FR-25 — product_variants, balasan admin, wishlists (SPEC §8)
+// Semua isi = data contoh. review_photos sengaja kosong (lihat services/mock/db.js).
 
 const variant = (variant_id, product_id, name, extra_price, is_active = true) => ({
   variant_id, product_id, name, extra_price, is_active,
@@ -34,27 +32,6 @@ export function withAdminReplies(reviews) {
   return reviews.map((r) =>
     !r.is_hidden && r.review_id % 5 === 0 ? { ...r, admin_reply: ADMIN_REPLIES[r.review_id % 2] } : r
   );
-}
-
-/**
- * review_photos: sebagian ulasan bintang ≥ 4 punya 1–3 foto (validation rule: maks. 3 foto).
- * Foto contoh memakai ilustrasi galeri produk yang diulas.
- */
-export function buildReviewPhotos({ reviews, orderItems, productImages }) {
-  const rng = createRandom(5150);
-  const productOf = new Map(orderItems.map((i) => [i.order_item_id, i.product_id]));
-  const photos = [];
-  for (const review of reviews) {
-    if (review.rating < 4 || rng.next() >= 0.35) continue;
-    const images = productImages
-      .filter((img) => img.product_id === productOf.get(review.order_item_id))
-      .sort((a, b) => a.sort_order - b.sort_order);
-    const count = Math.min(images.length, rng.int(1, 3));
-    for (let i = 0; i < count; i++) {
-      photos.push({ photo_id: photos.length + 1, review_id: review.review_id, photo_url: images[i].image_url });
-    }
-  }
-  return photos;
 }
 
 /** wishlists awal akun demo pelanggan */

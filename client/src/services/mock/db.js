@@ -22,13 +22,13 @@ import {
   PAYMENT_METHODS, CUSTOM_OPTIONS, STORE_SETTINGS, buildVouchers,
 } from './seed/catalog';
 import { PRODUCT_IMAGES } from './seed/productMedia';
-import { PRODUCT_VARIANTS, withAdminReplies, buildReviewPhotos, buildWishlists } from './seed/productExtras';
+import { PRODUCT_VARIANTS, withAdminReplies, buildWishlists } from './seed/productExtras';
 import { SAMPLE_CUSTOMERS, DEMO_CUSTOMER_ID, DEMO_CUSTOMER_POINT_BALANCE } from './seed/customers';
 import { generateOrders } from './seed/orderGenerator';
 import { buildDailyStocks, buildReviews, buildPointTransactions } from './seed/derivedRecords';
 
 /** Naikkan bila struktur/isi seed berubah agar data lama di browser diganti */
-const SEED_VERSION = 3;
+const SEED_VERSION = 4; // v4: foto produk asli (WebP) & review_photos dikosongkan
 const META_KEY = 'meta';
 
 /** Produk ready yang dibuat habis hari ini (contoh: tidak boleh tampil di Fresh from Oven Today) */
@@ -80,7 +80,8 @@ function buildSeed(todayKey) {
     order_items: generated.order_items,
     payments: generated.payments,
     reviews,
-    review_photos: buildReviewPhotos({ reviews, orderItems: generated.order_items, productImages: PRODUCT_IMAGES }),
+    // Ulasan contoh tanpa foto: foto katalog/stok tidak boleh tampil seolah-olah kiriman pelanggan.
+    review_photos: [],
     point_transactions: buildPointTransactions({
       orders: generated.orders, reviews, todayKey, now,
       demoCustomerId: DEMO_CUSTOMER_ID, demoBalance: DEMO_CUSTOMER_POINT_BALANCE,
