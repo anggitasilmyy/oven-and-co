@@ -1,6 +1,7 @@
 // services/mock/seed/orderGenerator.js
 // Step 4 · Pesanan contoh 7 hari terakhir (orders, order_items, payments, custom cake designs)
 // Deterministik: PRNG ber-seed + tanggal relatif terhadap hari ini (lihat mockClock.js).
+// Step 5.1: item produk bervarian memakai salah satu product_variants (harga = harga + extra_price).
 
 import { AVAILABILITY_TYPE } from '../../../constants/product';
 import { FULFILLMENT_TYPE, PAYMENT_OPTION, ORDER_STATUS } from '../../../constants/orderStatus';
@@ -16,8 +17,10 @@ const SEED = 20261016;
 /** Jumlah pesanan per hari, dari H-6 sampai hari ini (data contoh) */
 const DAY_COUNTS = [13, 15, 18, 14, 16, 17, 12];
 
-export function generateOrders({ todayKey, now, products, customerIds, demoCustomerId, customOptions, stockPlan }) {
+export function generateOrders({ todayKey, now, products, variants = [], customerIds, demoCustomerId, customOptions, stockPlan }) {
   const rng = createRandom(SEED);
+  // PRNG terpisah untuk varian agar urutan acak pesanan Step 4 (jumlah, status, waktu) tidak bergeser
+  const variantRng = createRandom(SEED + 1);
   const out = { orders: [], order_items: [], payments: [], custom_cake_designs: [], custom_cake_design_options: [] };
   const sold = {}; // { dateKey: { productId: qty } } — stok berkurang saat pesanan dibuat (TF-12)
   const remainingOf = (dateKey) => (pid) => (stockPlan[pid] ?? 0) - (sold[dateKey]?.[pid] ?? 0);
@@ -65,6 +68,7 @@ export function generateOrders({ todayKey, now, products, customerIds, demoCusto
         });
         items = [{ product, quantity: 1, unitPrice: design.design.price, designId: design.design.design_id }];
       }
+      items = items.map((it) => (it.designId ? it : withVariant(variantRng, it, variants)));
 
       const state = decideOrderState({ kind, ageMinutes, readyCompare, fulfillment, paymentOption, rng });
       orderId += 1;
@@ -101,7 +105,7 @@ export function generateOrders({ todayKey, now, products, customerIds, demoCusto
           order_item_id: out.order_items.length + 1,
           order_id: orderId,
           product_id: it.product.product_id,
-          variant_id: null,
+          variant_id: it.variantId ?? null,
           design_id: it.designId ?? null,
           quantity: it.quantity,
           unit_price: it.unitPrice ?? it.product.price,
@@ -129,3 +133,11 @@ export function generateOrders({ todayKey, now, products, customerIds, demoCusto
   return { ...out, sold };
 }
 
+
+/** Pilih varian aktif untuk item produk bervarian (data contoh) */
+function withVariant(rng, item, variants) {
+  const options = variants.filter((v) => v.product_id === item.product.product_id && v.is_active);
+  if (options.length === 0) return item;
+  const variant = rng.pick(options);
+  return { ...item, variantId: variant.variant_id, unitPrice: item.product.price + variant.extra_price };
+}

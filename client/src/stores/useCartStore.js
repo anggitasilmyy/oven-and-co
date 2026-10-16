@@ -8,6 +8,9 @@
 // Saat login, keranjang tamu digabung ke keranjang akun (FR-04).
 
 import { create } from 'zustand';
+// Step 5.1 (review PR #5): identitas item (termasuk tanggal pre-order & catatan) dan id unik
+// diatur fungsi murni di utils/rules/cart.js — dipakai addItem dan mergeGuestCart.
+import { mergeCartItems, normalizeCartItems } from '../utils/rules/cart';
 
 /** Key localStorage keranjang tamu */
 const GUEST_CART_KEY = 'ovenco_mock_cart_guest';
@@ -23,7 +26,8 @@ const userCartKey = (userId) => `ovenco_mock_cart_${userId}`;
 function readCart(key) {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : [];
+    // Keranjang lama dilengkapi field default & id unik (kompatibilitas)
+    return raw ? normalizeCartItems(JSON.parse(raw)) : [];
   } catch {
     return [];
   }
@@ -36,32 +40,6 @@ function readCart(key) {
  */
 function writeCart(key, items) {
   localStorage.setItem(key, JSON.stringify(items));
-}
-
-/**
- * Gabungkan dua array items keranjang.
- * Jika ada produk yang sama (product_id + variant_id + design_id),
- * jumlahnya dijumlahkan.
- * @param {Array} base  — keranjang akun (target)
- * @param {Array} guest — keranjang tamu (sumber)
- * @returns {Array}
- */
-function mergeItems(base, guest) {
-  const result = [...base];
-  for (const gItem of guest) {
-    const idx = result.findIndex(
-      (b) =>
-        b.product_id === gItem.product_id &&
-        b.variant_id === gItem.variant_id &&
-        b.design_id === gItem.design_id
-    );
-    if (idx !== -1) {
-      result[idx] = { ...result[idx], quantity: result[idx].quantity + gItem.quantity };
-    } else {
-      result.push({ ...gItem });
-    }
-  }
-  return result;
 }
 
 const useCartStore = create((set, get) => ({
@@ -79,35 +57,22 @@ const useCartStore = create((set, get) => ({
    */
   addItem: (item) => {
     const { items, _storageKey } = get();
-    const idx = items.findIndex(
-      (i) =>
-        i.product_id === item.product_id &&
-        (i.variant_id ?? null) === (item.variant_id ?? null) &&
-        (i.design_id ?? null) === (item.design_id ?? null)
-    );
-    let next;
-    if (idx !== -1) {
-      next = items.map((i, j) =>
-        j === idx ? { ...i, quantity: i.quantity + (item.quantity ?? 1) } : i
-      );
-    } else {
-      next = [
-        ...items,
-        {
-          cart_item_id: Date.now(),
-          product_id: item.product_id,
-          variant_id: item.variant_id ?? null,
-          design_id: item.design_id ?? null,
-          quantity: item.quantity ?? 1,
-          note: item.note ?? '',
-          preferred_date: item.preferred_date ?? null,
-          // Snapshot harga & nama untuk tampilan keranjang (diisi caller)
-          name: item.name ?? '',
-          price: item.price ?? 0,
-          image_url: item.image_url ?? null,
-        },
-      ];
-    }
+    // Item dengan produk, varian, desain, tanggal pre-order, dan catatan yang sama dijumlahkan;
+    // selain itu menjadi item baru dengan cart_item_id unik.
+    const next = mergeCartItems(items, [
+      {
+        product_id: item.product_id,
+        variant_id: item.variant_id ?? null,
+        design_id: item.design_id ?? null,
+        quantity: item.quantity ?? 1,
+        note: item.note ?? '',
+        preferred_date: item.preferred_date ?? null,
+        // Snapshot harga & nama untuk tampilan keranjang (diisi caller)
+        name: item.name ?? '',
+        price: item.price ?? 0,
+        image_url: item.image_url ?? null,
+      },
+    ]);
     writeCart(_storageKey, next);
     set({ items: next });
   },
@@ -154,7 +119,7 @@ const useCartStore = create((set, get) => ({
     const guestItems = readCart(GUEST_CART_KEY);
     const key = userCartKey(userId);
     const userItems = readCart(key);
-    const merged = mergeItems(userItems, guestItems);
+    const merged = mergeCartItems(userItems, guestItems);
     writeCart(key, merged);
     // Hapus keranjang tamu
     localStorage.removeItem(GUEST_CART_KEY);

@@ -1,6 +1,7 @@
 // components/customer/ProductCard.jsx
 // Step 4 · FR-05 (C-05) — dipakai ulang di Katalog & Pencarian (Step 5.1)
 // Foto, badge ketersediaan, nama, rating, harga Rupiah, dan tombol "+" untuk produk ready.
+// Step 5.1: tombol hati wishlist (FR-25) di pojok kanan atas foto bila onToggleWishlist diberikan.
 
 import { Link } from 'react-router-dom';
 import { Plus, Star } from 'lucide-react';
@@ -8,14 +9,19 @@ import Badge from '../ui/Badge';
 import { formatRupiah } from '../../utils/format';
 import { AVAILABILITY_TYPE, AVAILABILITY_BADGE, SOLD_OUT_BADGE } from '../../constants/product';
 import { productHref } from '../../utils/productLinks';
+import WishlistButton from './WishlistButton';
 
 /**
  * @param {object} product — hasil productService (product_id, name, price, availability_type, image_url, rating, remaining_today)
  * @param {Function} [onAdd] — tambah ke keranjang (hanya produk ready yang masih ada stok)
  * @param {React.ReactNode} [topRight] — penanda tambahan di pojok kanan atas foto (mis. peringkat)
  * @param {React.ReactNode} [footnote] — info kecil di bawah harga (mis. jumlah terjual)
+ * @param {Function} [onToggleWishlist] — (product) → simpan/hapus wishlist; jangan dipakai bersama topRight
+ * @param {boolean} [wishlisted]
  */
-export default function ProductCard({ product, onAdd, topRight, footnote, className = '' }) {
+export default function ProductCard({
+  product, onAdd, topRight, footnote, onToggleWishlist, wishlisted = false, wishlistPending = false, className = '',
+}) {
   const isReady = product.availability_type === AVAILABILITY_TYPE.READY;
   const soldOut = isReady && product.remaining_today === 0;
   const badge = soldOut ? SOLD_OUT_BADGE : AVAILABILITY_BADGE[product.availability_type];
@@ -77,6 +83,17 @@ export default function ProductCard({ product, onAdd, topRight, footnote, classN
           </p>
         </div>
       </Link>
+
+      {/* Di luar Link: tombol tidak boleh bersarang di dalam tautan */}
+      {onToggleWishlist && (
+        <WishlistButton
+          active={wishlisted}
+          productName={product.name}
+          disabled={wishlistPending}
+          onClick={() => onToggleWishlist(product)}
+          className="absolute top-1.5 right-1.5"
+        />
+      )}
 
       {canAdd && (
         <button

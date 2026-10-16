@@ -18,3 +18,8 @@ export function readMock(name, fallback = null) {
 export function writeMock(name, value) {
   localStorage.setItem(MOCK_KEY_PREFIX + name, JSON.stringify(value));
 }
+
+/** true bila tabel mock sudah pernah dibuat di perangkat ini (Step 5.1) */
+export function hasMock(name) {
+  return localStorage.getItem(MOCK_KEY_PREFIX + name) !== null;
+}
