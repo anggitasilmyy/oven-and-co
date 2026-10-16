@@ -11,6 +11,8 @@
 // Step 5.1: tabel yang ditulis pengguna (wishlists) masuk USER_TABLES — hanya diisi dari seed bila tabelnya
 // belum ada di perangkat. Refresh, pergantian tanggal, dan kenaikan SEED_VERSION TIDAK menimpanya.
 // Tabel pengguna hanya dibuat ulang bila USER_SCHEMA_VERSION dinaikkan (perubahan skema yang butuh migrasi).
+// Step 5.2: desain custom cake buatan pelanggan (C-11) disimpan di tabel yang juga berisi data contoh.
+// Baris dengan id ≥ USER_ROW_ID_START dipertahankan saat data contoh dibuat ulang (lihat PRESERVED_USER_ROWS).
 
 import { lastNDateKeys } from '../../utils/date';
 import { SALES_WINDOW_DAYS } from '../../constants/dashboard';
@@ -48,6 +50,19 @@ export const USER_TABLES = ['wishlists'];
  * dipakai lagi; saat itu tabel pengguna diisi ulang dari seed (prototype belum punya migrasi).
  */
 const USER_SCHEMA_VERSION = 1;
+
+/** Id awal baris buatan pengguna di tabel data contoh — tidak pernah dipakai seed */
+export const USER_ROW_ID_START = 1_000_000;
+
+/** Tabel data contoh yang juga ditulis pengguna → kolom id penanda baris pengguna (Step 5.2) */
+const PRESERVED_USER_ROWS = { custom_cake_designs: 'design_id', custom_cake_design_options: 'design_id' };
+
+const isUserRow = (row, idKey) => Number(row?.[idKey]) >= USER_ROW_ID_START;
+
+/** Id baru untuk baris buatan pengguna (≥ USER_ROW_ID_START, lebih besar dari id yang ada) */
+export function nextUserRowId(rows, idKey) {
+  return rows.reduce((max, r) => (isUserRow(r, idKey) ? Math.max(max, Number(r[idKey])) : max), USER_ROW_ID_START - 1) + 1;
+}
 
 function buildSeed(todayKey) {
   const now = getMockNow();
@@ -100,7 +115,11 @@ function ensureSeed() {
   if (meta?.version === SEED_VERSION && meta?.anchor_date === todayKey && missingUserTables.length === 0) return;
 
   const seed = buildSeed(todayKey);
-  TABLES.forEach((t) => writeMock(t, seed[t]));
+  // Baris buatan pengguna di tabel data contoh dibaca sebelum ditimpa, lalu ditambahkan kembali
+  const keptRows = Object.fromEntries(
+    Object.entries(PRESERVED_USER_ROWS).map(([t, idKey]) => [t, [readMock(t, [])].flat().filter((r) => isUserRow(r, idKey))])
+  );
+  TABLES.forEach((t) => writeMock(t, keptRows[t] ? [...seed[t], ...keptRows[t]] : seed[t]));
   // Data pengguna: hanya dibuat bila belum ada (atau skemanya berubah), tidak pernah ditimpa
   missingUserTables.forEach((t) => writeMock(t, seed[t]));
   writeMock(META_KEY, { version: SEED_VERSION, anchor_date: todayKey, user_schema: USER_SCHEMA_VERSION });

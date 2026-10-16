@@ -1,39 +1,57 @@
 // pages/customer/CustomCakePage.jsx
-// C-11 · Custom Cake Builder (6 langkah)
-// Step 2 · Placeholder — Stepper ditampilkan sebagai preview komponen
-// Step 2.5 (PR B): kerangka responsif — preview & langkah di kiri, harga berjalan + aksi di ActionBar
+// FR-10 · UC-06 · BR-02 · C-11 Custom Cake Builder (6 langkah)
+// Step 5.2: stepper 6 langkah (Ukuran → Bentuk → Rasa → Krim & Topping → Tulisan → Tanggal), preview kue,
+// harga berjalan (harga dasar + Σ extra_price), tanggal ≥ H+3, ringkasan dengan Ubah, Tambah ke Keranjang.
+// FocusPageGrid + ActionBar: < lg bar bawah · ≥ lg panel aksi sticky di kanan.
 
-import Stepper from '../../components/ui/Stepper';
+import { CakeSlice } from 'lucide-react';
 import FocusPageGrid from '../../components/layout/FocusPageGrid';
-import ActionBar from '../../components/layout/ActionBar';
-import PageHeader from '../../components/layout/PageHeader';
-import PlaceholderPanel from '../../components/layout/PlaceholderPanel';
-
-const STEPS = ['Ukuran', 'Bentuk', 'Rasa', 'Krim & Topping', 'Tulisan', 'Tanggal'];
+import EmptyState from '../../components/ui/EmptyState';
+import ErrorState from '../../components/ui/ErrorState';
+import Skeleton from '../../components/ui/Skeleton';
+import Toast, { useToast } from '../../components/ui/Toast';
+import CustomCakeBuilder from '../../components/customer/CustomCakeBuilder';
+import useServiceQuery from '../../hooks/useServiceQuery';
+import { getCustomCakeBuilder } from '../../services/customCakeService';
 
 export default function CustomCakePage() {
-  return (
-    <FocusPageGrid
-      aside={
-        <ActionBar label="Ringkasan & aksi">
-          <PlaceholderPanel step="Step 5.2" compact>
-            Harga berjalan dan tombol Lanjut / Tambah ke Keranjang.
-          </PlaceholderPanel>
-        </ActionBar>
-      }
-    >
-      <div className="space-y-6">
-        <PageHeader screenCode="C-11" title="Custom Cake Builder" description="6 langkah · Tanggal ≥ H+3 (BR-02)" />
+  const query = useServiceQuery(() => getCustomCakeBuilder(), []);
+  const { toast, showToast, hideToast } = useToast();
 
-        {/* Preview Stepper */}
-        <div className="card p-4 md:p-6">
-          <Stepper steps={STEPS} currentStep={2} />
+  let body;
+  if (query.error) {
+    body = <div className="page-container py-6"><ErrorState message="Custom Cake Builder gagal dimuat." onRetry={query.reload} /></div>;
+  } else if (query.loading && !query.data) {
+    body = (
+      <FocusPageGrid aside={<div className="hidden lg:block card p-6"><Skeleton count={3} /></div>}>
+        <div className="space-y-5" aria-busy="true" aria-label="Memuat Custom Cake Builder">
+          <Skeleton count={2} />
+          <Skeleton variant="block" className="h-16 w-full rounded-card" />
+          <Skeleton variant="block" className="aspect-[4/3] md:aspect-[16/7] w-full rounded-card" />
+          <Skeleton count={3} />
         </div>
-
-        <PlaceholderPanel step="Step 5.2" refs="FR-10 · BR-02">
-          Preview kue dan konten tiap langkah: ukuran, bentuk, rasa, krim &amp; topping, tulisan (maks. 30 karakter), tanggal.
-        </PlaceholderPanel>
+      </FocusPageGrid>
+    );
+  } else if (!query.data) {
+    body = (
+      <div className="page-container py-10">
+        <div className="card">
+          <EmptyState
+            icon={<CakeSlice size={36} aria-hidden="true" />}
+            title="Custom cake belum tersedia"
+            description="Saat ini custom cake sedang tidak dibuka. Coba lagi nanti."
+          />
+        </div>
       </div>
-    </FocusPageGrid>
+    );
+  } else {
+    body = <CustomCakeBuilder builder={query.data} notify={showToast} />;
+  }
+
+  return (
+    <>
+      {body}
+      <Toast {...toast} onClose={hideToast} />
+    </>
   );
 }

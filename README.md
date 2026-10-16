@@ -137,5 +137,8 @@ Health check: [http://localhost:4000/api/health](http://localhost:4000/api/healt
   (`ovenco_mock_products`, `ovenco_mock_orders`, …). Data dibuat deterministik relatif terhadap hari ini
   (status pesanan hari ini dihitung terhadap jam referensi 14.00) dan dibuat ulang otomatis saat tanggal
   berganti atau versi seed naik. Hapus key `ovenco_mock_meta` untuk memaksa pembuatan ulang.
+- Step 5.2: desain Custom Cake Builder (C-11) disimpan di `ovenco_mock_custom_cake_designs` dan
+  `ovenco_mock_custom_cake_design_options` dengan `design_id` ≥ 1.000.000; baris ini tidak ikut ditimpa
+  saat data contoh dibuat ulang. Foto referensi diperkecil (sisi maks. 640 px) dan disimpan sebagai data URL.
 - Riwayat pencarian dan status onboarding menggunakan awalan `ovenco_` (persisten di kedua mode).
 - Semua halaman menggunakan lapisan `client/src/services/` — **jangan** memanggil `fetch`/`axios` langsung dari komponen/halaman.
