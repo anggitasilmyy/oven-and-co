@@ -176,7 +176,7 @@ check('Tanggal berganti: data contoh dibuat ulang, wishlist tetap', meta1.anchor
 await p.evaluate(() => { const m = JSON.parse(localStorage.getItem('ovenco_mock_meta')); m.version = 2; delete m.user_schema; localStorage.setItem('ovenco_mock_meta', JSON.stringify(m)); });
 await p.reload(); await p.waitForTimeout(600);
 const meta2 = await p.evaluate(() => JSON.parse(localStorage.getItem('ovenco_mock_meta')));
-check('SEED_VERSION berubah: wishlist TIDAK ditimpa', meta2.version === 3 && JSON.stringify(await wl()) === expected, JSON.stringify(await wl()));
+check('SEED_VERSION berubah: wishlist TIDAK ditimpa', meta2.version === 4 && JSON.stringify(await wl()) === expected, JSON.stringify(await wl()));
 // tabel belum ada → diisi seed
 await p.evaluate(() => localStorage.removeItem('ovenco_mock_wishlists'));
 await p.reload(); await p.waitForTimeout(600);

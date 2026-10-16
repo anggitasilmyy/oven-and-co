@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Tag } from 'lucide-react';
 import Skeleton from '../ui/Skeleton';
+import ProductImage from '../ui/ProductImage';
 import ErrorState from '../ui/ErrorState';
 import { CUSTOMER_ROUTES, buildPath } from '../../constants/routes';
 import { formatDate } from '../../utils/format';
@@ -49,9 +50,9 @@ export default function PromoCarousel({ promos, loading, error, onRetry }) {
                         flex items-center ${i % 2 === 0 ? 'bg-cocoa' : 'bg-primary'}`}
           >
             {promo.image_url && (
-              <img
+              <ProductImage
                 src={promo.image_url}
-                alt=""
+                sizes="(min-width: 768px) 45vw, 40vw"
                 className="absolute right-0 top-0 h-full w-2/5 md:w-[45%] object-cover opacity-60 md:opacity-90
                            [mask-image:linear-gradient(to_right,transparent,black_45%)]"
               />

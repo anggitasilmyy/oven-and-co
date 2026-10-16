@@ -6,6 +6,7 @@
 import { Link } from 'react-router-dom';
 import { Plus, Star } from 'lucide-react';
 import Badge from '../ui/Badge';
+import ProductImage from '../ui/ProductImage';
 import { formatRupiah } from '../../utils/format';
 import { AVAILABILITY_TYPE, AVAILABILITY_BADGE, SOLD_OUT_BADGE } from '../../constants/product';
 import { productHref } from '../../utils/productLinks';
@@ -39,15 +40,13 @@ export default function ProductCard({
                    focus-visible:ring-inset focus-visible:ring-primary/60 active:opacity-90"
       >
         <div className="relative aspect-square overflow-hidden bg-beige">
-          {product.image_url && (
-            <img
-              src={product.image_url}
-              alt=""
-              loading="lazy"
-              className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105
-                          ${soldOut ? 'grayscale-[60%] opacity-80' : ''}`}
-            />
-          )}
+          <ProductImage
+            src={product.image_url}
+            loading="lazy"
+            sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, 50vw"
+            className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-105
+                        ${soldOut ? 'grayscale-[60%] opacity-80' : ''}`}
+          />
           {badge && (
             <Badge variant={badge.variant} className="absolute top-2.5 left-2.5 shadow-sm !px-2.5 text-[11px]">
               {badge.label}

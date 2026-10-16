@@ -2,6 +2,7 @@
 // Step 4 · FR-27 · AD-02 — produk terlaris 7 hari dengan bar jumlah (sumber sama dengan Best Sellers Beranda)
 
 import { formatNumber } from '../../utils/format';
+import ProductImage from '../ui/ProductImage';
 
 /** @param {Array<{product_id, name, category_name, image_url, quantity_sold}>} products */
 export default function BestSellersPanel({ products }) {
@@ -12,7 +13,7 @@ export default function BestSellersPanel({ products }) {
       {products.map((p, i) => (
         <li key={p.product_id} className="flex items-center gap-3">
           <span className="w-5 text-xs font-bold text-cocoa/60 tabular-nums">{i + 1}</span>
-          {p.image_url && <img src={p.image_url} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />}
+          {p.image_url && <ProductImage src={p.image_url} sizes="40px" loading="lazy" className="w-10 h-10 rounded-lg object-cover shrink-0" />}
           <div className="flex-1 min-w-0 space-y-1">
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-sm font-medium text-cocoa truncate">{p.name}</p>
