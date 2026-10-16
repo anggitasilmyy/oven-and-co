@@ -146,6 +146,7 @@ Di akhir, tunjukkan skenario uji manual untuk aturan bisnis yang tercakup.
 ```
 
 Catatan khusus:
+- 5.1: filter C-07 tetap BottomSheet di < 768 dan dialog di ≥ 768; di desktop (≥ 1024) tambahkan sidebar filter di kiri grid Katalog (ditunda dari Step 2.5 PR B karena isi filter baru dibuat di step ini). Grid produk memakai ResponsiveGrid (2 kolom HP, 3 tablet, 4 desktop) menggantikan PlaceholderPanel.
 - 5.3: Bayar di Toko nonaktif bila ada item pre-order/custom atau delivery (BR-05); stok ready berkurang saat pesanan dibuat; tombol "Simulasikan Lunas" hanya muncul di mode development.
 - 5.4: tombol Batalkan hanya sebelum `sedang_disiapkan`; batal mengembalikan stok & poin.
 - 5.6: modal konfirmasi sebelum ubah status; pickup wajib verifikasi kode; Bayar di Toko wajib ditandai lunas sebelum Selesai.
