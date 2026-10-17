@@ -1,5 +1,6 @@
 // services/mock/userRows.js
 // Step 5.2 – 5.3 · Baris buatan pengguna di tabel yang juga berisi data contoh (desain custom cake, pesanan).
+// Step 5.4: riwayat status, ulasan, dan foto ulasan juga dipertahankan (lihat dropRowsLinkedToSeed).
 // Baris dengan id ≥ USER_ROW_ID_START tidak pernah dipakai seed sehingga dipertahankan saat data contoh
 // dibuat ulang (pergantian tanggal / SEED_VERSION). Efeknya pada stok & kuota voucher diterapkan ulang.
 
@@ -18,6 +19,9 @@ export const PRESERVED_USER_ROWS = {
   order_items: 'order_item_id',
   payments: 'payment_id',
   point_transactions: 'point_tx_id',
+  order_status_histories: 'history_id', // Step 5.4
+  reviews: 'review_id',
+  review_photos: 'photo_id',
 };
 
 export const isUserRow = (row, idKey) => Number(row?.[idKey]) >= USER_ROW_ID_START;
@@ -46,4 +50,25 @@ export function reapplyUserOrderEffects(seed, kept) {
     const voucher = order.voucher_id && seed.vouchers.find((v) => v.voucher_id === order.voucher_id);
     if (voucher) voucher.quota = Math.max(0, voucher.quota - 1);
   }
+}
+
+/**
+ * Step 5.4: baris pengguna yang merujuk pesanan CONTOH (id < USER_ROW_ID_START) dibuang saat data contoh dibuat
+ * ulang — pesanan contoh berganti isi setiap hari, jadi ulasan/riwayat/poin untuknya tidak lagi cocok.
+ * Contoh: ulasan pelanggan untuk item pesanan contoh, riwayat "Dibatalkan" dari pembatalan pesanan contoh.
+ * @param {object} kept — baris pengguna per tabel
+ * @returns {object} kept tanpa baris yang merujuk data contoh
+ */
+export function dropRowsLinkedToSeed(kept) {
+  const userItemIds = new Set((kept.order_items ?? []).map((i) => i.order_item_id));
+  const reviews = (kept.reviews ?? []).filter((r) => userItemIds.has(r.order_item_id));
+  const reviewIds = new Set(reviews.map((r) => r.review_id));
+  return {
+    ...kept,
+    reviews,
+    review_photos: (kept.review_photos ?? []).filter((p) => reviewIds.has(p.review_id)),
+    order_status_histories: (kept.order_status_histories ?? []).filter((h) => isUserRow(h, 'order_id')),
+    point_transactions: (kept.point_transactions ?? []).filter((tx) =>
+      (tx.review_id == null || reviewIds.has(tx.review_id)) && (tx.order_id == null || isUserRow(tx, 'order_id'))),
+  };
 }

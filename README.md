@@ -145,5 +145,11 @@ Health check: [http://localhost:4000/api/health](http://localhost:4000/api/healt
   voucher milik pelanggan (`user_vouchers`) adalah tabel pengguna. Pembayaran disimulasikan: tombol
   "Simulasikan Lunas" hanya muncul di `npm run dev`; pesanan online yang tidak dibayar 30 menit dibatalkan
   otomatis saat pesanan dibuka lagi (pengganti job `autoCancelOrders` Step 6.5).
+- Step 5.4: riwayat status pesanan disimpan di `ovenco_mock_order_status_histories` (SPEC §8) dan dipakai stepper
+  tracking C-18; data contoh diturunkan dari status akhir pesanan contoh (`SEED_VERSION` 5). Ulasan pelanggan (C-19),
+  foto ulasan (data URL, sisi maks. 480 px), dan riwayat status buatan pengguna memakai id ≥ 1.000.000 dan
+  dipertahankan — kecuali yang merujuk pesanan contoh, yang ikut dibuat ulang saat tanggal berganti. Pembatalan oleh
+  pelanggan mengembalikan stok, voucher, dan poin; pesanan lunas dicatat `refunded`, yang belum dibayar `failed`.
+  "Pesan Lagi" menyalin item yang masih tersedia (custom cake perlu didesain ulang; produk ready dibatasi stok hari ini).
 - Riwayat pencarian dan status onboarding menggunakan awalan `ovenco_` (persisten di kedua mode).
 - Semua halaman menggunakan lapisan `client/src/services/` — **jangan** memanggil `fetch`/`axios` langsung dari komponen/halaman.

@@ -13,6 +13,8 @@
 // Tabel pengguna hanya dibuat ulang bila USER_SCHEMA_VERSION dinaikkan (perubahan skema yang butuh migrasi).
 // Step 5.2 – 5.3: desain custom cake & pesanan buatan pelanggan disimpan di tabel yang juga berisi data contoh.
 // Baris dengan id ≥ USER_ROW_ID_START dipertahankan saat data contoh dibuat ulang (lihat mock/userRows.js).
+// Step 5.4: tabel order_status_histories (riwayat status untuk tracking C-18); ulasan pelanggan (C-19) dan
+// riwayat status buatan pengguna juga dipertahankan, kecuali yang merujuk pesanan contoh.
 
 import { lastNDateKeys } from '../../utils/date';
 import { SALES_WINDOW_DAYS } from '../../constants/dashboard';
@@ -29,11 +31,12 @@ import { SAMPLE_CUSTOMERS, DEMO_CUSTOMER_ID, DEMO_CUSTOMER_POINT_BALANCE } from 
 import { generateOrders } from './seed/orderGenerator';
 import { buildDailyStocks, buildReviews, buildPointTransactions } from './seed/derivedRecords';
 import { buildAddresses, buildUserVouchers } from './seed/customerExtras';
-import { PRESERVED_USER_ROWS, isUserRow, reapplyUserOrderEffects } from './userRows';
+import { PRESERVED_USER_ROWS, isUserRow, reapplyUserOrderEffects, dropRowsLinkedToSeed } from './userRows';
+import { buildStatusHistories } from './seed/statusHistories';
 import { expireOverdueUserOrders } from './orderCancellation';
 
 /** Naikkan bila struktur/isi seed berubah agar data lama di browser diganti */
-const SEED_VERSION = 4; // v4: foto produk asli (WebP) & review_photos dikosongkan
+const SEED_VERSION = 5; // v4: foto produk asli (WebP) & review_photos dikosongkan · v5: order_status_histories
 const META_KEY = 'meta';
 
 /** Produk ready yang dibuat habis hari ini (contoh: tidak boleh tampil di Fresh from Oven Today) */
@@ -43,6 +46,7 @@ export const TABLES = [
   'categories', 'products', 'product_images', 'product_variants', 'daily_stocks', 'raw_materials',
   'payment_methods', 'custom_options', 'custom_cake_designs', 'custom_cake_design_options', 'vouchers',
   'orders', 'order_items', 'payments', 'reviews', 'review_photos', 'point_transactions', 'store_settings',
+  'order_status_histories', // Step 5.4
 ];
 
 /** Tabel yang ditulis pengguna — tidak pernah ditimpa oleh pembuatan ulang data contoh */
@@ -87,6 +91,7 @@ function buildSeed(todayKey) {
     orders: generated.orders,
     order_items: generated.order_items,
     payments: generated.payments,
+    order_status_histories: buildStatusHistories({ orders: generated.orders, todayKey, now }),
     reviews,
     // Ulasan contoh tanpa foto: foto katalog/stok tidak boleh tampil seolah-olah kiriman pelanggan.
     review_photos: [],
@@ -111,9 +116,9 @@ function ensureSeed() {
 
   const seed = buildSeed(todayKey);
   // Baris buatan pengguna di tabel data contoh dibaca sebelum ditimpa, lalu ditambahkan kembali
-  const keptRows = Object.fromEntries(
+  const keptRows = dropRowsLinkedToSeed(Object.fromEntries(
     Object.entries(PRESERVED_USER_ROWS).map(([t, idKey]) => [t, [readMock(t, [])].flat().filter((r) => isUserRow(r, idKey))])
-  );
+  ));
   reapplyUserOrderEffects(seed, keptRows);
   TABLES.forEach((t) => writeMock(t, keptRows[t] ? [...seed[t], ...keptRows[t]] : seed[t]));
   // Data pengguna: hanya dibuat bila belum ada (atau skemanya berubah), tidak pernah ditimpa
