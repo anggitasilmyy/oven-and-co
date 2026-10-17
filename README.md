@@ -81,8 +81,9 @@ cp server/.env.example server/.env
 |---|---|---|
 | `PORT` | `4000` | Port Express |
 | `CLIENT_URL` | `http://localhost:5173` | URL frontend (untuk CORS) |
-| `DATABASE_URL` | — | Diisi saat Step 6 (MySQL) |
-| `JWT_SECRET` | — | Diisi saat Step 6 |
+| `DATABASE_URL` | `mysql://root:password@localhost:3306/oven_and_co` | Koneksi MySQL 8 untuk Prisma (Step 6.1) |
+| `SEED_ANCHOR_DATE` | `2026-10-16` | Opsional: tanggal acuan data contoh seed (`YYYY-MM-DD`) |
+| `JWT_SECRET` | — | Diisi saat Step 6.2 |
 
 ---
 
@@ -116,6 +117,32 @@ npm run dev
 
 Health check: [http://localhost:4000/api/health](http://localhost:4000/api/health)
 
+### Database MySQL (Step 6.1 · Prisma)
+
+Skema `server/prisma/schema.prisma` berisi 29 tabel persis SPEC §8 (nama tabel/kolom snake_case lewat `@@map`/`@map`).
+Migrasi awal ada di `server/prisma/migrations/20261017000000_init/migration.sql`.
+
+```bash
+# 1. Buat database kosong di MySQL 8 lalu isi DATABASE_URL di server/.env
+mysql -u root -p -e "CREATE DATABASE oven_and_co CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+cd server
+npm run db:migrate      # prisma migrate dev — terapkan migrasi + generate client (+ seed otomatis bila database baru)
+npm run db:seed         # isi data contoh (aman dijalankan berulang: baris yang sudah ada tidak ditimpa)
+npm run db:studio       # Prisma Studio di http://localhost:5555
+```
+
+Perintah lain: `npm run db:deploy` (terapkan migrasi tanpa membuat migrasi baru, mis. di server produksi),
+`npm run db:reset` (hapus semua data → migrasi ulang → seed; **menghapus data**), `npm run db:validate`,
+`npm run db:check-spec` (bandingkan SQL migrasi dengan Data Dictionary SPEC §8, tanpa database).
+
+Isi seed (SPEC §9 & §10): 5 kategori, 12 produk + foto + varian, opsi custom cake, bahan baku, 10 metode bayar,
+`store_settings` (radius 10 km, Rp 2.500/km, batas pre-order 17.00, timeout 30 menit, aturan poin BR-09),
+jam operasional 07.00–20.00, voucher WEEKEND15/HEMAT10/CROISSANT20, akun demo (sandi `demo1234` di-hash bcrypt) +
+10 pelanggan contoh (tanpa sandi), dan 9 pesanan contoh yang mencakup semua status SPEC §4, termasuk `OVC-261012-018`.
+Saldo pelanggan demo 1.250 poin (Gold) dibentuk dari `point_transactions`. Waktu `DATETIME` disimpan dalam UTC.
+Seed memakai id tetap, jadi jalankan pada database hasil migrasi (bukan database yang sudah berisi data lain).
+
 ---
 
 ## Perintah Berguna
@@ -127,6 +154,7 @@ Health check: [http://localhost:4000/api/health](http://localhost:4000/api/healt
 | `npm run preview` | `client/` | Preview build produksi |
 | `npm run dev` | `server/` | Jalankan server dengan nodemon |
 | `npm start` | `server/` | Jalankan server tanpa nodemon |
+| `npm run db:migrate` · `db:seed` · `db:studio` | `server/` | Migrasi MySQL, seed data contoh, Prisma Studio (Step 6.1) |
 
 ---
 

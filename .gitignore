@@ -27,8 +27,8 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Prisma
-server/prisma/migrations/
+# Prisma — folder migrations/ SENGAJA di-commit (Step 6.1): migrasi harus sama di semua mesin dan dipakai
+# `prisma migrate deploy`. Database SQLite/berkas lokal tidak dipakai proyek ini.
 
 # Uploads
 server/uploads/
