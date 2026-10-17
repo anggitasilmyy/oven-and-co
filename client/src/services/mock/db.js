@@ -15,6 +15,8 @@
 // Baris dengan id ≥ USER_ROW_ID_START dipertahankan saat data contoh dibuat ulang (lihat mock/userRows.js).
 // Step 5.4: tabel order_status_histories (riwayat status untuk tracking C-18); ulasan pelanggan (C-19) dan
 // riwayat status buatan pengguna juga dipertahankan, kecuali yang merujuk pesanan contoh.
+// Step 5.5: tabel notifications (C-24). Notifikasi contoh dibuat ulang bersama data contoh (status dibaca ikut
+// kembali ke awal); notifikasi buatan pengguna dipertahankan kecuali yang merujuk pesanan contoh.
 
 import { lastNDateKeys } from '../../utils/date';
 import { SALES_WINDOW_DAYS } from '../../constants/dashboard';
@@ -34,9 +36,11 @@ import { buildAddresses, buildUserVouchers } from './seed/customerExtras';
 import { PRESERVED_USER_ROWS, isUserRow, reapplyUserOrderEffects, dropRowsLinkedToSeed } from './userRows';
 import { buildStatusHistories } from './seed/statusHistories';
 import { expireOverdueUserOrders } from './orderCancellation';
+import { buildNotifications } from './seed/notifications';
+import { logMockEmails } from './notifications';
 
 /** Naikkan bila struktur/isi seed berubah agar data lama di browser diganti */
-const SEED_VERSION = 5; // v4: foto produk asli (WebP) & review_photos dikosongkan · v5: order_status_histories
+const SEED_VERSION = 6; // v4: foto produk asli (WebP) & review_photos dikosongkan · v5: order_status_histories · v6: notifications
 const META_KEY = 'meta';
 
 /** Produk ready yang dibuat habis hari ini (contoh: tidak boleh tampil di Fresh from Oven Today) */
@@ -47,6 +51,7 @@ export const TABLES = [
   'payment_methods', 'custom_options', 'custom_cake_designs', 'custom_cake_design_options', 'vouchers',
   'orders', 'order_items', 'payments', 'reviews', 'review_photos', 'point_transactions', 'store_settings',
   'order_status_histories', // Step 5.4
+  'notifications', // Step 5.5
 ];
 
 /** Tabel yang ditulis pengguna — tidak pernah ditimpa oleh pembuatan ulang data contoh */
@@ -72,6 +77,12 @@ function buildSeed(todayKey) {
   const reviews = withAdminReplies(
     buildReviews({ orders: generated.orders, orderItems: generated.order_items, todayKey, now })
   );
+  const orderStatusHistories = buildStatusHistories({ orders: generated.orders, todayKey, now });
+  const vouchers = buildVouchers(todayKey);
+  const pointTransactions = buildPointTransactions({
+    orders: generated.orders, reviews, todayKey, now,
+    demoCustomerId: DEMO_CUSTOMER_ID, demoBalance: DEMO_CUSTOMER_POINT_BALANCE,
+  });
 
   return {
     categories: CATEGORIES,
@@ -87,17 +98,18 @@ function buildSeed(todayKey) {
     custom_options: CUSTOM_OPTIONS,
     custom_cake_designs: generated.custom_cake_designs,
     custom_cake_design_options: generated.custom_cake_design_options,
-    vouchers: buildVouchers(todayKey),
+    vouchers,
     orders: generated.orders,
     order_items: generated.order_items,
     payments: generated.payments,
-    order_status_histories: buildStatusHistories({ orders: generated.orders, todayKey, now }),
+    order_status_histories: orderStatusHistories,
     reviews,
     // Ulasan contoh tanpa foto: foto katalog/stok tidak boleh tampil seolah-olah kiriman pelanggan.
     review_photos: [],
-    point_transactions: buildPointTransactions({
-      orders: generated.orders, reviews, todayKey, now,
-      demoCustomerId: DEMO_CUSTOMER_ID, demoBalance: DEMO_CUSTOMER_POINT_BALANCE,
+    point_transactions: pointTransactions,
+    notifications: buildNotifications({
+      orders: generated.orders, histories: orderStatusHistories, pointTransactions, vouchers,
+      demoCustomerId: DEMO_CUSTOMER_ID, todayKey, now,
     }),
     store_settings: STORE_SETTINGS,
     wishlists: buildWishlists(DEMO_CUSTOMER_ID, now),
@@ -135,7 +147,7 @@ export function getTables(...names) {
   ensureSeed();
   // BR-06 (Step 5.3): pesanan pelanggan yang lewat 30 menit dibatalkan sebelum data apa pun dibaca, sehingga
   // katalog, keranjang, checkout, halaman bayar, dan admin melihat status & stok yang sama (pengganti job Step 6.5).
-  expireOverdueUserOrders({ read: readMock, write: writeMock, now: getMockCurrentTime() });
+  expireOverdueUserOrders({ read: readMock, write: writeMock, now: getMockCurrentTime(), onNotified: logMockEmails });
   return Object.fromEntries(names.map((n) => [n, readMock(n, [])]));
 }
 

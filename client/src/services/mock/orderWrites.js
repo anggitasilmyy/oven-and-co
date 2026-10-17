@@ -1,13 +1,13 @@
 // services/mock/orderWrites.js
 // Step 5.3 · FR-12 – FR-16 · BR-01 – BR-06 · BR-10 · TF-12 — pembuatan pesanan di mode mock (pengganti API Step 6.3)
 // Step 5.4: status awal pesanan dicatat di order_status_histories.
+// Step 5.5: lewat recordOrderStatus sehingga pelanggan juga menerima notifikasi "Pesanan dibuat/dikonfirmasi".
 // Semua aturan divalidasi ulang di sini; UI hanya mengirim pilihan pelanggan.
 
 import { getTables, updateTable, nextUserRowId } from './db';
 import { getMockTodayKey, getMockCurrentTime } from './mockClock';
 import { buildCartLines, CART_VIEW_TABLES } from './cartViews';
-import { addStockSold, paymentCodeFor, randomDigits } from './orderEffects';
-import { appendStatusHistory } from './statusHistory';
+import { addStockSold, paymentCodeFor, randomDigits, recordOrderStatus } from './orderEffects';
 import {
   buildCheckoutQuote, findStockIssues, distanceKm, getTimeSlotOptions, nextOrderNumber, getPointBalance,
 } from '../../utils/businessRules';
@@ -103,10 +103,8 @@ export function createMockOrder(user, input) {
   updateTable('orders', (rows) => [...rows, order]);
   updateTable('order_items', (rows) => [...rows, ...items]);
   updateTable('payments', (rows) => [...rows, payment]);
-  // Step 5.4: status awal dicatat di riwayat status (SPEC §4)
-  updateTable('order_status_histories', (rows) => appendStatusHistory(rows, [{
-    order_id: orderId, status: order.order_status, changed_by: user.user_id, changed_at: order.created_at,
-  }]));
+  // Step 5.4: status awal dicatat di riwayat status (SPEC §4) · Step 5.5: + notifikasi (FR-18)
+  recordOrderStatus(order, order.order_status, { changedBy: user.user_id, at: order.created_at });
   addStockSold(lines, todayKey, 1);
   if (claim) {
     updateTable('user_vouchers', (rows) => rows.map((c) => (c.user_id === claim.user_id && c.voucher_id === claim.voucher_id ? { ...c, used_at: order.created_at } : c)));

@@ -1,6 +1,6 @@
 // components/layout/AccountSidebar.jsx
 // Step 2.5 (PR A) · C-20 menu Akun versi sidebar (≥ lg) untuk AccountLayout
-// Menu: Ubah Profil, Voucher & Poin, Alamat, Wishlist, Keluar (sama dengan C-20)
+// Menu: isi ACCOUNT_MENU_ITEMS + Keluar (sama dengan C-20) — Step 5.5: + Pesanan Saya & Notifikasi
 
 import { NavLink } from 'react-router-dom';
 import { LogOut, User } from 'lucide-react';
