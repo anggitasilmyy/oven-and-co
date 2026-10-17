@@ -184,6 +184,17 @@ Catatan khusus:
 
 **Hasil:** aplikasi berjalan penuh dengan MySQL; data tersimpan setelah server restart; Prisma Studio bisa dipakai saat presentasi.
 
+Catatan khusus:
+- 6.1: Status: skema & seed selesai; **penerapan migrasi pada MySQL 8 sungguhan belum diverifikasi** (lingkungan cloud
+  tanpa MySQL — jalankan `npm run db:migrate && npm run db:seed` di lokal lalu cek di Prisma Studio). Prisma dipin 6.19.3
+  (`prisma` & `@prisma/client`; Prisma 7+ butuh driver adapter & `prisma.config.ts`), bcrypt 6.0.0 untuk hash sandi demo.
+  Migrasi awal `prisma/migrations/20261017000000_init` dibuat dengan `prisma migrate diff`; `npm run db:check-spec`
+  membandingkannya dengan SPEC §8 (29 tabel, 206 kolom, 40 FK). Keputusan: `@default` hanya untuk id auto-increment,
+  waktu dibuat (`now()`), dan flag boolean (bukan kolom baru); semua FK `ON DELETE RESTRICT` (relasi opsional juga, agar
+  rujukan di pesanan lama tidak dikosongkan) kecuali tabel penghubung M:N & `cart_items` (`CASCADE`); tidak ada UNIQUE
+  di luar SPEC (mis. `order_items.design_id`). Seed pilihan A: data master SPEC §9/§10 + 9 pesanan contoh (semua status,
+  termasuk OVC-261012-018), id tetap, `upsert` tanpa menimpa (idempoten). `BigInt`/`Decimal` perlu serializer di 6.2+.
+
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.
 Buat schema.prisma untuk MySQL yang PERSIS mengikuti docs/SPEC.md bagian 8
