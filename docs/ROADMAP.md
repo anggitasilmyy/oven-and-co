@@ -150,6 +150,10 @@ Catatan khusus:
 - 5.3: Bayar di Toko nonaktif bila ada item pre-order/custom atau delivery (BR-05); stok ready berkurang saat pesanan dibuat; tombol "Simulasikan Lunas" hanya muncul di mode development.
 - 5.4: tombol Batalkan hanya sebelum `sedang_disiapkan`; batal mengembalikan stok & poin.
 - 5.6: modal konfirmasi sebelum ubah status; pickup wajib verifikasi kode; Bayar di Toko wajib ditandai lunas sebelum Selesai.
+  Status: selesai (AD-04 detail, ubah status, verifikasi kode pickup, tandai lunas, cetak struk; AD-05 kalender produksi).
+  Keputusan: admin tidak mengubah Menunggu Pembayaran (dipicu sistem) dan belum bisa membatalkan pesanan (alasan & refund
+  belum diatur dokumen); tandai lunas Bayar di Toko saat Siap Diambil; checkbox "Selesai diproduksi" (Stitch) tidak dibuat
+  karena tidak ada kolomnya di SPEC §8. Uji: `client/tests/step-5.6/`.
 - 5.8: ekspor Excel/PDF boleh memakai library (sebutkan alasannya).
 
 ---

@@ -4,6 +4,7 @@
 // Step 3: filter menu per role, info user di topbar, tombol logout
 // Step 2.5 (PR A): padding responsif, max-width konten, sidebar sticky ≥ lg, drawer < lg dipertahankan
 // Step 2.5 (PR B): sidebar & topbar dipecah ke components/admin/ (AdminSidebar, AdminTopbar)
+// Step 5.6: sidebar, topbar, dan padding disembunyikan saat mencetak struk AD-04 (print:hidden)
 
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
@@ -22,7 +23,7 @@ export default function AdminLayout() {
   const handleLogout = () => logoutAndLeave(ADMIN_ROUTES.LOGIN);
 
   return (
-    <div className="min-h-screen bg-cream flex">
+    <div className="min-h-screen bg-cream flex print:block print:min-h-0 print:bg-white">
       <AdminSidebar
         user={user}
         isOpen={sidebarOpen}
@@ -35,7 +36,7 @@ export default function AdminLayout() {
         <AdminTopbar user={user} isSidebarOpen={sidebarOpen} onOpenSidebar={() => setSidebarOpen(true)} />
 
         {/* Konten halaman admin */}
-        <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8">
+        <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8 print:p-0">
           <div className="w-full max-w-content mx-auto">
             <Outlet />
           </div>

@@ -19,3 +19,6 @@ export * from './rules/orderTracking';
 // Step 5.5: rules/account (profil, alamat, voucher) & rules/notification (notifikasi in-app).
 export * from './rules/account';
 export * from './rules/notification';
+// Step 5.6: rules/adminOrder (ubah status admin, kode pickup, tandai lunas) & rules/production (kalender produksi).
+export * from './rules/adminOrder';
+export * from './rules/production';

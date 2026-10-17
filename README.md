@@ -151,5 +151,10 @@ Health check: [http://localhost:4000/api/health](http://localhost:4000/api/healt
   dipertahankan — kecuali yang merujuk pesanan contoh, yang ikut dibuat ulang saat tanggal berganti. Pembatalan oleh
   pelanggan mengembalikan stok, voucher, dan poin; pesanan lunas dicatat `refunded`, yang belum dibayar `failed`.
   "Pesan Lagi" menyalin item yang masih tersedia (custom cake perlu didesain ulang; produk ready dibatasi stok hari ini).
+- Step 5.6: Staf/Owner memproses pesanan di AD-04 (`/admin/pesanan/:orderNumber`) — ubah status berurutan dengan modal
+  konfirmasi, verifikasi kode pickup (kode tidak ditampilkan ke admin), tandai lunas Bayar di Toko, cetak struk
+  (`window.print`, hanya struk yang tercetak). Setiap perubahan dicatat di riwayat status + notifikasi pelanggan; Selesai
+  menambah poin sekali per pesanan. AD-05 (`/admin/kalender`) membaca pesanan tersimpan (pre-order & custom per tanggal siap).
+  Perubahan admin pada pesanan contoh ikut dibuat ulang saat tanggal berganti; pesanan buatan pelanggan dipertahankan.
 - Riwayat pencarian dan status onboarding menggunakan awalan `ovenco_` (persisten di kedua mode).
 - Semua halaman menggunakan lapisan `client/src/services/` — **jangan** memanggil `fetch`/`axios` langsung dari komponen/halaman.

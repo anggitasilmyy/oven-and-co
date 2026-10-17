@@ -138,3 +138,11 @@
 /* ── Animasi ─────────────────────────────────────────────────────────────── */
 /* Keyframe & kelas animasi didaftarkan di tailwind.config.js (theme.extend.animation)
    agar varian responsif seperti md:animate-modal-in tersedia. */
+
+/* ── Step 5.6 · Cetak struk AD-04 (FR-28) ───────────────────────────────────── */
+/* Navigasi admin & konten layar memakai print:hidden; overlay portal (toast) ikut disembunyikan. */
+@media print {
+  @page { margin: 8mm; }
+  body { background: #fff; min-height: 0; }
+  body > [role="alert"], body > [role="dialog"] { display: none !important; }
+}
