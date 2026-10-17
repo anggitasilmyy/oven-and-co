@@ -2,6 +2,7 @@
 // Step 5.2 – 5.3 · Baris buatan pengguna di tabel yang juga berisi data contoh (desain custom cake, pesanan).
 // Step 5.4: riwayat status, ulasan, dan foto ulasan juga dipertahankan (lihat dropRowsLinkedToSeed).
 // Step 5.5: notifikasi buatan pengguna juga dipertahankan.
+// Step 5.7: rencana stok harian yang diisi admin (daily_stocks) — digabung lewat mergeAdminDailyStocks.
 // Baris dengan id ≥ USER_ROW_ID_START tidak pernah dipakai seed sehingga dipertahankan saat data contoh
 // dibuat ulang (pergantian tanggal / SEED_VERSION). Efeknya pada stok & kuota voucher diterapkan ulang.
 
@@ -24,6 +25,7 @@ export const PRESERVED_USER_ROWS = {
   reviews: 'review_id',
   review_photos: 'photo_id',
   notifications: 'notification_id', // Step 5.5
+  daily_stocks: 'stock_id', // Step 5.7 (AD-07)
 };
 
 export const isUserRow = (row, idKey) => Number(row?.[idKey]) >= USER_ROW_ID_START;
@@ -75,4 +77,26 @@ export function dropRowsLinkedToSeed(kept) {
     point_transactions: (kept.point_transactions ?? []).filter((tx) =>
       (tx.review_id == null || reviewIds.has(tx.review_id)) && (tx.order_id == null || isUserRow(tx, 'order_id'))),
   };
+}
+
+/**
+ * Step 5.7 · FR-32: rencana stok yang diisi admin menggantikan rencana contoh pada produk & tanggal yang sama.
+ * qty_sold diambil dari data contoh baru (penjualan pesanan pengguna ditambahkan kemudian oleh
+ * reapplyUserOrderEffects); rencana tidak boleh kurang dari terjual agar sisa tidak negatif.
+ * @param {Array} seedStocks — daily_stocks hasil seed
+ * @param {Array} adminStocks — baris daily_stocks dengan stock_id ≥ USER_ROW_ID_START
+ * @returns {Array} daily_stocks gabungan
+ */
+export function mergeAdminDailyStocks(seedStocks, adminStocks = []) {
+  if (adminStocks.length === 0) return seedStocks;
+  const key = (s) => `${s.product_id}|${s.stock_date}`;
+  const seedByKey = new Map(seedStocks.map((s) => [key(s), s]));
+  const adminKeys = new Set(adminStocks.map(key));
+  return [
+    ...seedStocks.filter((s) => !adminKeys.has(key(s))),
+    ...adminStocks.map((a) => {
+      const sold = seedByKey.get(key(a))?.qty_sold ?? 0;
+      return { ...a, qty_sold: sold, qty_planned: Math.max(a.qty_planned, sold) };
+    }),
+  ];
 }

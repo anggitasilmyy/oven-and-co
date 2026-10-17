@@ -33,8 +33,9 @@ export default function ProductGallery({ images, name, overlay }) {
           role="region"
           tabIndex={0}
         >
+          {/* Step 5.7: kunci memakai indeks karena admin bisa mengunggah foto yang sama dua kali (AD-06) */}
           {list.map((src, i) => (
-            <div key={src ?? i} className="w-full shrink-0 snap-center aspect-[4/3]">
+            <div key={`${i}-${src}`} className="w-full shrink-0 snap-center aspect-[4/3]">
               <ProductImage
                 src={src}
                 alt={`${name} — foto ${i + 1} dari ${list.length}`}
@@ -62,7 +63,7 @@ export default function ProductGallery({ images, name, overlay }) {
         <div className="hidden lg:flex gap-3" role="group" aria-label="Pilih foto">
           {list.map((src, i) => (
             <button
-              key={src ?? i}
+              key={`${i}-${src}`}
               type="button"
               onClick={() => goTo(i)}
               aria-label={`Lihat foto ${i + 1}`}

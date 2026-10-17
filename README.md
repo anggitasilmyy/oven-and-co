@@ -156,5 +156,11 @@ Health check: [http://localhost:4000/api/health](http://localhost:4000/api/healt
   (`window.print`, hanya struk yang tercetak). Setiap perubahan dicatat di riwayat status + notifikasi pelanggan; Selesai
   menambah poin sekali per pesanan. AD-05 (`/admin/kalender`) membaca pesanan tersimpan (pre-order & custom per tanggal siap).
   Perubahan admin pada pesanan contoh ikut dibuat ulang saat tanggal berganti; pesanan buatan pelanggan dipertahankan.
+- Step 5.7: AD-06 (`/admin/produk`, tab `?tab=opsi`) mengelola produk (foto maks. 5, varian, tipe & lead time, aktif) dan
+  opsi custom cake; AD-07 (`/admin/stok`, tab `?tab=bahan`) mengisi rencana stok produk ready hari ini dan bahan baku
+  (Catat Stok Masuk, status Aman/Menipis/Habis). Tabel `products`, `product_images`, `product_variants`, `custom_options`,
+  dan `raw_materials` kini tabel admin: diisi dari seed hanya bila belum ada, lalu tidak ditimpa saat data contoh dibuat
+  ulang. Rencana stok yang diisi admin (`stock_id` ≥ 1.000.000) juga dipertahankan. Foto produk baru diperkecil (sisi
+  maks. 1024 px) dan disimpan sebagai data URL; foto contoh tetap berkas WebP lokal.
 - Riwayat pencarian dan status onboarding menggunakan awalan `ovenco_` (persisten di kedua mode).
 - Semua halaman menggunakan lapisan `client/src/services/` — **jangan** memanggil `fetch`/`axios` langsung dari komponen/halaman.

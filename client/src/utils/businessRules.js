@@ -22,3 +22,5 @@ export * from './rules/notification';
 // Step 5.6: rules/adminOrder (ubah status admin, kode pickup, tandai lunas) & rules/production (kalender produksi).
 export * from './rules/adminOrder';
 export * from './rules/production';
+// Step 5.7: rules/adminCatalog (produk & opsi custom cake AD-06); stok harian & bahan baku AD-07 ada di rules/stock.
+export * from './rules/adminCatalog';
