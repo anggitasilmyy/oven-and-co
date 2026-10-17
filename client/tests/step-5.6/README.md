@@ -8,6 +8,7 @@ cd client && cp .env.example .env && npx vite --port 5173   # terminal 1 (VITE_U
 cd client/tests/step-5.6                                     # terminal 2
 CHROMIUM_PATH=/path/ke/chromium node func.e2e.mjs            # aturan murni + alur AD-04/AD-05 + hak akses + struk
 CHROMIUM_PATH=... node visual.e2e.mjs ./hasil                # overflow, sidebar/drawer, modal, area sentuh 360–1920 px
+CHROMIUM_PATH=... node regression.e2e.mjs                    # regresi Step 3, 4, 5.4 (belum punya folder uji sendiri)
 ```
 
 Skrip memakai paket `playwright` (tidak ditambahkan ke `package.json`). Bila terpasang global, buat tautan agar import
