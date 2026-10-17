@@ -1,12 +1,13 @@
-// app.js — Express application setup
-// Step 1 · GET /api/health
 
 const express = require('express');
 const cors = require('cors');
 
+const authRoutes = require('./routes/customer/auth.routes');
+const errorHandler = require('./middlewares/errorHandler');
+
 const app = express();
 
-// ── Middleware ──────────────────────────────────────────────────────────────
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -16,8 +17,6 @@ app.use(
     credentials: true,
   })
 );
-
-// ── Routes ──────────────────────────────────────────────────────────────────
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -29,9 +28,18 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// Auth API
+app.use('/api/auth', authRoutes);
+
 // 404 handler
 app.use((_req, res) => {
-  res.status(404).json({ status: 'error', message: 'Endpoint tidak ditemukan.' });
+  res.status(404).json({
+    status: 'error',
+    message: 'Endpoint tidak ditemukan.',
+  });
 });
+
+// Error handler — harus berada setelah routes
+app.use(errorHandler);
 
 module.exports = app;
