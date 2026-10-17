@@ -6,7 +6,7 @@ import { getTables } from './db';
 import { requireMockRole } from './mockSession';
 import { ROLES } from '../../constants/roles';
 
-const ORDER_TABLES = ['orders', 'order_items', 'payments', 'payment_methods', 'products'];
+const ORDER_TABLES = ['orders', 'order_items', 'payments', 'payment_methods', 'products', 'store_settings'];
 
 /**
  * Pesanan milik pelanggan login + data terkait; lempar error bila tidak ditemukan.

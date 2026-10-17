@@ -72,6 +72,8 @@ export const formatTimeSlot = (slot) => `${slot.start.replace(':', '.')}–${slo
  * @returns {Array<{start, end, label, disabled}>}
  */
 export function getTimeSlotOptions(slots, dateKey, now, hours = OPERATING_HOURS_DEFAULT) {
+  // Step 5.8 (AD-11): hari libur (operating_hours.is_open = false) tidak punya slot
+  if (hours.is_open === false) return [];
   const isToday = dateKey === toDateKey(now);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   return slots

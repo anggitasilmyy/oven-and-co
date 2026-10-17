@@ -160,6 +160,14 @@ Catatan khusus:
   setiap kelompok opsi wajib ≥ 1 opsi aktif; lead time maks. 12 hari (jendela tanggal 14 hari); stok harian hanya
   untuk hari ini, rencana ≥ terjual. Uji: `client/tests/step-5.7/`.
 - 5.8: ekspor Excel/PDF boleh memakai library (sebutkan alasannya).
+  Status: selesai (AD-08 laporan Harian/Mingguan/Bulanan/Rentang + KPI, grafik per hari, terlaris, metode bayar, transaksi,
+  Export Excel/PDF; AD-09 voucher + aturan poin & ambang level; AD-10 pelanggan + balas/sembunyikan ulasan; AD-11 profil
+  toko, jam operasional, batas pre-order, radius & ongkir, metode bayar, akun staf). Library: `write-excel-file` (xlsx,
+  1 dependensi) dan `jspdf` + `jspdf-autotable` (PDF), dimuat dinamis saat tombol ekspor diklik. Keputusan: transaksi
+  laporan = lunas & tidak dibatalkan (sama dengan Dashboard); voucher tidak dihapus, kuota = sisa pemakaian; minimal satu
+  metode bayar online aktif (BR-05); Owner tidak bisa menonaktifkan akunnya sendiri & minimal satu Owner aktif; pengaturan,
+  voucher, metode bayar, dan tabel `operating_hours` disimpan sebagai tabel admin (tidak ditimpa data contoh) dan langsung
+  dipakai web pelanggan. Uji: `client/tests/step-5.8/`.
 
 ---
 

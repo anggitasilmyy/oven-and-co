@@ -40,8 +40,9 @@ export function nextUserRowId(rows, idKey) {
  * stok ready terjual pada tanggal pesanan dibuat & kuota voucher yang terpakai. Pesanan batal tidak dihitung.
  * @param {object} seed — tabel hasil seed (diubah langsung)
  * @param {object} kept — baris pengguna per tabel
+ * @param {{vouchers?: boolean}} [opts] — vouchers: false bila tabel vouchers tersimpan (kuota sudah dikurangi, Step 5.8)
  */
-export function reapplyUserOrderEffects(seed, kept) {
+export function reapplyUserOrderEffects(seed, kept, { vouchers: reapplyQuota = true } = {}) {
   const active = (kept.orders ?? []).filter((o) => o.order_status !== ORDER_STATUS.DIBATALKAN);
   if (active.length === 0) return;
   const readyIds = new Set(seed.products.filter((p) => p.availability_type === AVAILABILITY_TYPE.READY).map((p) => p.product_id));
@@ -51,7 +52,7 @@ export function reapplyUserOrderEffects(seed, kept) {
       const stock = seed.daily_stocks.find((s) => s.product_id === item.product_id && s.stock_date === dateKey);
       if (stock) stock.qty_sold += item.quantity;
     }
-    const voucher = order.voucher_id && seed.vouchers.find((v) => v.voucher_id === order.voucher_id);
+    const voucher = reapplyQuota && order.voucher_id && seed.vouchers.find((v) => v.voucher_id === order.voucher_id);
     if (voucher) voucher.quota = Math.max(0, voucher.quota - 1);
   }
 }

@@ -18,10 +18,10 @@ import { STATUS_NOTE } from '../../constants/adminOrder';
 const fail = (message) => { throw new Error(message); };
 
 /** BR-09: 1 poin per Rp 1.000 setelah Selesai — sekali per pesanan (dicek dari point_transactions) */
-function awardCompletionPoints(order, now) {
+function awardCompletionPoints(order, now, settings) {
   let awarded = 0;
   updateTable('point_transactions', (rows) => {
-    const points = pointsEarnedFor(order.total);
+    const points = pointsEarnedFor(order.total, settings); // Step 5.8: aturan poin dari AD-09
     if (points <= 0 || !shouldAwardCompletionPoints(order, rows)) return rows;
     awarded = points;
     return [...rows, {
@@ -45,7 +45,7 @@ function awardCompletionPoints(order, now) {
  * @returns {{order_number, order_status, points_awarded}}
  */
 export function changeAdminOrderStatus(orderNumber, input = {}) {
-  const { admin, order } = findAdminOrder(orderNumber);
+  const { admin, order, t } = findAdminOrder(orderNumber);
   const error = validateAdminStatusChange(order, {
     from: input.from, to: input.to, pickupCode: input.pickup_code, courierName: input.courier_name,
   });
@@ -62,7 +62,7 @@ export function changeAdminOrderStatus(orderNumber, input = {}) {
   // Satu riwayat + satu notifikasi status untuk pemilik pesanan (SPEC §4, FR-18)
   recordOrderStatus(updated, input.to, { changedBy: admin.user_id, note, at: now });
 
-  const pointsAwarded = input.to === ORDER_STATUS.SELESAI ? awardCompletionPoints(updated, now) : 0;
+  const pointsAwarded = input.to === ORDER_STATUS.SELESAI ? awardCompletionPoints(updated, now, t.store_settings) : 0;
   return { order_number: orderNumber, order_status: input.to, points_awarded: pointsAwarded };
 }
 

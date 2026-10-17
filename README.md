@@ -162,5 +162,10 @@ Health check: [http://localhost:4000/api/health](http://localhost:4000/api/healt
   dan `raw_materials` kini tabel admin: diisi dari seed hanya bila belum ada, lalu tidak ditimpa saat data contoh dibuat
   ulang. Rencana stok yang diisi admin (`stock_id` ≥ 1.000.000) juga dipertahankan. Foto produk baru diperkecil (sisi
   maks. 1024 px) dan disimpan sebagai data URL; foto contoh tetap berkas WebP lokal.
+- Step 5.8: AD-08 (`/admin/laporan?periode=`) laporan transaksi lunas + Export Excel/PDF (dibuat di peramban);
+  AD-09 (`/admin/promo`, tab `?tab=loyalty`) voucher & aturan loyalty; AD-10 (`/admin/pelanggan`, tab `?tab=ulasan`)
+  pelanggan & moderasi ulasan; AD-11 (`/admin/pengaturan`) profil toko, jam operasional, ongkir, metode bayar, akun staf.
+  `vouchers`, `store_settings`, `payment_methods`, dan tabel baru `operating_hours` kini tabel admin (tidak ditimpa saat
+  data contoh dibuat ulang). Akun staf baru disimpan di `ovenco_mock_users`. Perubahan langsung berlaku di web pelanggan.
 - Riwayat pencarian dan status onboarding menggunakan awalan `ovenco_` (persisten di kedua mode).
 - Semua halaman menggunakan lapisan `client/src/services/` — **jangan** memanggil `fetch`/`axios` langsung dari komponen/halaman.

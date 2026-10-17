@@ -7,11 +7,14 @@ const btn =
   'inline-flex items-center justify-center min-w-touch-min h-11 px-3 rounded-lg text-sm font-semibold transition-colors ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-40 disabled:cursor-not-allowed';
 
-/** @param {number} page @param {number} totalPages @param {Function} onChange */
-export default function Pagination({ page, totalPages, onChange }) {
+/**
+ * @param {number} page @param {number} totalPages @param {Function} onChange
+ * @param {string} [label] — Step 5.8: nama navigasi untuk tabel selain pesanan
+ */
+export default function Pagination({ page, totalPages, onChange, label = 'Halaman daftar pesanan' }) {
   if (totalPages <= 1) return null;
   return (
-    <nav aria-label="Halaman daftar pesanan" className="flex items-center justify-center gap-1 flex-wrap">
+    <nav aria-label={label} className="flex items-center justify-center gap-1 flex-wrap">
       <button type="button" className={`${btn} text-cocoa hover:bg-beige`} disabled={page === 1} onClick={() => onChange(page - 1)}>
         <ChevronLeft size={16} aria-hidden="true" /> <span className="hidden sm:inline">Sebelumnya</span>
       </button>

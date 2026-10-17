@@ -7,8 +7,9 @@ import { formatRupiah } from '../../utils/format';
 /**
  * @param {number} balance — saldo poin
  * @param {{points, value}} redeemable — poin maksimal yang bisa ditukar untuk pesanan ini
+ * @param {number} [minPoints] — store_settings.redeem_points_unit (Step 5.8: diatur Owner di AD-09)
  */
-export default function PointsToggle({ balance, redeemable, checked, onChange }) {
+export default function PointsToggle({ balance, redeemable, checked, onChange, minPoints = 100 }) {
   const disabled = redeemable.points === 0;
   return (
     <label className={`card p-4 flex items-center gap-3 ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
@@ -17,7 +18,7 @@ export default function PointsToggle({ balance, redeemable, checked, onChange })
         <span className="block font-semibold text-cocoa">
           {disabled ? 'Tukar poin' : `Gunakan ${redeemable.points.toLocaleString('id-ID')} poin (hemat ${formatRupiah(redeemable.value)})`}
         </span>
-        <span className="block text-xs text-cocoa/65">Saldo {balance.toLocaleString('id-ID')} poin{disabled ? ' · minimal 100 poin' : ''}</span>
+        <span className="block text-xs text-cocoa/65">Saldo {balance.toLocaleString('id-ID')} poin{disabled ? ` · minimal ${minPoints.toLocaleString('id-ID')} poin` : ''}</span>
       </span>
       {/* Switch: checkbox asli agar bisa dipakai keyboard & pembaca layar */}
       <input

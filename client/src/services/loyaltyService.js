@@ -19,16 +19,21 @@ export function getMyLoyaltySummary() {
   return apiClient('/me/points', {
     mockHandler: () => {
       const user = requireMockRole(ROLES.CUSTOMER);
-      const { point_transactions } = getTables('point_transactions');
+      const { point_transactions, store_settings: settings } = getTables('point_transactions', 'store_settings');
       const mine = point_transactions.filter((tx) => tx.user_id === user.user_id);
       const balance = getPointBalance(mine);
       // Periode level = tahun kalender berjalan (asumsi TF-11)
       const yearlyPoints = getYearlyEarnedPoints(mine, Number(getMockTodayKey().slice(0, 4)));
       return {
         balance,
-        redeemValue: pointsRedeemValue(balance),
+        redeemValue: pointsRedeemValue(balance, settings),
         yearlyPoints,
-        ...getMemberLevel(yearlyPoints),
+        ...getMemberLevel(yearlyPoints, settings),
+        // Step 5.8: aturan loyalty yang diatur Owner (AD-09) untuk keterangan level di C-21
+        settings: {
+          earn_amount_per_point: settings.earn_amount_per_point, gold_min_points: settings.gold_min_points,
+          platinum_min_points: settings.platinum_min_points,
+        },
       };
     },
   });

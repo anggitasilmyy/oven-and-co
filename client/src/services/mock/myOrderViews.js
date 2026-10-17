@@ -3,14 +3,13 @@
 
 import { buildCartLines, CART_VIEW_TABLES } from './cartViews';
 import {
-  buildTrackingSteps, canCancelOrder, canReviewOrder, getUnreviewedItems, buildWhatsAppLink,
+  buildTrackingSteps, canCancelOrder, canReviewOrder, getUnreviewedItems, buildWhatsAppLink, getOperatingHoursFor,
 } from '../../utils/businessRules';
 import { PAYMENT_OPTION, PAYMENT_STATUS, ORDER_STATUS } from '../../constants/orderStatus';
-import { OPERATING_HOURS_DEFAULT } from '../../constants/storeConfig';
 import { WHATSAPP_ORDER_MESSAGE } from '../../constants/orderHistory';
 
 /** Tabel yang dibaca halaman riwayat & detail pesanan (selain tabel findMyOrder) */
-export const MY_ORDER_VIEW_TABLES = [...CART_VIEW_TABLES, 'reviews', 'order_status_histories'];
+export const MY_ORDER_VIEW_TABLES = [...CART_VIEW_TABLES, 'reviews', 'order_status_histories', 'operating_hours'];
 
 /**
  * Item pesanan diperkaya data produk terbaru (nama, foto, varian, desain, ketersediaan, stok hari ini).
@@ -63,8 +62,9 @@ export function toOrderDetail({ order, payment, items, t }) {
       address: settings.address ?? null,
       whatsapp_link: buildWhatsAppLink(settings.whatsapp_number, WHATSAPP_ORDER_MESSAGE(order.order_number)),
     },
-    // BR-07: Bayar di Toko yang belum lunas harus diambil & dibayar sebelum jam tutup
-    pay_before_time: payAtStore && order.payment_status === PAYMENT_STATUS.UNPAID && !settled ? OPERATING_HOURS_DEFAULT.close_time : null,
+    // BR-07: Bayar di Toko yang belum lunas harus diambil & dibayar sebelum jam tutup (Step 5.8: jam tutup dari AD-11)
+    pay_before_time: payAtStore && order.payment_status === PAYMENT_STATUS.UNPAID && !settled
+      ? getOperatingHoursFor(t.operating_hours, order.ready_date).close_time : null,
     can_cancel: canCancelOrder(order),
     can_review: canReviewOrder(order) && unreviewed.length > 0,
   };

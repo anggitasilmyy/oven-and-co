@@ -10,6 +10,7 @@ import { buildCartLines, CART_VIEW_TABLES } from './cartViews';
 import { addStockSold, paymentCodeFor, randomDigits, recordOrderStatus } from './orderEffects';
 import {
   buildCheckoutQuote, findStockIssues, distanceKm, getTimeSlotOptions, nextOrderNumber, getPointBalance,
+  getOperatingHoursFor,
 } from '../../utils/businessRules';
 import { ORDER_STATUS, PAYMENT_STATUS, PAYMENT_OPTION, FULFILLMENT_TYPE } from '../../constants/orderStatus';
 import { TIME_SLOTS, PAY_AT_STORE_METHOD, VOUCHER_INVALID_TEXT, PAY_AT_STORE_DISABLED_TEXT } from '../../constants/checkout';
@@ -29,7 +30,7 @@ function validate(user, input, t) {
   const allReady = lines.every((l) => l.availability_type === AVAILABILITY_TYPE.READY);
   const earliest = lines.reduce((m, l) => (l.ready_date > m ? l.ready_date : m), todayKey);
   if (allReady ? input.ready_date !== todayKey : input.ready_date < earliest) fail('Tanggal ambil/antar tidak valid');
-  const slot = getTimeSlotOptions(TIME_SLOTS, input.ready_date, now).find((s) => s.label === input.time_slot);
+  const slot = getTimeSlotOptions(TIME_SLOTS, input.ready_date, now, getOperatingHoursFor(t.operating_hours, input.ready_date)).find((s) => s.label === input.time_slot);
   if (!slot || slot.disabled) fail('Pilih slot waktu dalam jam operasional');
 
   let address = null;
@@ -57,7 +58,7 @@ function validate(user, input, t) {
  * @returns {{order_number, payment_option}}
  */
 export function createMockOrder(user, input) {
-  const t = getTables(...CART_VIEW_TABLES, 'orders', 'order_items', 'payments', 'payment_methods', 'addresses', 'vouchers', 'user_vouchers', 'point_transactions');
+  const t = getTables(...CART_VIEW_TABLES, 'orders', 'order_items', 'payments', 'payment_methods', 'addresses', 'vouchers', 'user_vouchers', 'point_transactions', 'operating_hours');
   const { lines, quote, address, claim, method, now, todayKey } = validate(user, input, t);
   const payAtStore = method.method_code === PAY_AT_STORE_METHOD;
   const orderId = nextUserRowId(t.orders, 'order_id');

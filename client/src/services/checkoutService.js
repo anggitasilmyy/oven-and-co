@@ -14,7 +14,7 @@ export function getCheckoutContext() {
   return apiClient('/checkout/context', {
     mockHandler: () => {
       const user = requireMockRole(ROLES.CUSTOMER);
-      const t = getTables('store_settings', 'addresses', 'vouchers', 'user_vouchers', 'point_transactions', 'payment_methods');
+      const t = getTables('store_settings', 'addresses', 'vouchers', 'user_vouchers', 'point_transactions', 'payment_methods', 'operating_hours');
       const store = t.store_settings;
       const todayKey = getMockTodayKey();
       const addresses = t.addresses
@@ -33,6 +33,7 @@ export function getCheckoutContext() {
         vouchers,
         point_balance: getPointBalance(t.point_transactions.filter((tx) => tx.user_id === user.user_id)),
         payment_methods: t.payment_methods.filter((m) => m.is_active),
+        operating_hours: t.operating_hours, // Step 5.8 (AD-11): slot mengikuti jam operasional per hari
         today_key: todayKey,
         now: getMockCurrentTime().toISOString(),
       };
