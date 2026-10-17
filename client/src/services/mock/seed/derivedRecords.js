@@ -40,8 +40,8 @@ const COMMENTS = [
   null,
 ];
 
-/** Waktu pesanan dianggap Selesai */
-function completedAt(order, todayKey, now) {
+/** Waktu pesanan dianggap Selesai (Step 5.4: dipakai juga riwayat status contoh) */
+export function completedAt(order, todayKey, now) {
   return order.ready_date === todayKey ? new Date(now.getTime() - 10 * 60000) : atTime(order.ready_date, '19:00');
 }
 

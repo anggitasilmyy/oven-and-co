@@ -30,11 +30,12 @@ export function addStockSold(lines, dateKey, sign) {
  * Batalkan pesanan: stok ready kembali, voucher bisa dipakai lagi, poin yang ditukar dikembalikan (refund).
  * Logika ada di orderCancellation.js (dipakai juga pemeriksaan kedaluwarsa BR-06 di getTables).
  * @param {object} order
- * @param {{cancelReason: string, paymentRowStatus?: string}} changes — paymentRowStatus: status baris payments baru
+ * @param {{cancelReason: string, paymentRowStatus?: string, changedBy?: number|null}} changes
+ *   paymentRowStatus: status baris payments baru · changedBy: pengubah status (Step 5.4, riwayat status)
  */
-export function cancelOrder(order, { cancelReason, paymentRowStatus }) {
+export function cancelOrder(order, { cancelReason, paymentRowStatus, changedBy = null }) {
   const changed = cancelOrderInTables(getTables(...CANCELLATION_TABLES), order, {
-    cancelReason, paymentRowStatus, now: getMockCurrentTime(),
+    cancelReason, paymentRowStatus, changedBy, now: getMockCurrentTime(),
   });
   Object.entries(changed).forEach(([name, rows]) => updateTable(name, () => rows));
 }

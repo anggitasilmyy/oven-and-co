@@ -3,8 +3,9 @@
 // Step 5.3: item (foto, varian/desain, catatan, badge, tanggal siap), ubah jumlah ≤ stok ready, hapus item,
 // banner tanggal siap pre-order (BR-03), subtotal, empty state. Checkout tamu → Masuk lalu kembali (BR-04).
 // FocusPageGrid + ActionBar: < lg bar bawah · ≥ lg panel aksi sticky di kanan.
+// Step 5.4: pesan hasil "Pesan Lagi" (FR-19) dari riwayat/detail pesanan, termasuk item yang tidak disalin.
 
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ShoppingBasket } from 'lucide-react';
 import FocusPageGrid from '../../components/layout/FocusPageGrid';
 import ActionBar from '../../components/layout/ActionBar';
@@ -23,6 +24,7 @@ import { AVAILABILITY_TYPE } from '../../constants/product';
 
 export default function KeranjangPage() {
   const navigate = useNavigate();
+  const reorderNotice = useLocation().state?.reorderNotice;
   const cart = useCartView();
   const subtotal = cart.lines.filter((l) => l.available).reduce((s, l) => s + l.line_total, 0);
   const hasPreorder = cart.lines.some((l) => l.availability_type !== AVAILABILITY_TYPE.READY);
@@ -70,6 +72,9 @@ export default function KeranjangPage() {
     <FocusPageGrid aside={aside}>
       <div className="space-y-5 lg:space-y-6">
         <PageHeader title={`Keranjang (${cart.itemCount})`} />
+        {reorderNotice && (
+          <p role="status" className="rounded-btn bg-peach/50 border border-peach px-4 py-3 text-sm font-medium text-cocoa">{reorderNotice}</p>
+        )}
         {cart.loading ? (
           <div className="space-y-3" aria-busy="true" aria-label="Memuat keranjang">
             {cart.items.map((i) => <Skeleton key={i.cart_item_id} variant="block" className="h-28 w-full rounded-card" />)}

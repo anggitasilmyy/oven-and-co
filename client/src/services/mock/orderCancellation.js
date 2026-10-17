@@ -2,17 +2,20 @@
 // Step 5.3 · BR-06 · TF-12 · BR-10 — pembatalan pesanan sebagai fungsi murni atas baris tabel mock.
 // Dipakai cancelOrder (orderEffects.js) dan pemeriksaan kedaluwarsa di getTables (db.js) — pengganti
 // job autoCancelOrders (Step 6.5). Sengaja TIDAK mengimpor db.js agar tidak terjadi circular import.
+// Step 5.4: dipakai juga pembatalan oleh pelanggan (FR-20, BR-08) — refund pesanan lunas & riwayat status.
 
 import { nextUserRowId, isUserRow } from './userRows';
+import { appendStatusHistory } from './statusHistory';
 import { dateKeyOf } from '../../utils/date';
 import { getPaymentSecondsLeft } from '../../utils/rules/order';
 import { AVAILABILITY_TYPE } from '../../constants/product';
-import { ORDER_STATUS } from '../../constants/orderStatus';
+import { ORDER_STATUS, PAYMENT_STATUS } from '../../constants/orderStatus';
 import { PAYMENT_TIMEOUT_CANCEL_REASON } from '../../constants/checkout';
 
 /** Tabel yang dibaca/diubah saat pesanan dibatalkan */
 export const CANCELLATION_TABLES = [
   'orders', 'payments', 'order_items', 'products', 'daily_stocks', 'user_vouchers', 'vouchers', 'point_transactions',
+  'order_status_histories',
 ];
 
 /**
@@ -32,19 +35,27 @@ export function applyStockDelta(dailyStocks, lines, dateKey, sign) {
 
 /**
  * Batalkan satu pesanan: status Dibatalkan, stok ready kembali, voucher bisa dipakai lagi (kuota +1),
- * poin yang ditukar dikembalikan (refund).
+ * poin yang ditukar dikembalikan (refund). Step 5.4: pesanan lunas → payment_status refunded (BR-08,
+ * SPEC §10 hanya mencatat) dan perubahan status dicatat di order_status_histories.
  * @param {object} t — tabel CANCELLATION_TABLES
- * @param {{cancelReason: string, paymentRowStatus?: string, now: Date}} opts
+ * @param {{cancelReason: string, paymentRowStatus?: string, now: Date, changedBy?: number|null}} opts
+ *   changedBy: user_id pelanggan; null = sistem (pembatalan otomatis)
  * @returns {object} tabel yang berubah { nama: rows }
  */
-export function cancelOrderInTables(t, order, { cancelReason, paymentRowStatus, now }) {
+export function cancelOrderInTables(t, order, { cancelReason, paymentRowStatus, now, changedBy = null }) {
   const lines = t.order_items
     .filter((i) => i.order_id === order.order_id)
     .map((i) => ({ ...i, availability_type: t.products.find((p) => p.product_id === i.product_id)?.availability_type }));
   const changed = {
     orders: t.orders.map((o) => (o.order_id === order.order_id
-      ? { ...o, order_status: ORDER_STATUS.DIBATALKAN, cancel_reason: cancelReason } : o)),
+      ? {
+        ...o, order_status: ORDER_STATUS.DIBATALKAN, cancel_reason: cancelReason,
+        payment_status: o.payment_status === PAYMENT_STATUS.PAID ? PAYMENT_STATUS.REFUNDED : o.payment_status,
+      } : o)),
     daily_stocks: applyStockDelta(t.daily_stocks, lines, dateKeyOf(order.created_at), -1),
+    order_status_histories: appendStatusHistory(t.order_status_histories, [{
+      order_id: order.order_id, status: ORDER_STATUS.DIBATALKAN, changed_by: changedBy, note: cancelReason, changed_at: now.toISOString(),
+    }]),
   };
   if (paymentRowStatus) {
     changed.payments = t.payments.map((p) => (p.order_id === order.order_id ? { ...p, status: paymentRowStatus } : p));

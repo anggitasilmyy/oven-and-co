@@ -2,11 +2,14 @@
 // Step 5.3 · FR-12 – FR-16 · BR-05 · BR-06 · C-14 – C-16 — buat pesanan, halaman bayar, ganti metode, pesanan berhasil.
 // Hanya pelanggan login (BR-04) dan hanya pesanan miliknya. Pembatalan otomatis 30 menit (BR-06) dijalankan
 // terpusat di getTables (mock/db.js → mock/orderCancellation.js) — pengganti job autoCancelOrders (Step 6.5).
+// Step 5.4: perubahan status (lunas, ganti ke Bayar di Toko) dicatat di order_status_histories.
 
 import { apiClient } from './apiClient';
-import { getTables, updateTable } from './mock/db';
+import { updateTable } from './mock/db';
 import { getMockCurrentTime } from './mock/mockClock';
 import { requireMockRole } from './mock/mockSession';
+import { findMyOrder } from './mock/myOrders';
+import { appendStatusHistory } from './mock/statusHistory';
 import { createMockOrder } from './mock/orderWrites';
 import { paymentCodeFor } from './mock/orderEffects';
 import { getPaymentSecondsLeft, pointsEarnedFor, isPayAtStoreAllowed } from '../utils/businessRules';
@@ -14,15 +17,11 @@ import { ROLES } from '../constants/roles';
 import { ORDER_STATUS, PAYMENT_STATUS, PAYMENT_OPTION } from '../constants/orderStatus';
 import { PAY_AT_STORE_METHOD, PAY_AT_STORE_DISABLED_TEXT } from '../constants/checkout';
 
-/** Pesanan milik pelanggan login + data terkait; lempar error bila tidak ditemukan */
-function findMyOrder(orderNumber) {
-  const user = requireMockRole(ROLES.CUSTOMER);
-  const t = getTables('orders', 'order_items', 'payments', 'payment_methods', 'products');
-  const order = t.orders.find((o) => o.order_number === orderNumber && o.user_id === user.user_id);
-  if (!order) throw new Error('Pesanan tidak ditemukan');
-  const payment = t.payments.find((p) => p.order_id === order.order_id);
-  const items = t.order_items.filter((i) => i.order_id === order.order_id);
-  return { order, payment, items, t };
+/** Catat perubahan status di order_status_histories (SPEC §4) */
+function recordStatus(order, status, changedBy) {
+  updateTable('order_status_histories', (rows) => appendStatusHistory(rows, [{
+    order_id: order.order_id, status, changed_by: changedBy, changed_at: getMockCurrentTime().toISOString(),
+  }]));
 }
 
 /** Bentuk data halaman Bayar / Pesanan Berhasil */
@@ -76,6 +75,7 @@ export function changePaymentMethod(orderNumber, methodCode) {
       if (payAtStore) {
         updateTable('orders', (rows) => rows.map((o) => (o.order_id === order.order_id
           ? { ...o, payment_option: PAYMENT_OPTION.PAY_AT_STORE, order_status: ORDER_STATUS.DIKONFIRMASI } : o)));
+        recordStatus(order, ORDER_STATUS.DIKONFIRMASI, found.user.user_id);
       }
       return { order_number: orderNumber, payment_option: payAtStore ? PAYMENT_OPTION.PAY_AT_STORE : PAYMENT_OPTION.ONLINE };
     },
@@ -97,6 +97,7 @@ export function simulatePaymentPaid(orderNumber) {
       updateTable('payments', (rows) => rows.map((p) => (p.order_id === order.order_id ? { ...p, status: 'paid', paid_at: paidAt } : p)));
       updateTable('orders', (rows) => rows.map((o) => (o.order_id === order.order_id
         ? { ...o, payment_status: PAYMENT_STATUS.PAID, order_status: ORDER_STATUS.DIKONFIRMASI } : o)));
+      recordStatus(order, ORDER_STATUS.DIKONFIRMASI, null); // webhook payment gateway = sistem
       return { order_number: orderNumber };
     },
   });
