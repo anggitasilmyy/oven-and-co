@@ -4,9 +4,12 @@
 import { formatNumber } from '../../utils/format';
 import ProductImage from '../ui/ProductImage';
 
-/** @param {Array<{product_id, name, category_name, image_url, quantity_sold}>} products */
-export default function BestSellersPanel({ products }) {
-  if (!products.length) return <p className="text-sm text-cocoa/70">Belum ada penjualan 7 hari terakhir.</p>;
+/**
+ * @param {Array<{product_id, name, category_name, image_url, quantity_sold}>} products
+ * @param {string} [emptyText] — Step 5.8: dipakai ulang di Laporan AD-08 dengan periode lain
+ */
+export default function BestSellersPanel({ products, emptyText = 'Belum ada penjualan 7 hari terakhir.' }) {
+  if (!products.length) return <p className="text-sm text-cocoa/70">{emptyText}</p>;
   const max = products[0].quantity_sold;
   return (
     <ol className="space-y-3">

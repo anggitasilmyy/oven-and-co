@@ -4,7 +4,7 @@
 
 import useCheckoutStore from '../stores/useCheckoutStore';
 import {
-  buildCheckoutQuote, buildDateOptions, getTimeSlotOptions, isSelectableDate,
+  buildCheckoutQuote, buildDateOptions, getTimeSlotOptions, isSelectableDate, getOperatingHoursFor,
 } from '../utils/businessRules';
 import { FULFILLMENT_TYPE } from '../constants/orderStatus';
 import { AVAILABILITY_TYPE } from '../constants/product';
@@ -23,7 +23,8 @@ export default function useCheckoutForm(ctx, cart) {
   const earliest = allReady ? ctx.today_key : cart.view?.ready_date ?? ctx.today_key;
   const readyDate = allReady ? ctx.today_key : (isSelectableDate(draft.readyDate, earliest) ? draft.readyDate : earliest);
   const dateOptions = allReady ? null : buildDateOptions(ctx.today_key, earliest, CHECKOUT_DATE_WINDOW_DAYS);
-  const slots = getTimeSlotOptions(TIME_SLOTS, readyDate, now);
+  const hours = getOperatingHoursFor(ctx.operating_hours, readyDate);
+  const slots = getTimeSlotOptions(TIME_SLOTS, readyDate, now, hours);
   const timeSlot = slots.find((s) => s.label === draft.timeSlot && !s.disabled)?.label ?? null;
 
   const isDelivery = draft.fulfillment === FULFILLMENT_TYPE.DELIVERY;
@@ -47,6 +48,7 @@ export default function useCheckoutForm(ctx, cart) {
   else if (isDelivery && !address) blockedReason = 'Tambahkan alamat pengiriman';
   else if (isDelivery && !address.withinRadius) blockedReason = 'Alamat di luar radius pengiriman';
   else if (quote.voucher && !quote.voucher.valid) blockedReason = VOUCHER_INVALID_TEXT;
+  else if (!hours.is_open) blockedReason = 'Toko tutup pada tanggal ini. Pilih tanggal lain';
   else if (!timeSlot) blockedReason = slots.every((s) => s.disabled) ? 'Slot hari ini sudah habis' : 'Pilih slot waktu';
 
   /** Coba pakai voucher; false bila tidak berlaku (validation rule Voucher & poin) */

@@ -3,7 +3,7 @@
 // Produk SPEC §9 dipertahankan; produk/harga lain = data contoh.
 
 import { addDaysToKey } from '../../../utils/date';
-import { STORE_SETTINGS_DEFAULT } from '../../../constants/storeConfig';
+import { STORE_SETTINGS_DEFAULT, OPERATING_HOURS_DEFAULT } from '../../../constants/storeConfig';
 
 // categories — SPEC §9
 export const CATEGORIES = [
@@ -143,3 +143,8 @@ export const STORE_SETTINGS = {
   longitude: 106.8,
   whatsapp_number: '+620000000000', // data contoh
 };
+
+// operating_hours — 7 baris (1 Senin – 7 Minggu); asumsi TF-10: 07.00–20.00 setiap hari (Step 5.8, AD-11)
+export const OPERATING_HOURS = [1, 2, 3, 4, 5, 6, 7].map((day) => ({
+  hour_id: day, day_of_week: day, ...OPERATING_HOURS_DEFAULT, is_open: true,
+}));

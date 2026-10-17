@@ -59,7 +59,7 @@ export default function VoucherPoinPage() {
         <div className="grid gap-5 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
           <div className="space-y-5 xl:order-2 md:grid md:grid-cols-2 md:gap-5 md:space-y-0 xl:block xl:space-y-5 xl:sticky xl:top-24">
             <MemberCard summary={summary.data} loading={summary.loading} error={summary.error} onRetry={summary.reload} showRewardLink={false} />
-            <MemberLevelInfo currentKey={summary.data?.level.key} />
+            <MemberLevelInfo currentKey={summary.data?.level.key} settings={summary.data?.settings} />
           </div>
           <div className="space-y-4 min-w-0">
             <Tabs

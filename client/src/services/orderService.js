@@ -27,7 +27,7 @@ function toPaymentView({ order, payment, items, t }) {
     method,
     item_count: items.reduce((s, i) => s + i.quantity, 0),
     seconds_left: payment ? getPaymentSecondsLeft(payment.expired_at, getMockCurrentTime()) : 0,
-    points_to_earn: pointsEarnedFor(order.total),
+    points_to_earn: pointsEarnedFor(order.total, t.store_settings),
     pay_at_store_allowed: isPayAtStoreAllowed(order.fulfillment_type, types),
   };
 }

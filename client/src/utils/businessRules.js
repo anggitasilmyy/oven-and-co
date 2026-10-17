@@ -24,3 +24,8 @@ export * from './rules/adminOrder';
 export * from './rules/production';
 // Step 5.7: rules/adminCatalog (produk & opsi custom cake AD-06); stok harian & bahan baku AD-07 ada di rules/stock.
 export * from './rules/adminCatalog';
+// Step 5.8: rules/report (AD-08), rules/adminPromo (AD-09), rules/adminCustomer (AD-10), rules/settings (AD-11).
+export * from './rules/report';
+export * from './rules/adminPromo';
+export * from './rules/adminCustomer';
+export * from './rules/settings';

@@ -20,6 +20,8 @@
 // Step 5.7: katalog yang dikelola admin (AD-06, AD-07) masuk ADMIN_TABLES — diisi dari seed hanya bila belum ada,
 // lalu tidak pernah ditimpa (pergantian tanggal/SEED_VERSION). Rencana stok harian yang diisi admin (stock_id ≥
 // USER_ROW_ID_START) dipertahankan dan menggantikan rencana contoh pada produk & tanggal yang sama.
+// Step 5.8: voucher (AD-09), pengaturan toko, metode bayar, dan jam operasional (AD-11) juga masuk ADMIN_TABLES agar
+// perubahan Owner tidak hilang saat tanggal berganti. Kuota voucher tidak diterapkan ulang (sudah tersimpan).
 
 import { lastNDateKeys } from '../../utils/date';
 import { SALES_WINDOW_DAYS } from '../../constants/dashboard';
@@ -28,7 +30,7 @@ import { getMockTodayKey, getMockNow, getMockCurrentTime } from './mockClock';
 import { getMockUsers } from './users';
 import {
   CATEGORIES, PRODUCTS, DAILY_STOCK_PLAN, RAW_MATERIALS,
-  PAYMENT_METHODS, CUSTOM_OPTIONS, STORE_SETTINGS, buildVouchers,
+  PAYMENT_METHODS, CUSTOM_OPTIONS, STORE_SETTINGS, OPERATING_HOURS, buildVouchers,
 } from './seed/catalog';
 import { PRODUCT_IMAGES } from './seed/productMedia';
 import { PRODUCT_VARIANTS, withAdminReplies, buildWishlists } from './seed/productExtras';
@@ -53,8 +55,8 @@ const SOLD_OUT_TODAY_IDS = [8];
 
 export const TABLES = [
   'categories', 'daily_stocks',
-  'payment_methods', 'custom_cake_designs', 'custom_cake_design_options', 'vouchers',
-  'orders', 'order_items', 'payments', 'reviews', 'review_photos', 'point_transactions', 'store_settings',
+  'custom_cake_designs', 'custom_cake_design_options',
+  'orders', 'order_items', 'payments', 'reviews', 'review_photos', 'point_transactions',
   'order_status_histories', // Step 5.4
   'notifications', // Step 5.5
 ];
@@ -72,7 +74,10 @@ const USER_SCHEMA_VERSION = 1;
  * Step 5.7: tabel katalog yang dikelola Staf/Owner (produk, foto, varian, opsi custom cake, bahan baku).
  * Seperti USER_TABLES: diisi dari seed bila belum ada di perangkat, dibuat ulang hanya bila ADMIN_SCHEMA_VERSION naik.
  */
-export const ADMIN_TABLES = ['products', 'product_images', 'product_variants', 'custom_options', 'raw_materials'];
+export const ADMIN_TABLES = [
+  'products', 'product_images', 'product_variants', 'custom_options', 'raw_materials',
+  'vouchers', 'store_settings', 'payment_methods', 'operating_hours', // Step 5.8 (AD-09, AD-11)
+];
 const ADMIN_SCHEMA_VERSION = 1;
 
 // Step 5.2 – 5.3: baris buatan pengguna di tabel data contoh — lihat ./userRows.js
@@ -124,6 +129,7 @@ function buildSeed(todayKey) {
       demoCustomerId: DEMO_CUSTOMER_ID, todayKey, now,
     }),
     store_settings: STORE_SETTINGS,
+    operating_hours: OPERATING_HOURS,
     wishlists: buildWishlists(DEMO_CUSTOMER_ID, now),
     addresses: buildAddresses(DEMO_CUSTOMER_ID),
     user_vouchers: buildUserVouchers(DEMO_CUSTOMER_ID, now),
@@ -149,7 +155,8 @@ function ensureSeed() {
     Object.entries(PRESERVED_USER_ROWS).map(([t, idKey]) => [t, [readMock(t, [])].flat().filter((r) => isUserRow(r, idKey))])
   ));
   seed.daily_stocks = mergeAdminDailyStocks(seed.daily_stocks, adminStocks);
-  reapplyUserOrderEffects(seed, keptRows);
+  // Kuota voucher hanya diterapkan ulang bila tabel vouchers baru dibuat dari seed (Step 5.8)
+  reapplyUserOrderEffects(seed, keptRows, { vouchers: missingAdminTables.includes('vouchers') });
   TABLES.forEach((t) => writeMock(t, keptRows[t] ? [...seed[t], ...keptRows[t]] : seed[t]));
   // Data pengguna: hanya dibuat bila belum ada (atau skemanya berubah), tidak pernah ditimpa
   missingUserTables.forEach((t) => writeMock(t, seed[t]));

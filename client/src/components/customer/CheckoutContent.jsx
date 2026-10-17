@@ -96,7 +96,7 @@ export default function CheckoutContent({ ctx, cart }) {
           onApply={f.applyVoucher}
           onRemove={f.removeVoucher}
         />
-        <PointsToggle balance={ctx.point_balance} redeemable={quote.redeemable} checked={f.draft.usePoints} onChange={f.setUsePoints} />
+        <PointsToggle balance={ctx.point_balance} redeemable={quote.redeemable} checked={f.draft.usePoints} onChange={f.setUsePoints} minPoints={ctx.settings.redeem_points_unit} />
         <CostSummary rows={rows} total={quote.total} />
       </div>
     </FocusPageGrid>
