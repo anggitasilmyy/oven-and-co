@@ -172,11 +172,25 @@ await p.evaluate(() => { const m = JSON.parse(localStorage.getItem('ovenco_mock_
 await p.reload(); await p.waitForTimeout(600);
 const meta1 = await p.evaluate(() => JSON.parse(localStorage.getItem('ovenco_mock_meta')));
 check('Tanggal berganti: data contoh dibuat ulang, wishlist tetap', meta1.anchor_date !== '2000-01-01' && JSON.stringify(await wl()) === expected && (await isOn('Signature Cinnamon Roll')) === 1);
-// versi seed naik → simulasikan meta.version lama
-await p.evaluate(() => { const m = JSON.parse(localStorage.getItem('ovenco_mock_meta')); m.version = 2; delete m.user_schema; localStorage.setItem('ovenco_mock_meta', JSON.stringify(m)); });
+// versi seed naik → simulasikan meta.version lama.
+// SEED_VERSION dibaca langsung dari services/mock/db.js (sumber mentah lewat impor `?raw` Vite) agar asersi tidak
+// perlu diperbarui setiap kali versi seed dinaikkan (dulu tertulis `=== 4` dan gagal sejak v5).
+const seedVersion = await p.evaluate(async () => {
+  const src = (await import('/src/services/mock/db.js?raw')).default;
+  return Number(/^const SEED_VERSION = (\d+);/m.exec(src)?.[1]);
+});
+check('SEED_VERSION terbaca dari db.js & sama dengan meta saat ini', Number.isInteger(seedVersion) && seedVersion > 2 && meta1.version === seedVersion, `${seedVersion} / meta ${meta1.version}`);
+// Penanda: kosongkan satu tabel data contoh — harus terisi lagi bila data contoh benar-benar dibuat ulang
+await p.evaluate(() => {
+  const m = JSON.parse(localStorage.getItem('ovenco_mock_meta')); m.version = 2; delete m.user_schema;
+  localStorage.setItem('ovenco_mock_meta', JSON.stringify(m));
+  localStorage.setItem('ovenco_mock_categories', '[]');
+});
 await p.reload(); await p.waitForTimeout(600);
 const meta2 = await p.evaluate(() => JSON.parse(localStorage.getItem('ovenco_mock_meta')));
-check('SEED_VERSION berubah: wishlist TIDAK ditimpa', meta2.version === 4 && JSON.stringify(await wl()) === expected, JSON.stringify(await wl()));
+const categoriesAfter = await p.evaluate(() => JSON.parse(localStorage.getItem('ovenco_mock_categories') ?? '[]').length);
+check('SEED_VERSION berubah: meta kembali ke versi terbaru & data contoh dibuat ulang', meta2.version === seedVersion && meta2.user_schema != null && categoriesAfter > 0, `${JSON.stringify(meta2)} · kategori ${categoriesAfter}`);
+check('SEED_VERSION berubah: wishlist TIDAK ditimpa', JSON.stringify(await wl()) === expected && (await isOn('Signature Cinnamon Roll')) === 1 && (await isOn('Almond Croissant')) === 0, JSON.stringify(await wl()));
 // tabel belum ada → diisi seed
 await p.evaluate(() => localStorage.removeItem('ovenco_mock_wishlists'));
 await p.reload(); await p.waitForTimeout(600);

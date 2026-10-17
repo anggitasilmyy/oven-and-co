@@ -1,10 +1,13 @@
 // services/wishlistService.js
 // Step 5.1 · FR-25 · UC-17 — simpan/hapus produk di wishlist pelanggan login (tabel wishlists)
 // Hanya untuk pelanggan; pengguna diambil dari sesi (tidak pernah menerima user_id dari UI).
+// Step 5.5 · C-23: daftar produk wishlist (kartu produk standar).
 
 import { apiClient } from './apiClient';
 import { getTables, updateTable } from './mock/db';
 import { requireMockRole } from './mock/mockSession';
+import { getMockTodayKey } from './mock/mockClock';
+import { buildProductContext, toProductView } from './mock/productViews';
 import { ROLES } from '../constants/roles';
 
 /** Baris wishlist yang sah saja (data localStorage bisa rusak/terubah manual) */
@@ -40,6 +43,26 @@ export function setWishlisted(productId, wishlisted) {
           : others;
       });
       return { product_id: id, wishlisted };
+    },
+  });
+}
+
+/**
+ * C-23: produk aktif di wishlist pelanggan login, terakhir disimpan dulu (produk nonaktif tidak ditampilkan).
+ * @returns {Promise<Array>} bentuk sama dengan kartu produk katalog
+ */
+export function getMyWishlistProducts() {
+  return apiClient('/me/wishlist/products', {
+    mockHandler: () => {
+      const user = requireMockRole(ROLES.CUSTOMER);
+      const t = getTables('wishlists', 'categories', 'products', 'product_images', 'daily_stocks', 'reviews', 'order_items');
+      const ctx = buildProductContext(t, getMockTodayKey());
+      return validRows(t.wishlists)
+        .filter((w) => w.user_id === user.user_id)
+        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+        .map((w) => t.products.find((p) => p.product_id === w.product_id && p.is_active))
+        .filter(Boolean)
+        .map((p) => toProductView(p, ctx));
     },
   });
 }

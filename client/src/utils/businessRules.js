@@ -16,3 +16,6 @@ export * from './rules/customCake';
 export * from './rules/checkout';
 export * from './rules/order';
 export * from './rules/orderTracking';
+// Step 5.5: rules/account (profil, alamat, voucher) & rules/notification (notifikasi in-app).
+export * from './rules/account';
+export * from './rules/notification';

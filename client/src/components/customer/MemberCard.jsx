@@ -14,8 +14,9 @@ import { formatNumber, formatRupiah } from '../../utils/format';
  * @param {boolean} loading
  * @param {Error|null} error
  * @param {Function} onRetry
+ * @param {boolean} [showRewardLink] — Step 5.5: disembunyikan di C-21 (tautan menuju halaman itu sendiri)
  */
-export default function MemberCard({ summary, loading, error, onRetry }) {
+export default function MemberCard({ summary, loading, error, onRetry, showRewardLink = true }) {
   if (error) return <ErrorState message="Poin gagal dimuat." onRetry={onRetry} />;
   if (loading && !summary) {
     return (
@@ -66,14 +67,14 @@ export default function MemberCard({ summary, loading, error, onRetry }) {
         </p>
       </div>
 
-      <Link
+      {showRewardLink && <Link
         to={CUSTOMER_ROUTES.VOUCHER_POIN}
         className="mt-auto inline-flex items-center gap-1 self-start min-h-touch-min -mb-2 text-sm font-semibold text-primary
                    rounded-btn hover:text-cocoa focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
       >
         Lihat reward
         <ChevronRight size={16} aria-hidden="true" />
-      </Link>
+      </Link>}
     </section>
   );
 }

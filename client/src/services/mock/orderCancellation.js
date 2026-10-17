@@ -3,11 +3,14 @@
 // Dipakai cancelOrder (orderEffects.js) dan pemeriksaan kedaluwarsa di getTables (db.js) — pengganti
 // job autoCancelOrders (Step 6.5). Sengaja TIDAK mengimpor db.js agar tidak terjadi circular import.
 // Step 5.4: dipakai juga pembatalan oleh pelanggan (FR-20, BR-08) — refund pesanan lunas & riwayat status.
+// Step 5.5: pembatalan memicu notifikasi status (FR-18, SPEC §4) dan notifikasi poin bila poin dikembalikan.
 
 import { nextUserRowId, isUserRow } from './userRows';
 import { appendStatusHistory } from './statusHistory';
+import { appendNotifications } from './notifications';
 import { dateKeyOf } from '../../utils/date';
 import { getPaymentSecondsLeft } from '../../utils/rules/order';
+import { buildOrderStatusNotification, buildPointsNotification } from '../../utils/rules/notification';
 import { AVAILABILITY_TYPE } from '../../constants/product';
 import { ORDER_STATUS, PAYMENT_STATUS } from '../../constants/orderStatus';
 import { PAYMENT_TIMEOUT_CANCEL_REASON } from '../../constants/checkout';
@@ -16,6 +19,7 @@ import { PAYMENT_TIMEOUT_CANCEL_REASON } from '../../constants/checkout';
 export const CANCELLATION_TABLES = [
   'orders', 'payments', 'order_items', 'products', 'daily_stocks', 'user_vouchers', 'vouchers', 'point_transactions',
   'order_status_histories',
+  'notifications', // Step 5.5
 ];
 
 /**
@@ -64,22 +68,29 @@ export function cancelOrderInTables(t, order, { cancelReason, paymentRowStatus, 
     changed.user_vouchers = t.user_vouchers.map((c) => (c.user_id === order.user_id && c.voucher_id === order.voucher_id ? { ...c, used_at: null } : c));
     changed.vouchers = t.vouchers.map((v) => (v.voucher_id === order.voucher_id ? { ...v, quota: v.quota + 1 } : v));
   }
+  const notices = [buildOrderStatusNotification(order, ORDER_STATUS.DIBATALKAN, { note: cancelReason })];
   if (order.points_used > 0) {
     changed.point_transactions = [...t.point_transactions, {
       point_tx_id: nextUserRowId(t.point_transactions, 'point_tx_id'), user_id: order.user_id, type: 'refund',
       points: order.points_used, order_id: order.order_id, review_id: null, created_at: now.toISOString(),
     }];
+    notices.push(buildPointsNotification({
+      user_id: order.user_id, points: order.points_used, reason: `pembatalan pesanan ${order.order_number}`, order_id: order.order_id,
+    }));
   }
+  // Step 5.5: notifikasi in-app untuk pelanggan pemilik pesanan (FR-18)
+  changed.notifications = appendNotifications(t.notifications ?? [], notices, now.toISOString());
   return changed;
 }
 
 /**
  * BR-06: pesanan online buatan pelanggan yang masih Menunggu Pembayaran (pembayaran pending) dan sudah
  * lewat expired_at dibatalkan. Data contoh (id < USER_ROW_ID_START) dan pesanan lunas/Bayar di Toko tidak disentuh.
- * @param {{read: Function, write: Function, now: Date}} io — akses tabel mentah (readMock/writeMock)
+ * @param {{read: Function, write: Function, now: Date, onNotified?: Function}} io — akses tabel mentah (readMock/writeMock);
+ *   onNotified(notifikasi baru) dipanggil setelah ditulis (Step 5.5: salinan email di console)
  * @returns {number} jumlah pesanan yang dibatalkan
  */
-export function expireOverdueUserOrders({ read, write, now }) {
+export function expireOverdueUserOrders({ read, write, now, onNotified }) {
   const orders = [read('orders', [])].flat();
   const pending = orders.filter((o) => isUserRow(o, 'order_id') && o.order_status === ORDER_STATUS.MENUNGGU_PEMBAYARAN);
   if (pending.length === 0) return 0;
@@ -92,11 +103,13 @@ export function expireOverdueUserOrders({ read, write, now }) {
 
   let t = Object.fromEntries(CANCELLATION_TABLES.map((n) => [n, [read(n, [])].flat()]));
   const touched = new Set();
+  const notifiedFrom = t.notifications.length;
   for (const order of overdue) {
     const changed = cancelOrderInTables(t, order, { cancelReason: PAYMENT_TIMEOUT_CANCEL_REASON, paymentRowStatus: 'expired', now });
     Object.keys(changed).forEach((n) => touched.add(n));
     t = { ...t, ...changed };
   }
   touched.forEach((n) => write(n, t[n]));
+  onNotified?.(t.notifications.slice(notifiedFrom));
   return overdue.length;
 }

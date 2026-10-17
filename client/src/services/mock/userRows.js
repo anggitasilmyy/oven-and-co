@@ -1,6 +1,7 @@
 // services/mock/userRows.js
 // Step 5.2 – 5.3 · Baris buatan pengguna di tabel yang juga berisi data contoh (desain custom cake, pesanan).
 // Step 5.4: riwayat status, ulasan, dan foto ulasan juga dipertahankan (lihat dropRowsLinkedToSeed).
+// Step 5.5: notifikasi buatan pengguna juga dipertahankan.
 // Baris dengan id ≥ USER_ROW_ID_START tidak pernah dipakai seed sehingga dipertahankan saat data contoh
 // dibuat ulang (pergantian tanggal / SEED_VERSION). Efeknya pada stok & kuota voucher diterapkan ulang.
 
@@ -22,6 +23,7 @@ export const PRESERVED_USER_ROWS = {
   order_status_histories: 'history_id', // Step 5.4
   reviews: 'review_id',
   review_photos: 'photo_id',
+  notifications: 'notification_id', // Step 5.5
 };
 
 export const isUserRow = (row, idKey) => Number(row?.[idKey]) >= USER_ROW_ID_START;
@@ -68,6 +70,8 @@ export function dropRowsLinkedToSeed(kept) {
     reviews,
     review_photos: (kept.review_photos ?? []).filter((p) => reviewIds.has(p.review_id)),
     order_status_histories: (kept.order_status_histories ?? []).filter((h) => isUserRow(h, 'order_id')),
+    // Step 5.5: notifikasi untuk pesanan contoh ikut dibuang (notifikasi tanpa pesanan dipertahankan)
+    notifications: (kept.notifications ?? []).filter((n) => n.order_id == null || isUserRow(n, 'order_id')),
     point_transactions: (kept.point_transactions ?? []).filter((tx) =>
       (tx.review_id == null || reviewIds.has(tx.review_id)) && (tx.order_id == null || isUserRow(tx, 'order_id'))),
   };

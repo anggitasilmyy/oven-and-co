@@ -1,10 +1,12 @@
 // services/mock/reviewWrites.js
 // Step 5.4 · FR-21 · BR-11 · C-19 — simpan ulasan di mode mock (pengganti POST /api/reviews Step 6.3).
 // Semua aturan divalidasi ulang di sini; UI hanya mengirim isian pelanggan.
+// Step 5.5: bonus poin ulasan memicu notifikasi poin (FR-18).
 
 import { updateTable, nextUserRowId } from './db';
 import { getMockCurrentTime } from './mockClock';
-import { canReviewOrder, getUnreviewedItems, validateReviewInput } from '../../utils/businessRules';
+import { appendNotifications, logMockEmails } from './notifications';
+import { canReviewOrder, getUnreviewedItems, validateReviewInput, buildPointsNotification } from '../../utils/businessRules';
 import { STORE_SETTINGS_DEFAULT } from '../../constants/storeConfig';
 
 const fail = (message) => { throw new Error(message); };
@@ -53,5 +55,10 @@ export function createMockReview({ user, order, items, t }, input) {
     point_tx_id: nextUserRowId(rows, 'point_tx_id'), user_id: user.user_id, type: 'review_bonus',
     points, order_id: null, review_id: review.review_id, created_at: now,
   }]);
+  const notice = buildPointsNotification({
+    user_id: user.user_id, points, reason: `ulasan pesanan ${order.order_number}`, order_id: order.order_id,
+  });
+  updateTable('notifications', (rows) => appendNotifications(rows, [notice], now));
+  logMockEmails([notice]);
   return { review_id: review.review_id, points };
 }
