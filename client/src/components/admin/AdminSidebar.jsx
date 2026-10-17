@@ -59,7 +59,7 @@ export default function AdminSidebar({ user, isOpen, onClose, onLogout }) {
 
       <aside
         className={[
-          'fixed top-0 left-0 h-full z-50 flex flex-col',
+          'fixed top-0 left-0 h-full z-50 flex flex-col print:!hidden',
           'w-64 bg-cocoa text-cream',
           'transition-transform duration-300',
           isOpen ? 'translate-x-0' : '-translate-x-full',

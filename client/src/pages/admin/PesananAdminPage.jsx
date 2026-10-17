@@ -1,7 +1,7 @@
 // pages/admin/PesananAdminPage.jsx
 // FR-28 · UC-20 · AD-03 Daftar Pesanan (landing Staf; juga Owner)
 // Step 4: tab status + jumlah, filter (nomor pesanan, tanggal, Pickup/Delivery, metode bayar), tabel/kartu, halaman.
-// Ubah status, verifikasi pickup, tandai lunas, dan cetak struk dikerjakan di Step 5.6 (AD-04).
+// Ubah status, verifikasi pickup, tandai lunas, dan cetak struk ada di AD-04 (Step 5.6, tombol Detail).
 
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';

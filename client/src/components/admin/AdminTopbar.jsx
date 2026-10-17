@@ -13,7 +13,7 @@ import AdminAvatar from './AdminAvatar';
  */
 export default function AdminTopbar({ user, isSidebarOpen, onOpenSidebar }) {
   return (
-    <header className="sticky top-0 z-30 bg-surface border-b border-beige h-14 lg:h-16 flex items-center px-4 md:px-6 lg:px-8 gap-4">
+    <header className="print:hidden sticky top-0 z-30 bg-surface border-b border-beige h-14 lg:h-16 flex items-center px-4 md:px-6 lg:px-8 gap-4">
       {/* Hamburger mobile */}
       <button
         onClick={onOpenSidebar}
