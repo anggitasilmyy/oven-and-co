@@ -89,11 +89,17 @@ export default {
           from: { transform: 'scale(0.96)', opacity: '0' },
           to: { transform: 'scale(1)', opacity: '1' },
         },
+        // Step 5.7: Drawer form produk AD-06 masuk dari kanan
+        'drawer-in': {
+          from: { transform: 'translateX(24px)', opacity: '0' },
+          to: { transform: 'translateX(0)', opacity: '1' },
+        },
       },
       animation: {
         'slide-up': 'slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1) both',
         'fade-in-up': 'fade-in-up 0.22s ease-out both',
         'modal-in': 'modal-in 0.2s ease-out both',
+        'drawer-in': 'drawer-in 0.22s ease-out both',
       },
 
       // ── Transisi halus ────────────────────────────────────────────────────

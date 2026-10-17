@@ -17,6 +17,9 @@
 // riwayat status buatan pengguna juga dipertahankan, kecuali yang merujuk pesanan contoh.
 // Step 5.5: tabel notifications (C-24). Notifikasi contoh dibuat ulang bersama data contoh (status dibaca ikut
 // kembali ke awal); notifikasi buatan pengguna dipertahankan kecuali yang merujuk pesanan contoh.
+// Step 5.7: katalog yang dikelola admin (AD-06, AD-07) masuk ADMIN_TABLES — diisi dari seed hanya bila belum ada,
+// lalu tidak pernah ditimpa (pergantian tanggal/SEED_VERSION). Rencana stok harian yang diisi admin (stock_id ≥
+// USER_ROW_ID_START) dipertahankan dan menggantikan rencana contoh pada produk & tanggal yang sama.
 
 import { lastNDateKeys } from '../../utils/date';
 import { SALES_WINDOW_DAYS } from '../../constants/dashboard';
@@ -33,7 +36,9 @@ import { SAMPLE_CUSTOMERS, DEMO_CUSTOMER_ID, DEMO_CUSTOMER_POINT_BALANCE } from 
 import { generateOrders } from './seed/orderGenerator';
 import { buildDailyStocks, buildReviews, buildPointTransactions } from './seed/derivedRecords';
 import { buildAddresses, buildUserVouchers } from './seed/customerExtras';
-import { PRESERVED_USER_ROWS, isUserRow, reapplyUserOrderEffects, dropRowsLinkedToSeed } from './userRows';
+import {
+  PRESERVED_USER_ROWS, isUserRow, reapplyUserOrderEffects, dropRowsLinkedToSeed, mergeAdminDailyStocks,
+} from './userRows';
 import { buildStatusHistories } from './seed/statusHistories';
 import { expireOverdueUserOrders } from './orderCancellation';
 import { buildNotifications } from './seed/notifications';
@@ -47,8 +52,8 @@ const META_KEY = 'meta';
 const SOLD_OUT_TODAY_IDS = [8];
 
 export const TABLES = [
-  'categories', 'products', 'product_images', 'product_variants', 'daily_stocks', 'raw_materials',
-  'payment_methods', 'custom_options', 'custom_cake_designs', 'custom_cake_design_options', 'vouchers',
+  'categories', 'daily_stocks',
+  'payment_methods', 'custom_cake_designs', 'custom_cake_design_options', 'vouchers',
   'orders', 'order_items', 'payments', 'reviews', 'review_photos', 'point_transactions', 'store_settings',
   'order_status_histories', // Step 5.4
   'notifications', // Step 5.5
@@ -62,6 +67,13 @@ export const USER_TABLES = ['wishlists', 'addresses', 'user_vouchers']; // Step 
  * dipakai lagi; saat itu tabel pengguna diisi ulang dari seed (prototype belum punya migrasi).
  */
 const USER_SCHEMA_VERSION = 1;
+
+/**
+ * Step 5.7: tabel katalog yang dikelola Staf/Owner (produk, foto, varian, opsi custom cake, bahan baku).
+ * Seperti USER_TABLES: diisi dari seed bila belum ada di perangkat, dibuat ulang hanya bila ADMIN_SCHEMA_VERSION naik.
+ */
+export const ADMIN_TABLES = ['products', 'product_images', 'product_variants', 'custom_options', 'raw_materials'];
+const ADMIN_SCHEMA_VERSION = 1;
 
 // Step 5.2 – 5.3: baris buatan pengguna di tabel data contoh — lihat ./userRows.js
 export { USER_ROW_ID_START, nextUserRowId } from './userRows';
@@ -124,18 +136,27 @@ function ensureSeed() {
   const meta = readMock(META_KEY);
   const userSchemaChanged = meta?.user_schema != null && meta.user_schema !== USER_SCHEMA_VERSION;
   const missingUserTables = USER_TABLES.filter((t) => userSchemaChanged || !hasMock(t));
-  if (meta?.version === SEED_VERSION && meta?.anchor_date === todayKey && missingUserTables.length === 0) return;
+  const adminSchemaChanged = meta?.admin_schema != null && meta.admin_schema !== ADMIN_SCHEMA_VERSION;
+  const missingAdminTables = ADMIN_TABLES.filter((t) => adminSchemaChanged || !hasMock(t));
+  if (meta?.version === SEED_VERSION && meta?.anchor_date === todayKey
+    && missingUserTables.length === 0 && missingAdminTables.length === 0) return;
 
   const seed = buildSeed(todayKey);
+  // Step 5.7: katalog admin yang tersimpan menggantikan katalog contoh (perubahan Staf/Owner tidak hilang)
+  ADMIN_TABLES.filter((t) => !missingAdminTables.includes(t)).forEach((t) => { seed[t] = readMock(t, []); });
   // Baris buatan pengguna di tabel data contoh dibaca sebelum ditimpa, lalu ditambahkan kembali
-  const keptRows = dropRowsLinkedToSeed(Object.fromEntries(
+  const { daily_stocks: adminStocks, ...keptRows } = dropRowsLinkedToSeed(Object.fromEntries(
     Object.entries(PRESERVED_USER_ROWS).map(([t, idKey]) => [t, [readMock(t, [])].flat().filter((r) => isUserRow(r, idKey))])
   ));
+  seed.daily_stocks = mergeAdminDailyStocks(seed.daily_stocks, adminStocks);
   reapplyUserOrderEffects(seed, keptRows);
   TABLES.forEach((t) => writeMock(t, keptRows[t] ? [...seed[t], ...keptRows[t]] : seed[t]));
   // Data pengguna: hanya dibuat bila belum ada (atau skemanya berubah), tidak pernah ditimpa
   missingUserTables.forEach((t) => writeMock(t, seed[t]));
-  writeMock(META_KEY, { version: SEED_VERSION, anchor_date: todayKey, user_schema: USER_SCHEMA_VERSION });
+  missingAdminTables.forEach((t) => writeMock(t, seed[t]));
+  writeMock(META_KEY, {
+    version: SEED_VERSION, anchor_date: todayKey, user_schema: USER_SCHEMA_VERSION, admin_schema: ADMIN_SCHEMA_VERSION,
+  });
 }
 
 /**

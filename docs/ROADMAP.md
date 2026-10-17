@@ -154,6 +154,11 @@ Catatan khusus:
   Keputusan: admin tidak mengubah Menunggu Pembayaran (dipicu sistem) dan belum bisa membatalkan pesanan (alasan & refund
   belum diatur dokumen); tandai lunas Bayar di Toko saat Siap Diambil; checkbox "Selesai diproduksi" (Stitch) tidak dibuat
   karena tidak ada kolomnya di SPEC §8. Uji: `client/tests/step-5.6/`.
+- 5.7: Status: selesai (AD-06 produk + foto maks. 5 + varian + toggle aktif, tab Opsi Custom Cake; AD-07 rencana stok
+  harian produk ready + bahan baku dengan Catat Stok Masuk). Keputusan: produk/varian/opsi tidak dihapus, hanya
+  dinonaktifkan (A-05); kategori Custom Cake ↔ tipe custom dan hanya satu produk custom aktif (dasar builder C-11);
+  setiap kelompok opsi wajib ≥ 1 opsi aktif; lead time maks. 12 hari (jendela tanggal 14 hari); stok harian hanya
+  untuk hari ini, rencana ≥ terjual. Uji: `client/tests/step-5.7/`.
 - 5.8: ekspor Excel/PDF boleh memakai library (sebutkan alasannya).
 
 ---
