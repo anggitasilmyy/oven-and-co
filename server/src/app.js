@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 
 const authRoutes = require('./routes/customer/auth.routes');
+const categoryRoutes = require('./routes/customer/category.routes');
+const productRoutes = require('./routes/customer/product.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
@@ -28,8 +30,12 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// Auth API
+// Auth API — Step 6.2
 app.use('/api/auth', authRoutes);
+
+// Customer API — Step 6.3.1
+app.use('/api/categories', categoryRoutes);
+app.use('/api/products', productRoutes);
 
 // 404 handler
 app.use((_req, res) => {
@@ -39,7 +45,7 @@ app.use((_req, res) => {
   });
 });
 
-// Error handler — harus berada setelah routes
+// Error handler harus berada setelah seluruh routes
 app.use(errorHandler);
 
 module.exports = app;
