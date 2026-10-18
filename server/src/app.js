@@ -5,6 +5,7 @@ const cors = require('cors');
 const authRoutes = require('./routes/customer/auth.routes');
 const categoryRoutes = require('./routes/customer/category.routes');
 const productRoutes = require('./routes/customer/product.routes');
+const adminOrderRoutes = require('./routes/admin/order.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
@@ -33,9 +34,12 @@ app.get('/api/health', (_req, res) => {
 // Auth API — Step 6.2
 app.use('/api/auth', authRoutes);
 
-// Customer API — Step 6.3.1
+// Customer API — Step 6.3
 app.use('/api/categories', categoryRoutes);
 app.use('/api/products', productRoutes);
+
+// Admin API — Step 6.4.1
+app.use('/api/admin/orders', adminOrderRoutes);
 
 // 404 handler
 app.use((_req, res) => {
