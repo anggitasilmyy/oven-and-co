@@ -14,7 +14,8 @@ const btn =
  * @param {Function} onChange — (nextValue) → void
  * @param {string} label — label untuk pembaca layar
  */
-export default function QuantityStepper({ value, max, onChange, label = 'Jumlah', min = 1 }) {
+/** @param {boolean} [showValueWhenDisabled] — Step 6.3: tampilkan `value` asli saat nonaktif (default: "0") */
+export default function QuantityStepper({ value, max, onChange, label = 'Jumlah', min = 1, showValueWhenDisabled = false }) {
   const disabled = max < min;
   return (
     <div role="group" aria-label={label} className="inline-flex items-center gap-1 rounded-pill border border-beige bg-surface p-0.5">
@@ -28,7 +29,7 @@ export default function QuantityStepper({ value, max, onChange, label = 'Jumlah'
         <Minus size={18} aria-hidden="true" />
       </button>
       <output aria-live="polite" className="min-w-[2.5rem] text-center font-bold text-cocoa tabular-nums">
-        {disabled ? 0 : value}
+        {disabled && !showValueWhenDisabled ? 0 : value}
       </output>
       <button
         type="button"

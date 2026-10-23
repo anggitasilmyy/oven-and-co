@@ -1,0 +1,75 @@
+// Uji fungsi murni perbaikan review 49a1214 — aturan desain satu baris (B), kartu keranjang stok habis (L1),
+// id produk tidak valid (L7), klasifikasi sesi (M1), dan konversi foto untuk unggahan (H1).
+
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  mergeCartItems, cartItemKey, findDuplicateDesignLines, getCartLineQuantityControl,
+} from '../../src/utils/rules/cart.js';
+import { isSessionInvalidResponse, isMissingResourceError } from '../../src/utils/apiErrors.js';
+import { dataUrlToBlob } from '../../src/utils/image.js';
+import { CART_UNAVAILABLE_REASON } from '../../src/constants/cart.js';
+
+const cake = (overrides = {}) => ({
+  product_id: 6, design_id: 1000001, quantity: 1, note: '', preferred_date: '2026-10-25', ...overrides,
+});
+
+test('B: desain sama dengan catatan berbeda digabung ke SATU baris (jumlah dijumlahkan)', () => {
+  const merged = mergeCartItems([cake({ cart_item_id: 1, note: 'Lilin 7' })], [cake({ quantity: 2, note: 'Tanpa lilin' })]);
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].quantity, 3);
+  assert.equal(merged[0].note, 'Lilin 7'); // catatan baris pertama dipertahankan
+  assert.equal(cartItemKey(cake({ note: 'a' })), cartItemKey(cake({ note: 'b', preferred_date: null })));
+  // Desain berbeda tetap baris terpisah
+  assert.equal(mergeCartItems(merged, [cake({ design_id: 1000002 })]).length, 2);
+});
+
+test('B: gabung keranjang tamu & akun dengan desain yang sama → satu baris', () => {
+  const merged = mergeCartItems([cake({ cart_item_id: 1 })], [cake({ cart_item_id: 1, note: 'tamu' })]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].quantity, 2);
+});
+
+test('B: findDuplicateDesignLines menandai baris kedua dst. (data lama di localStorage)', () => {
+  const lines = [cake(), { product_id: 1, design_id: null }, cake({ note: 'x' }), cake({ design_id: '1000001' })];
+  assert.deepEqual([...findDuplicateDesignLines(lines)], [2, 3]);
+});
+
+test('L1: baris > 99 dengan stok habis → stepper nonaktif, tanpa tombol ubah, ditandai soldOut', () => {
+  const over = { available: false, quantity: 110, unavailable_reason: CART_UNAVAILABLE_REASON.QUANTITY_EXCEEDS_LIMIT };
+
+  assert.deepEqual(getCartLineQuantityControl(over, 0), { stepperMax: 0, adjustTo: null, soldOut: true });
+  assert.deepEqual(getCartLineQuantityControl(over, 30), { stepperMax: 30, adjustTo: 30, soldOut: false });
+  assert.deepEqual(getCartLineQuantityControl(over, 500), { stepperMax: 99, adjustTo: 99, soldOut: false });
+  // Baris normal tidak berubah
+  assert.deepEqual(
+    getCartLineQuantityControl({ available: true, quantity: 3, unavailable_reason: null }, 2),
+    { stepperMax: 3, adjustTo: null, soldOut: false }
+  );
+});
+
+test('L7: id produk tidak valid (400) dan tidak ditemukan (404) sama-sama "tidak ditemukan" seperti mock', () => {
+  assert.equal(isMissingResourceError({ status: 400 }), true);
+  assert.equal(isMissingResourceError({ status: 404 }), true);
+  assert.equal(isMissingResourceError({ status: 500 }), false);
+  assert.equal(isMissingResourceError(new Error('jaringan')), false);
+});
+
+test('M1: hanya 401 SESSION_INVALID untuk request bertoken yang menghapus sesi', () => {
+  assert.equal(isSessionInvalidResponse(401, { code: 'SESSION_INVALID' }, 'jwt'), true);
+  assert.equal(isSessionInvalidResponse(401, { code: 'SESSION_INVALID' }, null), false);
+  assert.equal(isSessionInvalidResponse(401, { message: 'Email atau kata sandi salah.' }, 'jwt'), false);
+  assert.equal(isSessionInvalidResponse(403, { code: 'SESSION_INVALID' }, 'jwt'), false);
+});
+
+test('H1: data URL hasil kompresi → Blob untuk multipart; data URL rusak → null', async () => {
+  const bytes = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+  const blob = dataUrlToBlob(`data:image/jpeg;base64,${Buffer.from(bytes).toString('base64')}`);
+
+  assert.equal(blob.type, 'image/jpeg');
+  assert.deepEqual(new Uint8Array(await blob.arrayBuffer()), bytes);
+  assert.equal(dataUrlToBlob('https://contoh.id/a.jpg'), null);
+  assert.equal(dataUrlToBlob('data:image/jpeg;base64,***'), null);
+  assert.equal(dataUrlToBlob(null), null);
+});

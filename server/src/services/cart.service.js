@@ -11,7 +11,11 @@ const {
   CART_ITEM_MAX_QUANTITY,
   CART_MAX_LINES,
 } = require('../utils/businessConstants');
-const { canAccessDesign, isDesignAlreadyOrdered } = require('./designAccess.service');
+const {
+  canAccessDesign,
+  isDesignAlreadyOrdered,
+  findDuplicateDesignLines,
+} = require('./designAccess.service');
 const {
   getJakartaDateKey,
   dateKeyToDbDate,
@@ -34,6 +38,7 @@ const UNAVAILABLE_REASON = Object.freeze({
   DESIGN_EXPIRED: 'design_expired',
   DATE_OUT_OF_RANGE: 'date_out_of_range',
   QUANTITY_EXCEEDS_LIMIT: 'quantity_exceeds_limit',
+  DESIGN_DUPLICATE_LINE: 'design_duplicate_line',
 });
 
 function uniqueBigInts(values) {
@@ -162,7 +167,7 @@ function resolveReadyDate(item, product, context) {
   };
 }
 
-function buildCartLine(item, context) {
+function buildCartLine(item, index, context) {
   const product = context.products.get(item.product_id) ?? null;
   const rawDesign = item.design_id ? context.designs.get(item.design_id) ?? null : null;
 
@@ -185,6 +190,11 @@ function buildCartLine(item, context) {
     const designCheck = checkDesign(item, product, rawDesign, context);
     design = designCheck.design;
     reason = reason ?? designCheck.reason;
+
+    // Satu desain = satu baris; jumlah > 1 dipakai untuk kue identik, bukan baris kedua dengan catatan lain
+    if (design && context.duplicateDesignLines.has(index)) {
+      reason = reason ?? UNAVAILABLE_REASON.DESIGN_DUPLICATE_LINE;
+    }
 
     if (product.availabilityType === AVAILABILITY_TYPE.CUSTOM) {
       readyDate = design ? dbDateToKey(design.readyDate) : getEarliestReadyDate(product, context.now, context.settings);
@@ -278,7 +288,8 @@ async function getCartView(items, { userId = null, now = new Date() } = {}) {
   ]);
 
   const context = { now, todayKey, settings, products, designs, userId };
-  const lines = items.map((item) => buildCartLine(item, context));
+  context.duplicateDesignLines = findDuplicateDesignLines(items);
+  const lines = items.map((item, index) => buildCartLine(item, index, context));
   const validLines = lines.filter((line) => line.available);
 
   return {

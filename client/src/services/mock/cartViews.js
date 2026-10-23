@@ -4,7 +4,7 @@
 
 import { getTables } from './db';
 import { getMockTodayKey, getMockCurrentTime } from './mockClock';
-import { getRemainingStock, getCartItemReadyDate } from '../../utils/businessRules';
+import { getRemainingStock, getCartItemReadyDate, findDuplicateDesignLines } from '../../utils/businessRules';
 import { AVAILABILITY_TYPE } from '../../constants/product';
 import { CART_LINE_MAX_QUANTITY, CART_UNAVAILABLE_REASON } from '../../constants/cart';
 
@@ -32,7 +32,9 @@ function designSummary(design, tables) {
 export function buildCartLines(items, tables = getTables(...CART_VIEW_TABLES)) {
   const todayKey = getMockTodayKey();
   const now = getMockCurrentTime();
-  return items.map((item) => {
+  // Step 6.3: satu design_id hanya satu baris (sama dengan server/src/services/designAccess.service.js)
+  const duplicateDesignLines = findDuplicateDesignLines(items);
+  return items.map((item, index) => {
     const product = tables.products.find((p) => p.product_id === item.product_id);
     const variant = item.variant_id ? tables.product_variants.find((v) => v.variant_id === item.variant_id) : null;
     const design = item.design_id ? tables.custom_cake_designs.find((d) => d.design_id === item.design_id) : null;
@@ -44,7 +46,9 @@ export function buildCartLines(items, tables = getTables(...CART_VIEW_TABLES)) {
         ? CART_UNAVAILABLE_REASON.VARIANT_UNAVAILABLE
         : isCustom && !design
           ? CART_UNAVAILABLE_REASON.DESIGN_NOT_FOUND
-          : item.quantity > CART_LINE_MAX_QUANTITY
+          : design && duplicateDesignLines.has(index)
+            ? CART_UNAVAILABLE_REASON.DESIGN_DUPLICATE_LINE
+            : item.quantity > CART_LINE_MAX_QUANTITY
             ? CART_UNAVAILABLE_REASON.QUANTITY_EXCEEDS_LIMIT
             : null;
     const available = unavailableReason === null;

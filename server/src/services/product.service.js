@@ -29,6 +29,7 @@ const {
 const VALID_AVAILABILITY = new Set(Object.values(AVAILABILITY_TYPE));
 const SEARCH_MAX_LENGTH = 100;
 const LIMIT_MAX = 50;
+const PRISMA_INT_MAX = 2147483647; // batas Int 32-bit untuk argumen skip Prisma
 
 const SORT_OPTIONS = {
   default: [{ productId: 'asc' }],
@@ -140,10 +141,17 @@ async function getProducts(query = {}) {
     ...(search ? { AND: buildSearchFilter(search) } : {}),
   };
 
+  const skip = limit !== undefined ? (page - 1) * limit : 0;
+
+  // Offset harus bilangan aman dan muat di Int Prisma; selain itu 400 (bukan 500 dari Prisma)
+  if (!Number.isSafeInteger(skip) || skip > PRISMA_INT_MAX) {
+    throw httpError(400, 'Kombinasi page dan limit terlalu besar.');
+  }
+
   const rows = await prisma.product.findMany({
     where,
     orderBy: SORT_OPTIONS[sort],
-    ...(limit !== undefined ? { skip: (page - 1) * limit, take: limit } : {}),
+    ...(limit !== undefined ? { skip, take: limit } : {}),
     include: productCardInclude(todayDate),
   });
 
@@ -254,33 +262,33 @@ async function getBestSellers(query = {}) {
   const { todayKey, todayDate } = getTodayContext();
   const totals = await getSalesTotals(addDaysToDateKey(todayKey, -(SALES_WINDOW_DAYS - 1)), todayKey);
 
-  const topProducts = [...totals.entries()]
+  const ranked = [...totals.entries()]
     .map(([productId, quantity]) => ({ productId: BigInt(productId), quantity }))
     .sort((a, b) =>
       b.quantity - a.quantity ||
       (a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0)
-    )
-    .slice(0, limit);
+    );
 
-  if (topProducts.length === 0) return [];
+  if (ranked.length === 0) return [];
 
+  // Produk nonaktif disaring SEBELUM dipotong ke `limit`, agar posisinya diisi produk terlaris berikutnya
   const products = await prisma.product.findMany({
     where: {
       isActive: true,
-      productId: { in: topProducts.map((item) => item.productId) },
+      productId: { in: ranked.map((item) => item.productId) },
     },
     include: productCardInclude(todayDate),
   });
 
   const productById = new Map(products.map((product) => [String(product.productId), product]));
-  const ratings = await getProductRatings(products.map((product) => product.productId));
+  const top = ranked
+    .map((item) => ({ item, product: productById.get(String(item.productId)) }))
+    .filter((entry) => entry.product)
+    .slice(0, limit);
 
-  return topProducts
-    .map((item) => {
-      const product = productById.get(String(item.productId));
-      return product ? { ...toProductView(product, ratings), quantity_sold: item.quantity } : null;
-    })
-    .filter(Boolean);
+  const ratings = await getProductRatings(top.map((entry) => entry.product.productId));
+
+  return top.map(({ item, product }) => ({ ...toProductView(product, ratings), quantity_sold: item.quantity }));
 }
 
 module.exports = {

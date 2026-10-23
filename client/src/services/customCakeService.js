@@ -3,7 +3,8 @@
 // Tabel: products (availability_type custom), product_images, custom_options (hanya is_active = true),
 // custom_cake_designs, custom_cake_design_options. Harga & tanggal dihitung ulang di sini (tidak percaya UI).
 
-import { apiClient } from './apiClient';
+import { apiClient, USE_MOCK } from './apiClient';
+import { dataUrlToBlob } from '../utils/image';
 import { getTables, updateTable, nextUserRowId } from './mock/db';
 import { getMockTodayKey, getMockCurrentTime } from './mock/mockClock';
 import useAuthStore from '../stores/useAuthStore';
@@ -57,6 +58,24 @@ export function getCustomCakeBuilder() {
 }
 
 /**
+ * Mode API (Step 6.3): foto referensi (data URL hasil kompresi) dikirim sebagai file multipart `referencePhoto`,
+ * data desain lainnya sebagai string JSON `design`. Tanpa foto tetap JSON biasa.
+ */
+const PHOTO_EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+
+function toDesignRequestBody(design) {
+  const fields = { ...design, referencePhoto: null };
+  if (!design.referencePhoto) return fields;
+  const photo = dataUrlToBlob(design.referencePhoto);
+  const extension = PHOTO_EXTENSIONS[photo?.type];
+  if (!extension) throw new Error('Foto referensi tidak bisa dibaca. Pilih ulang foto.');
+  const form = new FormData();
+  form.append('design', JSON.stringify(fields));
+  form.append('referencePhoto', photo, `referensi.${extension}`);
+  return form;
+}
+
+/**
  * Simpan desain custom cake (dipanggil saat Tambah ke Keranjang).
  * Pengunjung boleh mendesain (user_id kosong bila tamu).
  * @param {{selections, writingText, writingColor, referencePhoto, readyDate}} design
@@ -65,7 +84,8 @@ export function getCustomCakeBuilder() {
 export function createCustomCakeDesign(design) {
   return apiClient('/custom-cake-designs', {
     method: 'POST',
-    body: design,
+    body: USE_MOCK ? design : toDesignRequestBody(design),
+    allowGuest: true, // Step 6.3: tamu boleh mendesain; sesi kedaluwarsa → disimpan sebagai desain tamu
     mockHandler: () => {
       const tables = getTables('products', 'custom_options', 'store_settings', 'custom_cake_designs');
       const product = findCustomProduct(tables.products);

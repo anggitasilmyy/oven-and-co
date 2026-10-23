@@ -17,10 +17,16 @@ function errorHandler(err, req, res, next) {
     console.error('[API Error]', err);
   }
 
+  // Error body-parser (express.json) memakai pesan bahasa Inggris → ganti dengan pesan Indonesia
+  const BODY_PARSER_MESSAGES = {
+    'entity.parse.failed': 'Format data JSON tidak valid.',
+    'entity.too.large': 'Ukuran data permintaan terlalu besar.',
+  };
+
   const message =
     statusCode >= 500
       ? 'Terjadi kesalahan pada server.'
-      : err.message || 'Permintaan tidak dapat diproses.';
+      : BODY_PARSER_MESSAGES[err.type] || err.message || 'Permintaan tidak dapat diproses.';
 
   return res.status(statusCode).json({
     status: 'error',

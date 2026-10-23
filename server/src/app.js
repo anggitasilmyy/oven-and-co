@@ -12,6 +12,7 @@ const checkoutRoutes = require('./routes/customer/checkout.routes');
 const adminOrderRoutes = require('./routes/admin/order.routes');
 
 const errorHandler = require('./middlewares/errorHandler');
+const { getReferencePhotoDir } = require('./utils/referencePhotoStorage');
 
 const app = express();
 
@@ -23,6 +24,21 @@ app.use(
   cors({
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
     credentials: true,
+  })
+);
+
+// Foto referensi custom cake (Step 6.3). Hanya file di folder upload; tanpa listing direktori,
+// dotfile ditolak, dan tipe konten tidak boleh ditebak ulang oleh browser.
+app.use(
+  '/uploads/custom-cakes',
+  express.static(getReferencePhotoDir(), {
+    index: false,
+    dotfiles: 'deny',
+    redirect: false,
+    setHeaders: (res) => {
+      res.set('X-Content-Type-Options', 'nosniff');
+      res.set('Content-Security-Policy', "default-src 'none'");
+    },
   })
 );
 

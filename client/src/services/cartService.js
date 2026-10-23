@@ -16,6 +16,8 @@ export function getCartView(items) {
   return apiClient('/cart', {
     method: 'POST', // API: keranjang dibaca dari server; mock: dari item lokal
     body: { items },
+    allowGuest: true, // Step 6.3: sesi kedaluwarsa → dihitung ulang sebagai tamu
+
     mockHandler: () => {
       const lines = buildCartLines(items);
       const valid = lines.filter((l) => l.available);

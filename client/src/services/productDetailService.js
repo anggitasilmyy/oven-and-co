@@ -2,6 +2,7 @@
 // Step 5.1 · FR-08 · FR-09 · C-09 — detail produk: galeri, varian, stok, tanggal siap, cuplikan ulasan
 
 import { apiClient } from './apiClient';
+import { isMissingResourceError } from '../utils/apiErrors';
 import { getTables } from './mock/db';
 import { getMockTodayKey, getMockCurrentTime } from './mock/mockClock';
 import { buildProductContext, toProductView } from './mock/productViews';
@@ -47,8 +48,8 @@ export function getProductDetail(productId) {
       };
     },
   }).catch((err) => {
-    // API mengembalikan 404 untuk produk tidak ada/nonaktif → sama dengan mock (null = "tidak ditemukan")
-    if (err.status === 404) return null;
+    // API: 404 (tidak ada/nonaktif) atau 400 (id tidak valid, mis. /produk/abc) → sama dengan mock (null)
+    if (isMissingResourceError(err)) return null;
     throw err;
   });
 }

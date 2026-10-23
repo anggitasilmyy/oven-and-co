@@ -1,29 +1,19 @@
 // services/customCakeDesign.service.js
 // FR-10 · UC-06 · BR-02 · C-11 Custom Cake Builder — simpan desain; harga & tanggal divalidasi ulang di server.
 // Tanggal siap: ≥ H+3 (atau lead time produk bila lebih lama) dan ≤ jendela date picker, dihitung di WIB.
+// Foto referensi (opsional, multipart) baru ditulis ke disk setelah semua validasi lolos, dan dihapus lagi
+// bila penyimpanan database gagal.
 
 const prisma = require('../lib/prisma');
 const { AVAILABILITY_TYPE } = require('../utils/businessConstants');
-const { isValidDateKey, dateKeyToDbDate } = require('../utils/jakartaDate');
+const { dateKeyToDbDate } = require('../utils/jakartaDate');
 const { assertDesignTokenConfigured, signDesignToken } = require('../utils/designToken');
+const { saveReferencePhoto, deleteReferencePhoto } = require('../utils/referencePhotoStorage');
+const { OPTION_GROUPS, validateCustomCakeDesign } = require('../validators/customCakeDesign.validator');
 const {
   getEarliestReadyDate,
   getLatestSelectableDate,
 } = require('./readyDate.service');
-
-const OPTION_GROUPS = [
-  'ukuran',
-  'bentuk',
-  'rasa',
-  'krim_topping',
-];
-
-const WRITING_COLORS = new Set([
-  'Cokelat',
-  'Putih',
-  'Pink',
-  'Emas',
-]);
 
 function createError(message, statusCode = 400) {
   const error = new Error(message);
@@ -31,195 +21,75 @@ function createError(message, statusCode = 400) {
   return error;
 }
 
-function parseDateKey(value) {
-  if (
-    typeof value !== 'string' ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(value)
-  ) {
-    throw createError(
-      'Tanggal siap harus menggunakan format YYYY-MM-DD.'
-    );
-  }
-
-  if (!isValidDateKey(value)) {
-    throw createError('Tanggal siap tidak valid.');
-  }
-
-  return value;
-}
-
-function parseOptionId(value, group) {
-  const validNumber =
-    (typeof value === 'number' && Number.isSafeInteger(value)) ||
-    (typeof value === 'string' && /^[1-9]\d*$/.test(value));
-
-  if (!validNumber || Number(value) < 1) {
-    throw createError(
-      `Pilihan ${group} wajib diisi dengan ID opsi yang valid.`
-    );
-  }
-
-  const optionId = Number(value);
-
-  if (!Number.isSafeInteger(optionId)) {
-    throw createError(`ID opsi ${group} tidak valid.`);
-  }
-
-  return optionId;
-}
-
 function toCents(value) {
   const number = Number(value);
 
   if (!Number.isFinite(number) || number < 0) {
-    throw createError(
-      'Harga produk atau opsi tidak valid di database.',
-      500
-    );
+    throw createError('Harga produk atau opsi tidak valid di database.', 500);
   }
 
   return Math.round(number * 100);
 }
 
-function normalizeWriting(payload) {
-  let writingText = '';
+function normalizeUserId(userId) {
+  if (userId === undefined || userId === null) return null;
 
-  if (payload.writingText !== undefined &&
-      payload.writingText !== null) {
-    if (typeof payload.writingText !== 'string') {
-      throw createError('Tulisan kue harus berupa teks.');
-    }
-
-    writingText = payload.writingText.trim();
+  if (typeof userId !== 'string' || !/^[1-9]\d*$/.test(userId)) {
+    throw createError('ID pelanggan tidak valid.', 401);
   }
 
-  if (writingText.length > 30) {
-    throw createError(
-      'Tulisan pada kue maksimal 30 karakter.'
-    );
-  }
-
-  if (!writingText) {
-    return {
-      writingText: null,
-      writingColor: null,
-    };
-  }
-
-  if (
-    typeof payload.writingColor !== 'string' ||
-    !WRITING_COLORS.has(payload.writingColor)
-  ) {
-    throw createError(
-      'Pilih warna tulisan yang tersedia.'
-    );
-  }
-
-  return {
-    writingText,
-    writingColor: payload.writingColor,
-  };
+  return BigInt(userId);
 }
 
-function normalizeReferencePhoto(value) {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
+/** Opsi aktif sesuai kelompoknya, urut OPTION_GROUPS */
+async function loadSelectedOptions(tx, design) {
+  const activeOptions = await tx.customOption.findMany({
+    where: { optionId: { in: design.selectedIds }, isActive: true },
+    select: { optionId: true, optionGroup: true, extraPrice: true },
+  });
 
-  if (typeof value !== 'string') {
-    throw createError('Foto referensi tidak valid.');
-  }
+  const optionsById = new Map(activeOptions.map((option) => [option.optionId, option]));
 
-  const referencePhoto = value.trim();
+  return OPTION_GROUPS.map((group) => {
+    const option = optionsById.get(design.selections[group]);
 
-  if (!referencePhoto) {
-    return null;
-  }
-
-  if (/^data:/i.test(referencePhoto)) {
-    throw createError(
-      'Foto referensi harus berupa URL atau path hasil upload, bukan data URL.'
-    );
-  }
-
-  const isHttpUrl = /^https?:\/\/\S+$/i.test(referencePhoto);
-  const isRelativePath =
-    /^\/(?!\/)[^\s]*$/.test(referencePhoto);
-
-  if (!isHttpUrl && !isRelativePath) {
-    throw createError(
-      'Foto referensi harus berupa URL HTTP(S) atau path relatif yang valid.'
-    );
-  }
-
-  if (referencePhoto.length > 255) {
-    throw createError(
-      'URL foto referensi maksimal 255 karakter.'
-    );
-  }
-
-  return referencePhoto;
-}
-
-async function createCustomCakeDesign(payload = {}, userId = null, now = new Date()) {
-  if (
-    !payload ||
-    typeof payload !== 'object' ||
-    Array.isArray(payload)
-  ) {
-    throw createError('Data desain custom cake tidak valid.');
-  }
-
-  if (
-    !payload.selections ||
-    typeof payload.selections !== 'object' ||
-    Array.isArray(payload.selections)
-  ) {
-    throw createError('Pilihan custom cake wajib diisi.');
-  }
-
-  const selections = {};
-
-  for (const group of OPTION_GROUPS) {
-    selections[group] = parseOptionId(
-      payload.selections[group],
-      group
-    );
-  }
-
-  const selectedIds = OPTION_GROUPS.map(
-    (group) => selections[group]
-  );
-
-  if (new Set(selectedIds).size !== selectedIds.length) {
-    throw createError(
-      'Setiap kelompok harus memiliki opsi yang sesuai.'
-    );
-  }
-
-  const { writingText, writingColor } =
-    normalizeWriting(payload);
-
-  const referencePhotoUrl = normalizeReferencePhoto(
-    payload.referencePhoto
-  );
-
-  const readyDateKey = parseDateKey(payload.readyDate);
-
-  let normalizedUserId = null;
-
-  if (userId !== undefined && userId !== null) {
-    if (
-      typeof userId !== 'string' ||
-      !/^[1-9]\d*$/.test(userId)
-    ) {
-      throw createError(
-        'ID pelanggan tidak valid.',
-        401
-      );
+    if (!option) {
+      throw createError(`Pilihan ${group} tidak tersedia atau sudah tidak aktif.`);
     }
 
-    normalizedUserId = BigInt(userId);
+    if (option.optionGroup !== group) {
+      throw createError(`Pilihan yang dikirim tidak sesuai kelompok ${group}.`);
+    }
+
+    return option;
+  });
+}
+
+function assertReadyDate(product, readyDateKey, now) {
+  const earliestReadyDate = getEarliestReadyDate(product, now);
+  const latestReadyDate = getLatestSelectableDate(product.availabilityType, now);
+
+  if (readyDateKey < earliestReadyDate) {
+    throw createError(`Tanggal siap paling awal adalah ${earliestReadyDate}.`);
+  }
+
+  if (readyDateKey > latestReadyDate) {
+    throw createError(`Tanggal siap paling lambat adalah ${latestReadyDate}.`);
+  }
+}
+
+/**
+ * @param {unknown} payload — body JSON / field `design` multipart
+ * @param {string|null} userId — pelanggan login; null = tamu
+ * @param {Date} [now]
+ * @param {{photo?: {buffer: Buffer, extension: string}|null}} [options] — hasil validateReferencePhoto
+ */
+async function createCustomCakeDesign(payload = {}, userId = null, now = new Date(), { photo = null } = {}) {
+  const design = validateCustomCakeDesign(payload);
+  const normalizedUserId = normalizeUserId(userId);
+
+  if (photo && design.referencePhotoUrl) {
+    throw createError('Kirim foto referensi sebagai file atau URL, bukan keduanya.');
   }
 
   // Desain tamu wajib mendapat token; pastikan kunci tersedia sebelum menulis data
@@ -227,132 +97,66 @@ async function createCustomCakeDesign(payload = {}, userId = null, now = new Dat
     assertDesignTokenConfigured();
   }
 
-  return prisma.$transaction(async (tx) => {
-    // Ambil produk custom aktif dari database.
-    const product = await tx.product.findFirst({
-      where: {
-        isActive: true,
-        availabilityType: AVAILABILITY_TYPE.CUSTOM,
-      },
-      orderBy: {
-        productId: 'asc',
-      },
-      select: {
-        productId: true,
-        price: true,
-        availabilityType: true,
-        leadTimeDays: true,
-      },
-    });
+  let savedPhotoUrl = null;
 
-    if (!product) {
-      throw createError(
-        'Custom cake sedang tidak tersedia.',
-        404
-      );
-    }
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const product = await tx.product.findFirst({
+        where: { isActive: true, availabilityType: AVAILABILITY_TYPE.CUSTOM },
+        orderBy: { productId: 'asc' },
+        select: { productId: true, price: true, availabilityType: true, leadTimeDays: true },
+      });
 
-    // Validasi ulang tanggal berdasarkan data produk di server (WIB).
-    const earliestReadyDate = getEarliestReadyDate(product, now);
-    const latestReadyDate = getLatestSelectableDate(product.availabilityType, now);
+      if (!product) {
+        throw createError('Custom cake sedang tidak tersedia.', 404);
+      }
 
-    if (readyDateKey < earliestReadyDate) {
-      throw createError(
-        `Tanggal siap paling awal adalah ${earliestReadyDate}.`
-      );
-    }
+      // Validasi ulang tanggal & opsi berdasarkan data server (WIB)
+      assertReadyDate(product, design.readyDateKey, now);
+      const selectedOptions = await loadSelectedOptions(tx, design);
 
-    if (readyDateKey > latestReadyDate) {
-      throw createError(
-        `Tanggal siap paling lambat adalah ${latestReadyDate}.`
-      );
-    }
+      // Harga dihitung ulang di server, bukan memakai harga dari UI
+      const price =
+        (toCents(product.price) + selectedOptions.reduce((sum, option) => sum + toCents(option.extraPrice), 0)) / 100;
 
-    // Hanya opsi aktif yang dapat dipilih.
-    const activeOptions = await tx.customOption.findMany({
-      where: {
-        optionId: {
-          in: selectedIds,
+      // Semua validasi lolos → baru tulis foto ke disk
+      if (photo) {
+        savedPhotoUrl = await saveReferencePhoto(photo);
+      }
+
+      const created = await tx.customCakeDesign.create({
+        data: {
+          productId: product.productId,
+          userId: normalizedUserId,
+          writingText: design.writingText,
+          writingColor: design.writingColor,
+          referencePhotoUrl: savedPhotoUrl ?? design.referencePhotoUrl,
+          readyDate: dateKeyToDbDate(design.readyDateKey),
+          price,
         },
-        isActive: true,
-      },
-      select: {
-        optionId: true,
-        optionGroup: true,
-        extraPrice: true,
-      },
+        select: { designId: true, price: true },
+      });
+
+      await tx.customCakeDesignOption.createMany({
+        data: selectedOptions.map((option) => ({ designId: created.designId, optionId: option.optionId })),
+      });
+
+      return {
+        design_id: String(created.designId),
+        price: Number(created.price),
+        ready_date: design.readyDateKey,
+        // Hanya desain tamu: bukti akses saat desain dipakai di keranjang (disimpan frontend bersama item)
+        design_token: normalizedUserId === null ? signDesignToken(created.designId) : null,
+      };
     });
-
-    const optionsById = new Map(
-      activeOptions.map((option) => [
-        option.optionId,
-        option,
-      ])
-    );
-
-    const selectedOptions = [];
-
-    for (const group of OPTION_GROUPS) {
-      const option = optionsById.get(selections[group]);
-
-      if (!option) {
-        throw createError(
-          `Pilihan ${group} tidak tersedia atau sudah tidak aktif.`
-        );
-      }
-
-      if (option.optionGroup !== group) {
-        throw createError(
-          `Pilihan yang dikirim tidak sesuai kelompok ${group}.`
-        );
-      }
-
-      selectedOptions.push(option);
+  } catch (error) {
+    // Transaksi dibatalkan → file yang sudah ditulis tidak boleh tertinggal
+    if (savedPhotoUrl) {
+      await deleteReferencePhoto(savedPhotoUrl).catch(() => {});
     }
 
-    // Harga dihitung ulang di server, bukan memakai harga dari UI.
-    const totalCents =
-      toCents(product.price) +
-      selectedOptions.reduce(
-        (sum, option) => sum + toCents(option.extraPrice),
-        0
-      );
-
-    const price = totalCents / 100;
-
-    // Simpan desain dan opsi terpilih dalam satu transaksi.
-    const design = await tx.customCakeDesign.create({
-      data: {
-        productId: product.productId,
-        userId: normalizedUserId,
-        writingText,
-        writingColor,
-        referencePhotoUrl,
-        readyDate: dateKeyToDbDate(readyDateKey),
-        price,
-      },
-      select: {
-        designId: true,
-        price: true,
-        readyDate: true,
-      },
-    });
-
-    await tx.customCakeDesignOption.createMany({
-      data: selectedOptions.map((option) => ({
-        designId: design.designId,
-        optionId: option.optionId,
-      })),
-    });
-
-    return {
-      design_id: String(design.designId),
-      price: Number(design.price),
-      ready_date: readyDateKey,
-      // Hanya desain tamu: bukti akses saat desain dipakai di keranjang (disimpan frontend bersama item)
-      design_token: normalizedUserId === null ? signDesignToken(design.designId) : null,
-    };
-  });
+    throw error;
+  }
 }
 
 module.exports = {

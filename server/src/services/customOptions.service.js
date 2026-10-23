@@ -7,12 +7,7 @@ const { AVAILABILITY_TYPE } = require('../utils/businessConstants');
 const { getJakartaDateKey } = require('../utils/jakartaDate');
 const { getEarliestReadyDate } = require('./readyDate.service');
 
-const OPTION_GROUPS = [
-  'ukuran',
-  'bentuk',
-  'rasa',
-  'krim_topping',
-];
+const { OPTION_GROUPS } = require('../validators/customCakeDesign.validator');
 
 async function getCustomCakeBuilder(now = new Date()) {
   const product = await prisma.product.findFirst({

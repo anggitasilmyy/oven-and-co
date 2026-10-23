@@ -244,3 +244,57 @@ test('tanggal operasional: sekitar tengah malam WIB saat jam UTC masih hari sebe
   const preorder = await getCartView([line({ product_id: '3' })], { userId: '1', now: beforeMidnight });
   assert.equal(preorder.lines[0].ready_date, '2026-10-27');
 });
+
+test('aturan B: satu desain boleh jumlah > 1 pada SATU baris (kue identik), subtotal = harga × jumlah', async () => {
+  const view = await getCartView([line({ design_id: '10', quantity: 3 })], { userId: '1', now: NOW });
+  assert.equal(view.lines[0].available, true);
+  assert.equal(view.lines[0].line_total, 625000 * 3);
+  assert.equal(view.subtotal, 625000 * 3);
+});
+
+test('aturan B: desain yang sama di baris kedua (catatan berbeda) ditolak & tidak masuk subtotal', async () => {
+  const view = await getCartView(
+    [
+      line({ cart_item_id: 'a', design_id: '10', quantity: 2, note: 'Lilin angka 7' }),
+      line({ cart_item_id: 'b', design_id: '10', quantity: 5, note: 'Tanpa lilin' }),
+      line({ cart_item_id: 'c', product_id: '1', quantity: 1 }),
+    ],
+    { userId: '1', now: NOW }
+  );
+
+  const [first, duplicate, croissant] = view.lines;
+  assert.equal(first.available, true);
+  assert.equal(duplicate.available, false);
+  assert.equal(duplicate.unavailable_reason, UNAVAILABLE_REASON.DESIGN_DUPLICATE_LINE);
+  assert.equal(croissant.available, true);
+  // Hanya baris pertama yang dihitung: 2 × desain + 1 croissant (bukan 7 × desain)
+  assert.equal(view.subtotal, 625000 * 2 + 28000);
+});
+
+test('aturan B: duplikasi baris tidak bisa dipakai melewati aturan sekali pakai / token', async () => {
+  // Desain yang sudah dipesan tetap ditolak di setiap baris (alasan sekali pakai lebih dulu)
+  const ordered = await getCartView(
+    [line({ design_id: '13' }), line({ design_id: '13', note: 'x' })],
+    { userId: '1', now: NOW }
+  );
+  assert.deepEqual(ordered.lines.map((l) => l.unavailable_reason), ['design_already_ordered', 'design_already_ordered']);
+  assert.equal(ordered.subtotal, 0);
+
+  // Desain tamu: baris pertama tanpa token, baris kedua dengan token → hanya baris bertoken bisa dibaca,
+  // dan baris itu tetap duplikat (design_id sudah muncul) sehingga tidak ada yang lolos ganda
+  const token = signDesignToken(12n);
+  const guest = await getCartView(
+    [line({ design_id: '12', design_token: token, quantity: 1 }), line({ design_id: '12', design_token: token, quantity: 4 })],
+    { userId: null, now: NOW }
+  );
+  assert.deepEqual(guest.lines.map((l) => l.available), [true, false]);
+  assert.equal(guest.subtotal, 625000);
+});
+
+test('findDuplicateDesignLines: kemunculan pertama dipertahankan, baris tanpa desain diabaikan', () => {
+  const { findDuplicateDesignLines } = require('../src/services/designAccess.service');
+  const duplicates = findDuplicateDesignLines([
+    { design_id: '1' }, { design_id: null }, { design_id: '2' }, { design_id: '1' }, { design_id: '1' },
+  ]);
+  assert.deepEqual([...duplicates], [3, 4]);
+});

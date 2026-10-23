@@ -25,6 +25,7 @@ export const CART_UNAVAILABLE_REASON = {
   DESIGN_EXPIRED: 'design_expired',
   DATE_OUT_OF_RANGE: 'date_out_of_range',
   QUANTITY_EXCEEDS_LIMIT: 'quantity_exceeds_limit',
+  DESIGN_DUPLICATE_LINE: 'design_duplicate_line',
 };
 
 const REDESIGN = 'Hapus dari keranjang lalu desain ulang custom cake.';
@@ -39,6 +40,8 @@ export const CART_UNAVAILABLE_MESSAGE = {
   [CART_UNAVAILABLE_REASON.DESIGN_EXPIRED]: `Tanggal siap desain ini sudah tidak memenuhi minimal H+3. ${REDESIGN}`,
   [CART_UNAVAILABLE_REASON.DATE_OUT_OF_RANGE]:
     'Tanggal ambil/antar di luar rentang yang bisa dipilih. Hapus lalu tambahkan lagi dengan tanggal baru.',
+  [CART_UNAVAILABLE_REASON.DESIGN_DUPLICATE_LINE]:
+    'Desain ini sudah ada di baris lain. Hapus baris ini dan ubah jumlah pada baris pertama, atau buat desain terpisah.',
   [CART_UNAVAILABLE_REASON.QUANTITY_EXCEEDS_LIMIT]:
     `Jumlah melebihi batas ${CART_LINE_MAX_QUANTITY} per item. Kurangi jumlah sebelum checkout.`,
 };

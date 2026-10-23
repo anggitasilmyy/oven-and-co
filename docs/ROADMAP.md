@@ -213,6 +213,18 @@ Catatan khusus:
     `design_token` HMAC-SHA256 yang dikembalikan `POST /api/custom-cake-designs` (tanpa kolom baru; kunci
     `DESIGN_TOKEN_SECRET` atau turunan `JWT_SECRET`). Kebijakan sekali pakai: desain yang pernah masuk pesanan tidak
     bisa dipakai lagi, termasuk bila pesanan dibatalkan. Desain dengan tanggal siap < H+3 ditolak (`design_expired`).
+  - Satu `design_id` hanya boleh ada di **satu baris** keranjang/pesanan; jumlah > 1 pada baris itu boleh (kue identik).
+    Baris kedua dengan desain yang sama (mis. catatan berbeda) ditandai `design_duplicate_line` dan tidak masuk subtotal;
+    frontend menggabungkan item berdesain sama ke satu baris. Pembuatan pesanan nanti WAJIB memakai
+    `findDuplicateDesignLines()` (`server/src/services/designAccess.service.js`) selain cek token & sekali pakai.
+  - Foto referensi custom cake: `POST /api/custom-cake-designs` menerima multipart (`referencePhoto` + JSON `design`);
+    JPG/PNG/WebP maks. 5 MB, tipe dicek dari isi file, nama file acak, disimpan lokal di `server/uploads/custom-cakes/`
+    (atau `UPLOAD_DIR`) dan disajikan di `/uploads/custom-cakes/…` (URL relatif terhadap server API). File dihapus
+    bila desain gagal disimpan. Validasi body cart & custom cake memakai zod (`server/src/validators/`).
+  - Pembatas laju pembuatan desain: maks. 20 per IP per 15 menit, **in-memory per proses** (hilang saat restart,
+    tidak dibagi antar-instance) — asumsi prototype, bukan solusi produksi.
+  - Sesi kedaluwarsa: 401 dengan `code: SESSION_INVALID` menghapus sesi lokal; endpoint tamu (keranjang, desain)
+    diulang sekali tanpa token. 403 tidak menghapus sesi.
   - Untuk Phase berikutnya (gabung keranjang setelah login): `selectClaimableGuestDesignIds()` di
     `server/src/services/designAccess.service.js` memilih desain tamu yang aman diklaim (token valid, belum dipesan);
     penulisan `user_id` dilakukan dengan `updateMany` bersyarat `user_id IS NULL`.

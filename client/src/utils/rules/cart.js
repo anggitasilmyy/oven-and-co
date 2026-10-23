@@ -25,10 +25,28 @@ export function normalizeCartItem(item) {
   };
 }
 
-/** Kunci identitas item keranjang */
+/**
+ * Kunci identitas item keranjang.
+ * Step 6.3: item custom cake diidentifikasi oleh design_id saja — satu desain hanya boleh ada di satu baris
+ * (jumlah > 1 untuk kue identik); catatan/tanggal berbeda tidak membuat baris kedua untuk desain yang sama.
+ */
 export function cartItemKey(item) {
   const i = normalizeCartItem(item);
+  if (i.design_id != null) return JSON.stringify(['design', String(i.design_id)]);
   return JSON.stringify([i.product_id, i.variant_id, i.design_id, i.preferred_date, i.note]);
+}
+
+/** Indeks baris yang memakai design_id yang sudah muncul di baris sebelumnya (sama dengan server) */
+export function findDuplicateDesignLines(items) {
+  const seen = new Set();
+  const duplicates = new Set();
+  items.forEach((item, index) => {
+    if (item.design_id == null) return;
+    const key = String(item.design_id);
+    if (seen.has(key)) duplicates.add(index);
+    seen.add(key);
+  });
+  return duplicates;
 }
 
 /** cart_item_id baru yang tidak dipakai item mana pun (aman untuk klik beruntun di milidetik yang sama) */
@@ -107,4 +125,21 @@ export function applyLineQuantity(line, quantity, maxQuantity = CART_LINE_MAX_QU
     return { ...next, available: true, unavailable_reason: null };
   }
   return next;
+}
+
+/**
+ * Kontrol jumlah kartu keranjang (Step 6.3, C-12).
+ * @param {{available, quantity, availability_type, unavailable_reason}} line
+ * @param {number} maxQuantity — batas dari useCartView.maxQuantityOf (ready: sisa stok untuk baris ini)
+ * @returns {{stepperMax: number, adjustTo: number|null, soldOut: boolean}}
+ *   adjustTo: jumlah tujuan tombol "Ubah jumlah" (null = tidak ditampilkan);
+ *   soldOut: baris melebihi batas tetapi stok hari ini habis → hanya bisa dihapus.
+ */
+export function getCartLineQuantityControl(line, maxQuantity) {
+  const overQuantity = line.unavailable_reason === CART_UNAVAILABLE_REASON.QUANTITY_EXCEEDS_LIMIT;
+  if (overQuantity) {
+    const target = Math.min(maxQuantity, CART_LINE_MAX_QUANTITY);
+    return { stepperMax: target, adjustTo: target > 0 ? target : null, soldOut: target <= 0 };
+  }
+  return { stepperMax: line.available ? Math.max(maxQuantity, line.quantity) : 0, adjustTo: null, soldOut: false };
 }

@@ -85,6 +85,7 @@ cp server/.env.example server/.env
 | `SEED_ANCHOR_DATE` | `2026-10-16` | Opsional: tanggal acuan data contoh seed (`YYYY-MM-DD`) |
 | `JWT_SECRET` | — | Diisi saat Step 6.2 |
 | `DESIGN_TOKEN_SECRET` | (kosong) | Opsional (Step 6.3): kunci HMAC token desain custom cake tamu; bila kosong diturunkan dari `JWT_SECRET` |
+| `UPLOAD_DIR` | `server/uploads` | Opsional (Step 6.3): folder file unggahan lokal (foto referensi custom cake di `custom-cakes/`) |
 
 ---
 

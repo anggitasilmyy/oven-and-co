@@ -76,3 +76,35 @@ test('pelanggan login → 200; staf → 403', async () => {
   assert.equal((await post({ items: [] }, tokenFor('1'))).status, 200);
   assert.equal((await post({ items: [] }, tokenFor('2'))).status, 403);
 });
+
+test('regresi M1: token kedaluwarsa → 401 dengan code SESSION_INVALID; tanpa token tetap dilayani sebagai tamu', async () => {
+  const expired = jwt.sign(
+    { sub: '1', exp: Math.floor(Date.now() / 1000) - 60 },
+    process.env.JWT_SECRET,
+    { algorithm: 'HS256' }
+  );
+
+  const res = await post({ items: [] }, expired);
+  assert.equal(res.status, 401);
+  assert.equal((await res.json()).code, 'SESSION_INVALID');
+
+  // Fallback tamu yang dilakukan frontend: ulangi tanpa token → 200
+  assert.equal((await post({ items: [] })).status, 200);
+});
+
+test('M1: akun nonaktif juga SESSION_INVALID; 403 (peran salah) TIDAK memakai kode sesi', async () => {
+  users[3] = { userId: 3n, role: 'customer', isActive: false };
+  const inactive = await post({ items: [] }, tokenFor('3'));
+  assert.equal(inactive.status, 401);
+  assert.equal((await inactive.json()).code, 'SESSION_INVALID');
+
+  const staff = await post({ items: [] }, tokenFor('2'));
+  assert.equal(staff.status, 403);
+  assert.equal((await staff.json()).code, undefined);
+});
+
+test('regresi L2: JSON rusak → 400 dengan pesan Indonesia', async () => {
+  const res = await fetch(baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{rusak' });
+  assert.equal(res.status, 400);
+  assert.deepEqual(await res.json(), { status: 'error', message: 'Format data JSON tidak valid.' });
+});

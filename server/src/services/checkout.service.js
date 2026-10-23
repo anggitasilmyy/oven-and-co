@@ -2,7 +2,12 @@
 // FR-12 · FR-13 · BR-09 · BR-10 · BR-12 · C-13 Checkout — konteks checkout pelanggan login
 
 const prisma = require('../lib/prisma');
-const { getJakartaDateKey } = require('../utils/jakartaDate');
+// Kolom @db.Date / @db.Time dibaca dengan helper bersama (sama dengan product & cart service)
+const {
+  getJakartaDateKey,
+  dbDateToKey: toDateKey,
+  formatTime: toTimeString,
+} = require('../utils/jakartaDate');
 
 function createError(message, statusCode = 500) {
   const error = new Error(message);
@@ -12,46 +17,6 @@ function createError(message, statusCode = 500) {
 
 function numberOrNull(value) {
   return value == null ? null : Number(value);
-}
-
-function toDateKey(value) {
-  if (value == null) return null;
-
-  if (typeof value === 'string') {
-    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
-    if (match) return match[1];
-  }
-
-  const date = value instanceof Date ? value : new Date(value);
-
-  if (Number.isNaN(date.getTime())) return null;
-
-  return [
-    date.getUTCFullYear(),
-    String(date.getUTCMonth() + 1).padStart(2, '0'),
-    String(date.getUTCDate()).padStart(2, '0'),
-  ].join('-');
-}
-
-function toTimeString(value) {
-  if (value == null) return null;
-
-  if (typeof value === 'string') {
-    const match = value.match(/(?:T|\s)?(\d{2}):(\d{2})/);
-
-    if (match) {
-      return `${match[1]}:${match[2]}`;
-    }
-  }
-
-  const date = value instanceof Date ? value : new Date(value);
-
-  if (Number.isNaN(date.getTime())) return null;
-
-  return [
-    String(date.getUTCHours()).padStart(2, '0'),
-    String(date.getUTCMinutes()).padStart(2, '0'),
-  ].join(':');
 }
 
 function toIsoString(value) {

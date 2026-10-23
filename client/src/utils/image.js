@@ -17,6 +17,20 @@ export function productImageSrcSet(src) {
 }
 
 /**
+ * Step 6.3 · C-11 — data URL base64 (hasil compressImageToDataUrl) → Blob untuk diunggah lewat multipart.
+ * @param {string} dataUrl
+ * @returns {Blob|null} null bila bukan data URL base64 yang valid
+ */
+export function dataUrlToBlob(dataUrl) {
+  const match = /^data:([\w/+.-]+);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl ?? '');
+  if (!match) return null;
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: match[1] });
+}
+
+/**
  * Step 5.2 · C-11 — perkecil foto (sisi terpanjang ≤ maxSide) menjadi data URL JPEG.
  * Dipakai mode mock untuk foto referensi custom cake (pengganti upload multer Step 6).
  * @param {File} file
