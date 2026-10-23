@@ -33,7 +33,10 @@ export function buildCartLines(items, tables = getTables(...CART_VIEW_TABLES)) {
   const todayKey = getMockTodayKey();
   const now = getMockCurrentTime();
   // Step 6.3: satu design_id hanya satu baris (sama dengan server/src/services/designAccess.service.js)
-  const duplicateDesignLines = findDuplicateDesignLines(items);
+  // Hanya desain yang ada (sah di mode mock) yang ikut dihitung, sama dengan server
+  const duplicateDesignLines = findDuplicateDesignLines(items, (item) =>
+    tables.custom_cake_designs.some((d) => d.design_id === item.design_id)
+  );
   return items.map((item, index) => {
     const product = tables.products.find((p) => p.product_id === item.product_id);
     const variant = item.variant_id ? tables.product_variants.find((v) => v.variant_id === item.variant_id) : null;

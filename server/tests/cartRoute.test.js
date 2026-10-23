@@ -108,3 +108,24 @@ test('regresi L2: JSON rusak → 400 dengan pesan Indonesia', async () => {
   assert.equal(res.status, 400);
   assert.deepEqual(await res.json(), { status: 'error', message: 'Format data JSON tidak valid.' });
 });
+
+test('re-review C: errorHandler hanya mengirim kode aplikasi untuk 4xx, tidak pernah untuk 500', () => {
+  const errorHandler = require('../src/middlewares/errorHandler');
+  const response = () => {
+    const res = { headersSent: false };
+    res.status = (code) => Object.assign(res, { statusCode: code });
+    res.json = (body) => Object.assign(res, { body });
+    return res;
+  };
+
+  const invalid = response();
+  errorHandler(Object.assign(new Error('ID produk tidak valid.'), { statusCode: 400, apiCode: 'INVALID_ID' }), {}, invalid);
+  assert.deepEqual(invalid.body, { status: 'error', code: 'INVALID_ID', message: 'ID produk tidak valid.' });
+
+  const original = console.error;
+  console.error = () => {};
+  const crash = response();
+  errorHandler(Object.assign(new Error('P2002 detail'), { code: 'P2002', apiCode: 'INVALID_ID' }), {}, crash);
+  console.error = original;
+  assert.deepEqual(crash.body, { status: 'error', message: 'Terjadi kesalahan pada server.' });
+});

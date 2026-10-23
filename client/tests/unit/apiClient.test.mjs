@@ -35,7 +35,7 @@ test.beforeEach(() => {
   store.clear();
   calls.length = 0;
   responses = [];
-  useAuthStore.setState({ user: null, token: null });
+  useAuthStore.setState({ user: null, token: null, sessionExpired: false });
 });
 
 const SESSION_INVALID = { status: 401, body: { status: 'error', code: 'SESSION_INVALID', message: 'Token tidak valid atau kedaluwarsa.' } };
@@ -53,6 +53,45 @@ test('sesi kedaluwarsa pada endpoint tamu: sesi dihapus, request diulang sekali 
   assert.equal(useAuthStore.getState().user, null);
   assert.equal(localStorage.getItem('ovenco_auth_token'), null);
   assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
+  // Re-review A4: pengguna diberi tahu (flag dibaca SessionExpiredNotice)
+  assert.equal(useAuthStore.getState().sessionExpired, true);
+});
+
+test('re-review A4: retry tamu MAKSIMAL satu kali walau respons ulang juga 401', async () => {
+  login();
+  responses = [SESSION_INVALID, SESSION_INVALID, { status: 200, body: { data: 'tidak boleh dipanggil' } }];
+
+  await assert.rejects(apiClient('/cart', { method: 'POST', body: { items: [] }, allowGuest: true }), { status: 401 });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].init.headers.Authorization, undefined);
+});
+
+test('re-review A4: notifikasi sesi berakhir bisa ditutup; login berikutnya membersihkan tanda', async () => {
+  login();
+  responses = [SESSION_INVALID];
+  await assert.rejects(apiClient('/checkout/context'));
+  assert.equal(useAuthStore.getState().sessionExpired, true);
+
+  useAuthStore.getState().dismissSessionNotice();
+  assert.equal(useAuthStore.getState().sessionExpired, false);
+
+  responses = [SESSION_INVALID];
+  login();
+  await assert.rejects(apiClient('/checkout/context'));
+  login();
+  assert.equal(useAuthStore.getState().sessionExpired, false);
+});
+
+test('tanpa token: 401 SESSION_INVALID tidak memicu penghapusan sesi / notifikasi / retry', async () => {
+  responses = [SESSION_INVALID];
+  await assert.rejects(apiClient('/cart', { method: 'POST', body: { items: [] }, allowGuest: true }), { status: 401 });
+  assert.equal(calls.length, 1);
+  assert.equal(useAuthStore.getState().sessionExpired, false);
+});
+
+test('re-review C: error 400 membawa kode aplikasi (INVALID_ID) dari body respons', async () => {
+  responses = [{ status: 400, body: { status: 'error', code: 'INVALID_ID', message: 'ID produk tidak valid.' } }];
+  await assert.rejects(apiClient('/products/abc'), { status: 400, code: 'INVALID_ID' });
 });
 
 test('sesi kedaluwarsa pada endpoint khusus pelanggan: sesi dihapus, TIDAK diulang, pesan sesi berakhir', async () => {

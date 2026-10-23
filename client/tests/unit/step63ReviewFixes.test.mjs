@@ -49,11 +49,21 @@ test('L1: baris > 99 dengan stok habis → stepper nonaktif, tanpa tombol ubah, 
   );
 });
 
-test('L7: id produk tidak valid (400) dan tidak ditemukan (404) sama-sama "tidak ditemukan" seperti mock', () => {
-  assert.equal(isMissingResourceError({ status: 400 }), true);
+test('L7: hanya 404 dan 400 ber-kode INVALID_ID yang dianggap "tidak ditemukan" (seperti mock)', () => {
   assert.equal(isMissingResourceError({ status: 404 }), true);
+  assert.equal(isMissingResourceError({ status: 400, code: 'INVALID_ID' }), true);
+  // Re-review C: 400 validasi lain tidak boleh tersamar sebagai "produk tidak ditemukan"
+  assert.equal(isMissingResourceError({ status: 400 }), false);
+  assert.equal(isMissingResourceError({ status: 400, code: 'LAIN' }), false);
   assert.equal(isMissingResourceError({ status: 500 }), false);
   assert.equal(isMissingResourceError(new Error('jaringan')), false);
+});
+
+test('re-review B: baris berdesain tidak sah tidak "memiliki" desain di findDuplicateDesignLines', () => {
+  const lines = [cake({ design_token: 'rusak' }), cake({ design_token: 'ok' }), cake({ design_token: 'ok', note: 'x' })];
+  const isValid = (item) => item.design_token === 'ok';
+  assert.deepEqual([...findDuplicateDesignLines(lines, isValid)], [2]);
+  assert.deepEqual([...findDuplicateDesignLines(lines)], [1, 2]); // tanpa predikat: perilaku lama
 });
 
 test('M1: hanya 401 SESSION_INVALID untuk request bertoken yang menghapus sesi', () => {

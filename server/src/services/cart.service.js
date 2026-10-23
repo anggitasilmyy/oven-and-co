@@ -167,12 +167,14 @@ function resolveReadyDate(item, product, context) {
   };
 }
 
-function buildCartLine(item, index, context) {
+/** @returns {{line: object, designValid: boolean}} designValid = desain custom lolos semua pemeriksaan desain */
+function buildCartLine(item, context) {
   const product = context.products.get(item.product_id) ?? null;
   const rawDesign = item.design_id ? context.designs.get(item.design_id) ?? null : null;
 
   let reason = null;
   let design = null;
+  let designValid = false;
   let variant = null;
   let readyDate = context.todayKey;
 
@@ -189,12 +191,8 @@ function buildCartLine(item, index, context) {
 
     const designCheck = checkDesign(item, product, rawDesign, context);
     design = designCheck.design;
+    designValid = Boolean(design) && designCheck.reason === null;
     reason = reason ?? designCheck.reason;
-
-    // Satu desain = satu baris; jumlah > 1 dipakai untuk kue identik, bukan baris kedua dengan catatan lain
-    if (design && context.duplicateDesignLines.has(index)) {
-      reason = reason ?? UNAVAILABLE_REASON.DESIGN_DUPLICATE_LINE;
-    }
 
     if (product.availabilityType === AVAILABILITY_TYPE.CUSTOM) {
       readyDate = design ? dbDateToKey(design.readyDate) : getEarliestReadyDate(product, context.now, context.settings);
@@ -220,7 +218,7 @@ function buildCartLine(item, index, context) {
   const stock = product?.dailyStocks?.[0] ?? null;
   const isReady = product?.availabilityType === AVAILABILITY_TYPE.READY;
 
-  return {
+  const line = {
     cart_item_id: item.cart_item_id,
     product_id: item.product_id,
     variant_id: item.variant_id,
@@ -241,6 +239,25 @@ function buildCartLine(item, index, context) {
     available: reason === null,
     unavailable_reason: reason,
   };
+
+  return { line, designValid };
+}
+
+/**
+ * Satu desain = satu baris (jumlah > 1 untuk kue identik). Hanya baris berdesain sah yang dihitung, lalu
+ * baris sah berikutnya dengan design_id yang sama ditandai duplikat dan keluar dari subtotal.
+ */
+function markDuplicateDesignLines(built) {
+  const duplicates = findDuplicateDesignLines(
+    built.map(({ line }) => line),
+    (_line, index) => built[index].designValid
+  );
+
+  return built.map(({ line }, index) =>
+    duplicates.has(index) && line.unavailable_reason === null
+      ? { ...line, available: false, unavailable_reason: UNAVAILABLE_REASON.DESIGN_DUPLICATE_LINE }
+      : line
+  );
 }
 
 /** Produk ready di keranjang melebihi sisa stok hari ini → daftar product_id bermasalah */
@@ -288,8 +305,7 @@ async function getCartView(items, { userId = null, now = new Date() } = {}) {
   ]);
 
   const context = { now, todayKey, settings, products, designs, userId };
-  context.duplicateDesignLines = findDuplicateDesignLines(items);
-  const lines = items.map((item, index) => buildCartLine(item, index, context));
+  const lines = markDuplicateDesignLines(items.map((item) => buildCartLine(item, context)));
   const validLines = lines.filter((line) => line.available);
 
   return {

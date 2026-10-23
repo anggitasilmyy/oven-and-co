@@ -29,10 +29,11 @@ function asyncHandler(handler) {
 
 // POST /api/custom-cake-designs
 // Pengunjung boleh membuat desain tanpa login; bila token dikirim, token tetap wajib valid.
-// Rate limit dijalankan sebelum multipart dibaca agar request berlebih tidak memproses file.
+// Urutan: autentikasi & peran → rate limit → baca multipart. Request 401/403 (termasuk 401 sesi kedaluwarsa
+// sebelum frontend mengulang sebagai tamu) tidak dihitung, dan request berlebih ditolak sebelum file diproses.
+// Catatan: kunci limit = req.ip; di balik NAT/proxy banyak pengguna berbagi IP (asumsi prototype, tanpa trust proxy).
 router.post(
   '/',
-  designRateLimit,
   optionalAuth,
   (req, res, next) => {
     if (req.user && req.user.role !== ROLES.CUSTOMER) {
@@ -44,6 +45,7 @@ router.post(
 
     return next();
   },
+  designRateLimit,
   referencePhotoUpload,
   asyncHandler(async (req, res) => {
     const isMultipart = req.is('multipart/form-data');

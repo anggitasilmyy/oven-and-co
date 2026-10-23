@@ -35,7 +35,7 @@ const useAuthStore = create(
       setAuth: (user, token) => {
         // Simpan token juga di localStorage biasa agar apiClient bisa baca tanpa store
         localStorage.setItem('ovenco_auth_token', token);
-        set({ user, token });
+        set({ user, token, sessionExpired: false });
       },
 
       /** Hapus sesi */
@@ -43,6 +43,17 @@ const useAuthStore = create(
         localStorage.removeItem('ovenco_auth_token');
         set({ user: null, token: null });
       },
+
+      /**
+       * Step 6.3: sesi dihapus otomatis karena server menolak token (401 SESSION_INVALID).
+       * Menandai `sessionExpired` agar SessionExpiredNotice memberi tahu pengguna (tidak di-persist).
+       */
+      sessionExpired: false,
+      expireSession: () => {
+        localStorage.removeItem('ovenco_auth_token');
+        set({ user: null, token: null, sessionExpired: true });
+      },
+      dismissSessionNotice: () => set({ sessionExpired: false }),
 
       /** true jika pengguna sudah login */
       isLoggedIn: () => !!get().user,

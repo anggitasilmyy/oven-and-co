@@ -6,6 +6,7 @@
 const prisma = require('../lib/prisma');
 const {
   AVAILABILITY_TYPE,
+  API_ERROR_CODE,
   SALES_WINDOW_DAYS,
   REVIEW_PREVIEW_LIMIT,
 } = require('../utils/businessConstants');
@@ -170,7 +171,8 @@ async function getProducts(query = {}) {
 /** GET /api/products/:id — detail produk aktif (FR-08, FR-09); 404 bila tidak ada/nonaktif */
 async function getProductById(id, now = new Date()) {
   if (typeof id !== 'string' || !/^[1-9]\d{0,18}$/.test(id) || BigInt(id) > 9223372036854775807n) {
-    throw httpError(400, 'ID produk tidak valid.');
+    // Kode INVALID_ID: frontend memperlakukannya seperti "tidak ditemukan" (sama dengan mode mock)
+    throw Object.assign(httpError(400, 'ID produk tidak valid.'), { apiCode: API_ERROR_CODE.INVALID_ID });
   }
 
   const productId = BigInt(id);
@@ -271,20 +273,26 @@ async function getBestSellers(query = {}) {
 
   if (ranked.length === 0) return [];
 
-  // Produk nonaktif disaring SEBELUM dipotong ke `limit`, agar posisinya diisi produk terlaris berikutnya
+  // Produk nonaktif disaring SEBELUM dipotong ke `limit`, agar posisinya diisi produk terlaris berikutnya.
+  // Langkah 1 hanya mengambil id produk aktif; relasi (foto, stok) baru dimuat untuk `limit` produk teratas.
+  const activeRows = await prisma.product.findMany({
+    where: { isActive: true, productId: { in: ranked.map((item) => item.productId) } },
+    select: { productId: true },
+  });
+  const activeIds = new Set(activeRows.map((row) => String(row.productId)));
+  const topItems = ranked.filter((item) => activeIds.has(String(item.productId))).slice(0, limit);
+
+  if (topItems.length === 0) return [];
+
   const products = await prisma.product.findMany({
-    where: {
-      isActive: true,
-      productId: { in: ranked.map((item) => item.productId) },
-    },
+    where: { isActive: true, productId: { in: topItems.map((item) => item.productId) } },
     include: productCardInclude(todayDate),
   });
 
   const productById = new Map(products.map((product) => [String(product.productId), product]));
-  const top = ranked
+  const top = topItems
     .map((item) => ({ item, product: productById.get(String(item.productId)) }))
-    .filter((entry) => entry.product)
-    .slice(0, limit);
+    .filter((entry) => entry.product);
 
   const ratings = await getProductRatings(top.map((entry) => entry.product.productId));
 

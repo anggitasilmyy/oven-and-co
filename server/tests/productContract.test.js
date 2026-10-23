@@ -155,8 +155,11 @@ test('GET /products/:id → detail sesuai productDetailService; produk nonaktif 
 test('GET /products/:id tidak ada → 404, id tidak valid → 400', async () => {
   await assert.rejects(productService.getProductById('404'), { statusCode: 404 });
   for (const id of ['abc', '0', '-1', '1.5']) {
-    await assert.rejects(productService.getProductById(id), { statusCode: 400 });
+    // apiCode INVALID_ID → frontend menampilkan "tidak ditemukan" hanya untuk 400 jenis ini
+    await assert.rejects(productService.getProductById(id), { statusCode: 400, apiCode: 'INVALID_ID' });
   }
+  // 404 tidak membawa kode INVALID_ID
+  await assert.rejects(productService.getProductById('404'), (error) => error.apiCode === undefined);
 });
 
 test('fresh-today: hanya produk ready aktif dengan stok tersisa', async () => {

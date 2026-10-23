@@ -19,6 +19,14 @@ const ROLES = Object.freeze({
   CUSTOMER: 'customer',
 });
 
+// Kode error di body respons (sama dengan client constants/apiErrors.js)
+const API_ERROR_CODE = Object.freeze({
+  // 401: token yang dikirim tidak berlaku (kedaluwarsa/rusak/akun nonaktif) → frontend menghapus sesi
+  SESSION_INVALID: 'SESSION_INVALID',
+  // 400: id sumber daya tidak valid (mis. /products/abc) → frontend menampilkan "tidak ditemukan"
+  INVALID_ID: 'INVALID_ID',
+});
+
 // BR-02: pre-order minimal H-1, custom cake minimal H+3 (client constants/storeConfig.js)
 const PREORDER_MIN_LEAD_DAYS = 1;
 const CUSTOM_CAKE_MIN_LEAD_DAYS = 3;
@@ -51,6 +59,7 @@ module.exports = {
   ORDER_STATUS,
   PAYMENT_STATUS,
   ROLES,
+  API_ERROR_CODE,
   PREORDER_MIN_LEAD_DAYS,
   CUSTOM_CAKE_MIN_LEAD_DAYS,
   PREORDER_DATE_WINDOW_DAYS,

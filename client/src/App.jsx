@@ -6,6 +6,7 @@
 import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import useRestoreUserCart from './hooks/useRestoreUserCart';
+import SessionExpiredNotice from './components/layout/SessionExpiredNotice';
 
 export default function App() {
   useRestoreUserCart();
@@ -13,6 +14,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <AppRoutes />
+      {/* Step 6.3: beri tahu pengguna bila sesi dihapus otomatis (token kedaluwarsa) */}
+      <SessionExpiredNotice />
     </BrowserRouter>
   );
 }

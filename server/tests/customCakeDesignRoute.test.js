@@ -219,3 +219,42 @@ test(`rate limit: permintaan ke-${DESIGN_RATE_LIMIT.max + 1} dari IP yang sama �
   assert.ok(Number(limited.headers.get('retry-after')) > 0);
   assert.match((await limited.json()).message, /Terlalu banyak desain/);
 });
+
+test('re-review A1: referencePhoto JSON berupa URL http(s) / path upload / data URL → 400, tidak ada desain dibuat', async () => {
+  const before = created.length;
+
+  for (const referencePhoto of [
+    'https://evil.example/pixel.gif',
+    '/uploads/custom-cakes/0123456789abcdef0123456789abcdef.jpg', // file milik desain lain
+    '/images/products/croissant.webp',
+  ]) {
+    const res = await post({ ...design(), referencePhoto });
+    assert.equal(res.status, 400, referencePhoto);
+    assert.match((await res.json()).message, /diunggah sebagai file/);
+  }
+
+  // Juga lewat field `design` multipart (file tetap satu-satunya sumber foto)
+  const res = await post(multipart(JPEG, { fields: { ...design(), referencePhoto: 'https://evil.example/a.jpg' } }));
+  assert.equal(res.status, 400);
+  assert.equal(created.length, before);
+});
+
+test('regresi zod: tanpa tulisan & tanpa writingColor → 201 (bukan 400 "expected nonoptional")', async () => {
+  const { writingText, writingColor, ...rest } = design();
+  const res = await post(rest);
+  assert.equal(res.status, 201, JSON.stringify(await res.clone().json()));
+  assert.equal(created.at(-1).writingColor, null);
+});
+
+test('re-review: rate limit tidak menghitung request 401/403 (mis. 401 sesi kedaluwarsa sebelum retry tamu)', async () => {
+  const staffToken = jwt.sign({ sub: '2' }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '5m' });
+  const expired = jwt.sign({ sub: '1', exp: Math.floor(Date.now() / 1000) - 60 }, process.env.JWT_SECRET, { algorithm: 'HS256' });
+
+  for (let i = 0; i < DESIGN_RATE_LIMIT.max + 5; i++) {
+    assert.equal((await post(design(), { Authorization: `Bearer ${staffToken}` })).status, 403);
+    assert.equal((await post(design(), { Authorization: `Bearer ${expired}` })).status, 401);
+  }
+
+  // Kuota tamu dari IP yang sama masih utuh
+  assert.equal((await post(design())).status, 201);
+});

@@ -219,12 +219,17 @@ Catatan khusus:
     `findDuplicateDesignLines()` (`server/src/services/designAccess.service.js`) selain cek token & sekali pakai.
   - Foto referensi custom cake: `POST /api/custom-cake-designs` menerima multipart (`referencePhoto` + JSON `design`);
     JPG/PNG/WebP maks. 5 MB, tipe dicek dari isi file, nama file acak, disimpan lokal di `server/uploads/custom-cakes/`
-    (atau `UPLOAD_DIR`) dan disajikan di `/uploads/custom-cakes/…` (URL relatif terhadap server API). File dihapus
-    bila desain gagal disimpan. Validasi body cart & custom cake memakai zod (`server/src/validators/`).
+    (atau `UPLOAD_DIR`) dan disajikan di `/uploads/custom-cakes/…` (URL relatif terhadap server API). File adalah
+    satu-satunya sumber foto: field JSON `referencePhoto` (URL/path/data URL) ditolak 400. File ditulis di luar
+    transaksi Prisma dan dihapus bila validasi data server/penyimpanan gagal. Frontend menampilkan path unggahan lewat
+    `toUploadUrl()` (`services/apiClient.js`, origin dari `VITE_API_URL`; API relatif `/api` → path tetap relatif).
+    Validasi body cart & custom cake memakai zod (`server/src/validators/`).
   - Pembatas laju pembuatan desain: maks. 20 per IP per 15 menit, **in-memory per proses** (hilang saat restart,
-    tidak dibagi antar-instance) — asumsi prototype, bukan solusi produksi.
-  - Sesi kedaluwarsa: 401 dengan `code: SESSION_INVALID` menghapus sesi lokal; endpoint tamu (keranjang, desain)
-    diulang sekali tanpa token. 403 tidak menghapus sesi.
+    tidak dibagi antar-instance, tanpa `trust proxy` sehingga pengguna di balik NAT berbagi kuota) — asumsi
+    prototype, bukan solusi produksi. Request 401/403 tidak dihitung.
+  - Sesi kedaluwarsa: 401 dengan `code: SESSION_INVALID` menghapus sesi lokal dan menampilkan notifikasi global
+    (`SessionExpiredNotice`); endpoint tamu (keranjang, desain) diulang maksimal sekali tanpa token. 403 dan 401
+    login gagal tidak menghapus sesi. Id produk tidak valid → 400 `code: INVALID_ID` (ditampilkan "tidak ditemukan").
   - Untuk Phase berikutnya (gabung keranjang setelah login): `selectClaimableGuestDesignIds()` di
     `server/src/services/designAccess.service.js` memilih desain tamu yang aman diklaim (token valid, belum dipesan);
     penulisan `user_id` dilakukan dengan `updateMany` bersyarat `user_id IS NULL`.

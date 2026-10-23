@@ -1,8 +1,8 @@
 // services/customCakeDesign.service.js
 // FR-10 · UC-06 · BR-02 · C-11 Custom Cake Builder — simpan desain; harga & tanggal divalidasi ulang di server.
 // Tanggal siap: ≥ H+3 (atau lead time produk bila lebih lama) dan ≤ jendela date picker, dihitung di WIB.
-// Foto referensi (opsional, multipart) baru ditulis ke disk setelah semua validasi lolos, dan dihapus lagi
-// bila penyimpanan database gagal.
+// Foto referensi (opsional, multipart, satu-satunya sumber foto) ditulis ke disk setelah validasi request &
+// file, di luar transaksi Prisma, lalu dihapus lagi bila validasi data server atau penyimpanan database gagal.
 
 const prisma = require('../lib/prisma');
 const { AVAILABILITY_TYPE } = require('../utils/businessConstants');
@@ -88,16 +88,14 @@ async function createCustomCakeDesign(payload = {}, userId = null, now = new Dat
   const design = validateCustomCakeDesign(payload);
   const normalizedUserId = normalizeUserId(userId);
 
-  if (photo && design.referencePhotoUrl) {
-    throw createError('Kirim foto referensi sebagai file atau URL, bukan keduanya.');
-  }
-
   // Desain tamu wajib mendapat token; pastikan kunci tersedia sebelum menulis data
   if (normalizedUserId === null) {
     assertDesignTokenConfigured();
   }
 
-  let savedPhotoUrl = null;
+  // File (sudah divalidasi di route) ditulis DI LUAR transaksi Prisma agar I/O disk tidak menahan koneksi
+  // dan tidak memicu timeout transaksi interaktif. Bila penyimpanan database gagal, file dihapus lagi.
+  const savedPhotoUrl = photo ? await saveReferencePhoto(photo) : null;
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -119,18 +117,13 @@ async function createCustomCakeDesign(payload = {}, userId = null, now = new Dat
       const price =
         (toCents(product.price) + selectedOptions.reduce((sum, option) => sum + toCents(option.extraPrice), 0)) / 100;
 
-      // Semua validasi lolos → baru tulis foto ke disk
-      if (photo) {
-        savedPhotoUrl = await saveReferencePhoto(photo);
-      }
-
       const created = await tx.customCakeDesign.create({
         data: {
           productId: product.productId,
           userId: normalizedUserId,
           writingText: design.writingText,
           writingColor: design.writingColor,
-          referencePhotoUrl: savedPhotoUrl ?? design.referencePhotoUrl,
+          referencePhotoUrl: savedPhotoUrl,
           readyDate: dateKeyToDbDate(design.readyDateKey),
           price,
         },
@@ -150,9 +143,12 @@ async function createCustomCakeDesign(payload = {}, userId = null, now = new Dat
       };
     });
   } catch (error) {
-    // Transaksi dibatalkan → file yang sudah ditulis tidak boleh tertinggal
+    // Validasi data server / transaksi gagal → file yang sudah ditulis tidak boleh tertinggal.
+    // Kegagalan pembersihan hanya dicatat; error utama tetap yang dikirim ke pemanggil.
     if (savedPhotoUrl) {
-      await deleteReferencePhoto(savedPhotoUrl).catch(() => {});
+      await deleteReferencePhoto(savedPhotoUrl).catch((cleanupError) => {
+        console.warn('[Upload] Gagal menghapus foto referensi yatim:', savedPhotoUrl, cleanupError.code ?? cleanupError.message);
+      });
     }
 
     throw error;

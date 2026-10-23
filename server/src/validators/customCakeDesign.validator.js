@@ -8,7 +8,6 @@ const { z, parseOrThrow } = require('./zodHelpers');
 const OPTION_GROUPS = ['ukuran', 'bentuk', 'rasa', 'krim_topping'];
 const WRITING_COLORS = ['Cokelat', 'Putih', 'Pink', 'Emas']; // client constants/customCake.js WRITING_COLORS
 const WRITING_TEXT_MAX_LENGTH = 30;
-const REFERENCE_PHOTO_URL_MAX_LENGTH = 255; // custom_cake_designs.reference_photo_url VARCHAR(255)
 
 const optionId = (group) =>
   z.preprocess(
@@ -25,19 +24,15 @@ const selectionsSchema = z.object(
   { error: 'Pilihan custom cake wajib diisi.' }
 );
 
-/** Foto referensi lewat JSON hanya boleh berupa URL/path (unggahan file memakai multipart, bukan data URL) */
+/**
+ * Foto referensi HANYA boleh datang dari file multipart yang divalidasi server (magic bytes, ukuran, nama).
+ * Field JSON `referencePhoto` harus kosong: URL/path/data URL dari klien ditolak agar tidak melewati validasi
+ * unggahan (mis. URL pelacak pihak ketiga atau path file milik desain lain). Desain tidak pernah diubah setelah
+ * dibuat, jadi tidak ada kebutuhan "mempertahankan foto lama".
+ */
 const referencePhotoUrl = z.preprocess(
   (value) => (typeof value === 'string' ? value.trim() || null : value ?? null),
-  z
-    .string({ error: 'Foto referensi tidak valid.' })
-    .refine((value) => !/^data:/i.test(value), {
-      error: 'Foto referensi harus diunggah sebagai file, bukan data URL.',
-    })
-    .refine((value) => /^https?:\/\/\S+$/i.test(value) || /^\/(?!\/)[^\s]*$/.test(value), {
-      error: 'Foto referensi harus berupa URL HTTP(S) atau path relatif yang valid.',
-    })
-    .max(REFERENCE_PHOTO_URL_MAX_LENGTH, { error: 'URL foto referensi maksimal 255 karakter.' })
-    .nullable()
+  z.null({ error: 'Foto referensi harus diunggah sebagai file (JPG, PNG, atau WebP).' })
 );
 
 const designSchema = z
@@ -51,7 +46,8 @@ const designSchema = z
           .trim()
           .max(WRITING_TEXT_MAX_LENGTH, { error: 'Tulisan pada kue maksimal 30 karakter.' })
       ),
-      writingColor: z.unknown(),
+      // .optional(): di zod 4 kunci yang tidak dikirim pada z.unknown() dianggap error; warna hanya wajib bila ada tulisan
+      writingColor: z.unknown().optional(),
       referencePhoto: referencePhotoUrl,
       readyDate: z
         .string({ error: 'Tanggal siap harus menggunakan format YYYY-MM-DD.' })
@@ -70,13 +66,12 @@ const designSchema = z
     selectedIds: OPTION_GROUPS.map((group) => design.selections[group]),
     writingText: design.writingText || null,
     writingColor: design.writingText ? design.writingColor : null,
-    referencePhotoUrl: design.referencePhoto,
     readyDateKey: design.readyDate,
   }));
 
 /**
  * @param {unknown} payload
- * @returns {{selections, selectedIds: number[], writingText, writingColor, referencePhotoUrl, readyDateKey}}
+ * @returns {{selections, selectedIds: number[], writingText, writingColor, readyDateKey}}
  */
 function validateCustomCakeDesign(payload) {
   return parseOrThrow(designSchema, payload);

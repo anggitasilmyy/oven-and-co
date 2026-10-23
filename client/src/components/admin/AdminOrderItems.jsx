@@ -4,6 +4,7 @@
 
 import ProductImage from '../ui/ProductImage';
 import { formatRupiah } from '../../utils/format';
+import { toUploadUrl } from '../../services/apiClient';
 
 function CustomCakeSpec({ spec }) {
   return (
@@ -19,9 +20,9 @@ function CustomCakeSpec({ spec }) {
         <dd className="font-medium break-words">{spec.writing_text ? `"${spec.writing_text}" · ${spec.writing_color}` : '-'}</dd>
       </dl>
       {spec.reference_photo_url && (
-        // Foto referensi disimpan sebagai data URL di mode mock, jadi hanya ditampilkan sebagai thumbnail
+        // Mode mock: data URL; mode API: path /uploads/... di server API → diubah ke URL origin API (Step 6.3)
         <figure className="flex items-center gap-2">
-          <img src={spec.reference_photo_url} alt="Foto referensi custom cake" className="w-16 h-16 rounded-lg object-cover" />
+          <img src={toUploadUrl(spec.reference_photo_url)} alt="Foto referensi custom cake" className="w-16 h-16 rounded-lg object-cover" />
           <figcaption className="font-medium">Foto referensi</figcaption>
         </figure>
       )}

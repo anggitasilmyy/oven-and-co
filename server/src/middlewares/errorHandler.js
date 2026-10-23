@@ -28,8 +28,14 @@ function errorHandler(err, req, res, next) {
       ? 'Terjadi kesalahan pada server.'
       : BODY_PARSER_MESSAGES[err.type] || err.message || 'Permintaan tidak dapat diproses.';
 
+  // Kode error aplikasi (utils/businessConstants API_ERROR_CODE) hanya untuk 4xx; kode internal
+  // (mis. kode Prisma pada error 500) tidak pernah dikirim ke klien.
+  const code =
+    statusCode < 500 && typeof err.apiCode === 'string' ? err.apiCode : undefined;
+
   return res.status(statusCode).json({
     status: 'error',
+    ...(code ? { code } : {}),
     message,
   });
 }

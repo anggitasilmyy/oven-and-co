@@ -28,16 +28,19 @@ function isDesignAlreadyOrdered(design) {
 /**
  * Satu design_id hanya boleh ada di SATU baris keranjang/pesanan (jumlah > 1 di baris itu boleh, untuk kue identik).
  * Baris berikutnya dengan design_id yang sama ditandai agar desain tidak dipakai ganda lewat catatan berbeda.
+ * Hanya baris yang desainnya LOLOS validasi (akses/token, produk, sekali pakai, tanggal) yang ikut dihitung:
+ * baris dengan token rusak tidak boleh "memiliki" desain lalu membuat baris valid berikutnya dianggap duplikat.
  * Dipakai cart.service sekarang dan wajib dipakai lagi saat pembuatan pesanan (Phase berikutnya).
  * @param {Array<{design_id?: string|null}>} items
- * @returns {Set<number>} indeks baris duplikat (kemunculan pertama tidak termasuk)
+ * @param {(item: object, index: number) => boolean} [isValidDesign] — desain baris ini sah dipakai
+ * @returns {Set<number>} indeks baris duplikat (kemunculan sah pertama tidak termasuk)
  */
-function findDuplicateDesignLines(items) {
+function findDuplicateDesignLines(items, isValidDesign = () => true) {
   const seen = new Set();
   const duplicates = new Set();
 
   items.forEach((item, index) => {
-    if (!item.design_id) return;
+    if (!item.design_id || !isValidDesign(item, index)) return;
     if (seen.has(item.design_id)) duplicates.add(index);
     seen.add(item.design_id);
   });

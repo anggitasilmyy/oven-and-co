@@ -298,3 +298,36 @@ test('findDuplicateDesignLines: kemunculan pertama dipertahankan, baris tanpa de
   ]);
   assert.deepEqual([...duplicates], [3, 4]);
 });
+
+test('re-review B: baris pertama token TIDAK valid tidak membuat baris berikutnya yang valid dianggap duplikat', async () => {
+  const valid = signDesignToken(12n);
+  const view = await getCartView(
+    [
+      line({ cart_item_id: 'a', design_id: '12', design_token: 'x'.repeat(43), quantity: 4 }), // token rusak
+      line({ cart_item_id: 'b', design_id: '12', design_token: valid, quantity: 2 }), // sah → pemilik
+      line({ cart_item_id: 'c', design_id: '12', design_token: valid, quantity: 3 }), // sah tetapi duplikat
+    ],
+    { userId: null, now: NOW }
+  );
+
+  assert.deepEqual(
+    view.lines.map((l) => [l.cart_item_id, l.available, l.unavailable_reason]),
+    [
+      ['a', false, 'design_not_found'],
+      ['b', true, null],
+      ['c', false, 'design_duplicate_line'],
+    ]
+  );
+  // Subtotal hanya baris sah pertama: 2 × harga desain (bukan 4, 5, atau 9 ×)
+  assert.equal(view.subtotal, 625000 * 2);
+  assert.equal(view.lines[0].design, null); // isi desain tidak bocor ke baris bertoken rusak
+});
+
+test('re-review B: desain kedaluwarsa / sudah dipesan di baris pertama tidak "memiliki" desain lain', async () => {
+  const view = await getCartView(
+    [line({ design_id: '14' }), line({ design_id: '10', quantity: 2 }), line({ design_id: '10', note: 'lain' })],
+    { userId: '1', now: NOW }
+  );
+  assert.deepEqual(view.lines.map((l) => l.unavailable_reason), ['design_expired', null, 'design_duplicate_line']);
+  assert.equal(view.subtotal, 625000 * 2);
+});

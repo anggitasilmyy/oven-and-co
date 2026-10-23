@@ -36,12 +36,15 @@ export function cartItemKey(item) {
   return JSON.stringify([i.product_id, i.variant_id, i.design_id, i.preferred_date, i.note]);
 }
 
-/** Indeks baris yang memakai design_id yang sudah muncul di baris sebelumnya (sama dengan server) */
-export function findDuplicateDesignLines(items) {
+/**
+ * Indeks baris yang memakai design_id yang sudah muncul di baris SAH sebelumnya (sama dengan server).
+ * `isValidDesign`: hanya baris berdesain sah yang ikut dihitung, agar baris rusak tidak "memiliki" desain.
+ */
+export function findDuplicateDesignLines(items, isValidDesign = () => true) {
   const seen = new Set();
   const duplicates = new Set();
   items.forEach((item, index) => {
-    if (item.design_id == null) return;
+    if (item.design_id == null || !isValidDesign(item, index)) return;
     const key = String(item.design_id);
     if (seen.has(key)) duplicates.add(index);
     seen.add(key);
