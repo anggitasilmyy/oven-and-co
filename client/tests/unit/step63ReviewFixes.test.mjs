@@ -107,3 +107,11 @@ test('re-review #4: checkCartDesign (mock) mengikuti urutan pemeriksaan server',
   // Tanpa konteks pemakaian (tampilan pesanan lama): desain yang sudah dipesan tetap terbaca
   assert.equal(checkCartDesign(item, product, design, {}).designValid, true);
 });
+
+test('#1–#3: classifySessionState membedakan token aktif, sesi sudah dihapus, dan token pengganti', async () => {
+  const { classifySessionState } = await import('../../src/utils/apiErrors.js');
+  assert.equal(classifySessionState('jwt-lama', 'jwt-lama'), 'active');
+  assert.equal(classifySessionState('jwt-lama', null), 'cleared');
+  assert.equal(classifySessionState('jwt-lama', ''), 'cleared'); // token kosong tidak pernah dianggap aktif
+  assert.equal(classifySessionState('jwt-lama', 'jwt-baru'), 'replaced');
+});

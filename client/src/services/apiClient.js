@@ -1,21 +1,27 @@
 // services/apiClient.js
 // Step 3 · Authentication
 // Memilih antara mock handler atau fetch REST API berdasarkan VITE_USE_MOCK
-// Step 6.3: body FormData (unggah foto) & sesi kedaluwarsa (401 SESSION_INVALID → sesi lokal dihapus;
-// endpoint yang boleh dipakai tamu dicoba ulang sekali tanpa token).
+// Step 6.3: body FormData (unggah foto) & sesi kedaluwarsa (401 SESSION_INVALID). Lihat handleInvalidSession.
 
 import useAuthStore from '../stores/useAuthStore';
 import useCartStore from '../stores/useCartStore';
-import { isSessionInvalidResponse } from '../utils/apiErrors';
+import { isSessionInvalidResponse, classifySessionState } from '../utils/apiErrors';
 import { resolveUploadUrl } from '../utils/uploadUrl';
-import { SESSION_EXPIRED_MESSAGE } from '../constants/apiErrors';
+import { SESSION_EXPIRED_MESSAGE, SESSION_CHANGED_MESSAGE, SESSION_STATE } from '../constants/apiErrors';
+import { AUTH_TOKEN_STORAGE_KEY } from '../constants/auth';
 
 // `?? {}`: import.meta.env hanya ada di Vite; fallback agar modul bisa diuji di Node (tests/unit)
 const ENV = import.meta.env ?? {};
 const USE_MOCK = ENV.VITE_USE_MOCK === 'true';
 const API_BASE = ENV.VITE_API_URL ?? 'http://localhost:4000/api';
-// Disalin useAuthStore.setAuth ke localStorage biasa agar bisa dibaca tanpa store
-const AUTH_TOKEN_KEY = 'ovenco_auth_token';
+
+const readToken = () => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+
+function authError(message) {
+  const error = new Error(message);
+  error.status = 401;
+  return error;
+}
 
 /**
  * Hapus sesi yang sudah tidak berlaku, kembali ke keranjang tamu (keranjang akun tetap tersimpan di perangkat),
@@ -24,6 +30,46 @@ const AUTH_TOKEN_KEY = 'ovenco_auth_token';
 function clearExpiredSession() {
   useAuthStore.getState().expireSession();
   useCartStore.getState().resetToGuest();
+}
+
+/**
+ * Keadaan sesi untuk token yang ditolak; sesi hanya dihapus (dan notifikasi hanya dipicu) bila token itu masih
+ * token aktif. Request lain yang menerima 401 untuk token yang sama setelahnya melihat CLEARED → tidak dobel.
+ */
+function settleInvalidSession(sentToken) {
+  const state = classifySessionState(sentToken, readToken());
+  if (state === SESSION_STATE.ACTIVE) clearExpiredSession();
+  return state;
+}
+
+/**
+ * Respons 401 SESSION_INVALID untuk `token` → hasil akhir { res, json } atau lempar error.
+ * Maksimal SATU request ulang per panggilan apiClient. Mengulang aman dari efek ganda karena 401 SESSION_INVALID
+ * dikirim middleware auth SEBELUM handler route berjalan (tidak ada data yang sempat ditulis server).
+ * - Sesi ini kedaluwarsa / sudah dihapus request lain: endpoint tamu → ulang tanpa token; lainnya → pesan ramah.
+ * - Pengguna sudah masuk lagi (token baru): GET & endpoint tamu → ulang sekali dengan token baru; POST/PUT/PATCH/
+ *   DELETE khusus akun → tidak diulang, error "sesi berubah" tanpa menghapus sesi baru.
+ */
+async function handleInvalidSession(path, { method, body, token, allowGuest }) {
+  const state = settleInvalidSession(token);
+
+  if (state !== SESSION_STATE.REPLACED) {
+    if (!allowGuest) throw authError(SESSION_EXPIRED_MESSAGE);
+    return send(path, { method, body, token: null });
+  }
+
+  if (!allowGuest && method.toUpperCase() !== 'GET') throw authError(SESSION_CHANGED_MESSAGE);
+
+  const retryToken = readToken();
+  const retried = await send(path, { method, body, token: retryToken });
+
+  // Ulangan juga ditolak: diproses sekali tanpa ulang lagi; sesi dihapus hanya bila token ulangan masih aktif
+  if (isSessionInvalidResponse(retried.res.status, retried.json, retryToken)) {
+    const retryState = settleInvalidSession(retryToken);
+    throw authError(retryState === SESSION_STATE.REPLACED ? SESSION_CHANGED_MESSAGE : SESSION_EXPIRED_MESSAGE);
+  }
+
+  return retried;
 }
 
 /** Path unggahan server (/uploads/...) → URL berdasarkan origin VITE_API_URL; nilai lain apa adanya */
@@ -73,25 +119,11 @@ export async function apiClient(path, { method = 'GET', body, mockHandler, allow
 
   // ── Mode API ───────────────────────────────────────────────────────────────
   // Token yang dipakai request INI dicatat, agar respons 401 yang terlambat tidak menghapus sesi yang lebih baru
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const token = readToken();
   let { res, json } = await send(path, { method, body, token });
 
   if (isSessionInvalidResponse(res.status, json, token)) {
-    const currentToken = localStorage.getItem(AUTH_TOKEN_KEY);
-    const sessionUnchanged = currentToken === token;
-
-    // Hanya sesi yang memakai token kedaluwarsa itu yang dihapus; bila pengguna sudah masuk lagi (token berbeda),
-    // sesi & keranjang yang sedang aktif tidak disentuh
-    if (sessionUnchanged) clearExpiredSession();
-
-    if (allowGuest) {
-      // Maksimal SATU kali ulang: tanpa token (sesi dihapus) atau dengan token sesi baru; tidak ada pengulangan lagi
-      ({ res, json } = await send(path, { method, body, token: sessionUnchanged ? null : currentToken }));
-    } else if (sessionUnchanged) {
-      const error = new Error(SESSION_EXPIRED_MESSAGE);
-      error.status = 401;
-      throw error;
-    }
+    ({ res, json } = await handleInvalidSession(path, { method, body, token, allowGuest }));
   }
 
   if (!res.ok) {

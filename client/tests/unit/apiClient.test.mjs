@@ -166,18 +166,40 @@ test('re-review #2: 401 terlambat dari token lama TIDAK menghapus sesi baru sete
   assert.deepEqual(data, { lines: ['sesi-baru'] });
 });
 
-test('re-review #2: 401 terlambat pada endpoint khusus akun juga tidak menghapus sesi baru', async () => {
-  login();
+/**
+ * fetch palsu berurutan: setiap langkah boleh menjalankan efek (mis. login ulang) sebelum respons dikembalikan.
+ * Langkah: { before?: () => void, status, body }
+ */
+function scriptFetch(steps) {
   globalThis.fetch = async (url, init) => {
     calls.push({ url, init });
-    useAuthStore.getState().setAuth({ user_id: '1', role: 'customer' }, 'jwt-baru'); // login ulang saat menunggu
-    return { ok: false, status: 401, json: async () => SESSION_INVALID.body };
+    const step = steps.shift();
+    if (!step) throw new Error(`fetch tak terduga ke ${url}`);
+    step.before?.();
+    return { ok: step.status >= 200 && step.status < 300, status: step.status, json: async () => step.body };
   };
+}
 
-  await assert.rejects(apiClient('/checkout/context'), { status: 401 });
-  assert.equal(calls.length, 1);
-  assert.equal(useAuthStore.getState().token, 'jwt-baru');
-  assert.equal(useAuthStore.getState().sessionExpired, false);
+const relogin = (token) => () => useAuthStore.getState().setAuth({ user_id: '1', role: 'customer' }, token);
+const authOf = (index) => calls[index].init.headers.Authorization;
+
+test('B2: POST khusus akun menerima 401 terlambat → TIDAK diulang, sesi baru tetap aktif, pesan bukan "sesi berakhir"', async () => {
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+    calls.length = 0;
+    useAuthStore.getState().setAuth({ user_id: '1', role: 'customer' }, 'jwt-lama');
+    scriptFetch([{ before: relogin('jwt-baru'), ...SESSION_INVALID }]);
+
+    await assert.rejects(apiClient('/me/addresses', { method, body: {} }), (error) => {
+      assert.equal(error.status, 401);
+      assert.match(error.message, /Sesi akun berubah/);
+      assert.doesNotMatch(error.message, /berakhir/);
+      return true;
+    });
+    assert.equal(calls.length, 1, method);
+    assert.equal(useAuthStore.getState().token, 'jwt-baru');
+    assert.equal(localStorage.getItem('ovenco_auth_token'), 'jwt-baru');
+    assert.equal(useAuthStore.getState().sessionExpired, false);
+  }
 });
 
 test('re-review #9: pesan sesi berakhir netral untuk semua peran; setelah ditutup tidak muncul lagi tanpa kedaluwarsa baru', async () => {
@@ -220,4 +242,177 @@ test('re-review #5: reset sesi tidak mencampur keranjang akun dan tamu (retry ti
   assert.deepEqual(useCartStore.getState().items.map((i) => i.product_id), [9]);
   assert.deepEqual(JSON.parse(localStorage.getItem('ovenco_mock_cart_guest')).map((i) => i.product_id), [9]);
   assert.equal(localStorage.getItem('ovenco_mock_cart_1'), accountCart);
+});
+
+test('A: dua request bersamaan dengan token kedaluwarsa → keduanya pesan ramah, sesi dihapus & notifikasi SEKALI', async () => {
+  login();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  let expireCount = 0;
+  const unsubscribe = useAuthStore.subscribe((state, prev) => {
+    if (state.sessionExpired && !prev.sessionExpired) expireCount += 1;
+  });
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, init });
+    await gate; // kedua request sudah terkirim dengan token lama sebelum ada yang dijawab
+    return { ok: false, status: 401, json: async () => SESSION_INVALID.body };
+  };
+
+  const first = apiClient('/me/profile');
+  const second = apiClient('/orders');
+  await new Promise((resolve) => setImmediate(resolve));
+  release();
+  const results = await Promise.allSettled([first, second]);
+  unsubscribe();
+
+  assert.deepEqual(results.map((r) => r.status), ['rejected', 'rejected']);
+  for (const { reason } of results) {
+    assert.equal(reason.message, 'Sesi Anda telah berakhir. Silakan masuk kembali.');
+    assert.equal(reason.status, 401);
+  }
+  assert.equal(calls.length, 2); // tidak ada request ulang
+  assert.equal(expireCount, 1); // notifikasi tidak dobel
+  assert.equal(useAuthStore.getState().token, null);
+});
+
+test('A: request bersamaan pada endpoint tamu → masing-masing diulang SEKALI tanpa token, notifikasi sekali', async () => {
+  login();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, init });
+    if (init.headers.Authorization) {
+      await gate;
+      return { ok: false, status: 401, json: async () => SESSION_INVALID.body };
+    }
+    return { ok: true, status: 200, json: async () => ({ data: { lines: [] } }) };
+  };
+
+  const both = Promise.all([
+    apiClient('/cart', { method: 'POST', body: { items: [] }, allowGuest: true }),
+    apiClient('/cart', { method: 'POST', body: { items: [] }, allowGuest: true }),
+  ]);
+  await new Promise((resolve) => setImmediate(resolve));
+  release();
+  assert.deepEqual(await both, [{ lines: [] }, { lines: [] }]);
+  assert.equal(calls.length, 4);
+  assert.deepEqual(calls.map((c) => c.init.headers.Authorization), ['Bearer jwt-lama', 'Bearer jwt-lama', undefined, undefined]);
+});
+
+test('A: sesi sudah dihapus request lain → token kosong tidak menghapus apa pun / tidak memicu notifikasi baru', async () => {
+  login();
+  // Request ini dijawab setelah request lain menghapus sesi DAN notifikasinya sudah ditutup pengguna
+  scriptFetch([{
+    before: () => {
+      useAuthStore.getState().expireSession();
+      useAuthStore.getState().dismissSessionNotice();
+    },
+    ...SESSION_INVALID,
+  }]);
+
+  await assert.rejects(apiClient('/me/profile'), { message: 'Sesi Anda telah berakhir. Silakan masuk kembali.' });
+  assert.equal(useAuthStore.getState().sessionExpired, false);
+  assert.equal(calls.length, 1);
+});
+
+test('B1: GET dengan token lama menerima 401 setelah login ulang → diulang sekali dengan token BARU dan berhasil', async () => {
+  login();
+  scriptFetch([
+    { before: relogin('jwt-baru'), ...SESSION_INVALID },
+    { status: 200, body: { data: { name: 'Anisa' } } },
+  ]);
+
+  assert.deepEqual(await apiClient('/me/profile'), { name: 'Anisa' });
+  assert.equal(calls.length, 2);
+  assert.equal(authOf(0), 'Bearer jwt-lama');
+  assert.equal(authOf(1), 'Bearer jwt-baru');
+  assert.equal(useAuthStore.getState().token, 'jwt-baru');
+  assert.equal(useAuthStore.getState().sessionExpired, false);
+});
+
+test('B3: respons token lama tidak pernah menghapus token lain yang masih aktif (semua jenis endpoint)', async () => {
+  const cases = [
+    { path: '/me/profile', options: {} },
+    { path: '/me/addresses', options: { method: 'POST', body: {} } },
+    { path: '/cart', options: { method: 'POST', body: { items: [] }, allowGuest: true } },
+  ];
+
+  for (const { path, options } of cases) {
+    calls.length = 0;
+    login();
+    scriptFetch([
+      { before: relogin('jwt-baru'), ...SESSION_INVALID },
+      { status: 200, body: { data: 'ok' } },
+    ]);
+    await apiClient(path, options).catch(() => {});
+    assert.equal(useAuthStore.getState().token, 'jwt-baru', path);
+    assert.equal(localStorage.getItem('ovenco_auth_token'), 'jwt-baru', path);
+    assert.equal(useAuthStore.getState().sessionExpired, false, path);
+  }
+});
+
+test('C: ulangan dengan token baru juga 401 → diproses sekali tanpa ulang lagi; sesi baru (masih aktif) dihapus', async () => {
+  login();
+  scriptFetch([
+    { before: relogin('jwt-baru'), ...SESSION_INVALID },
+    { ...SESSION_INVALID }, // token baru juga ditolak (mis. akun dinonaktifkan)
+  ]);
+
+  await assert.rejects(apiClient('/me/profile'), { message: 'Sesi Anda telah berakhir. Silakan masuk kembali.' });
+  assert.equal(calls.length, 2);
+  assert.equal(authOf(1), 'Bearer jwt-baru');
+  assert.equal(useAuthStore.getState().token, null);
+  assert.equal(useAuthStore.getState().sessionExpired, true);
+});
+
+test('C: ulangan gagal tetapi pengguna masuk lagi dengan token ketiga selama ulangan → sesi ketiga tidak dihapus', async () => {
+  login();
+  scriptFetch([
+    { before: relogin('jwt-baru'), ...SESSION_INVALID },
+    { before: relogin('jwt-ketiga'), ...SESSION_INVALID },
+  ]);
+
+  await assert.rejects(apiClient('/me/profile'), { message: /Sesi akun berubah/ });
+  assert.equal(calls.length, 2);
+  assert.equal(useAuthStore.getState().token, 'jwt-ketiga');
+  assert.equal(useAuthStore.getState().sessionExpired, false);
+});
+
+test('C: ulangan gagal dan sesi sudah dihapus request lain selama ulangan → pesan ramah, tanpa notifikasi kedua', async () => {
+  login();
+  scriptFetch([
+    { before: relogin('jwt-baru'), ...SESSION_INVALID },
+    {
+      before: () => {
+        useAuthStore.getState().expireSession(); // request lain lebih dulu menghapus sesi jwt-baru
+        useAuthStore.getState().dismissSessionNotice();
+      },
+      ...SESSION_INVALID,
+    },
+  ]);
+
+  await assert.rejects(apiClient('/me/profile'), { message: 'Sesi Anda telah berakhir. Silakan masuk kembali.' });
+  assert.equal(calls.length, 2);
+  assert.equal(useAuthStore.getState().sessionExpired, false);
+});
+
+test('C: endpoint tamu — ulangan dengan token baru gagal → tidak ada ulangan ketiga tanpa token', async () => {
+  login();
+  scriptFetch([
+    { before: relogin('jwt-baru'), ...SESSION_INVALID },
+    { ...SESSION_INVALID },
+  ]);
+
+  await assert.rejects(apiClient('/cart', { method: 'POST', body: { items: [] }, allowGuest: true }), { status: 401 });
+  assert.equal(calls.length, 2);
+});
+
+test('#7: token disimpan & dibaca lewat key yang sama dengan sesi lama di perangkat', async () => {
+  const { AUTH_TOKEN_STORAGE_KEY } = await import('../../src/constants/auth.js');
+  assert.equal(AUTH_TOKEN_STORAGE_KEY, 'ovenco_auth_token');
+
+  localStorage.setItem('ovenco_auth_token', 'jwt-dari-sesi-lama'); // ditulis versi aplikasi sebelumnya
+  responses = [{ status: 200, body: { data: 'ok' } }];
+  await apiClient('/me/profile');
+  assert.equal(authOf(0), 'Bearer jwt-dari-sesi-lama');
 });

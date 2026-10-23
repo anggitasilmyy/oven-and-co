@@ -2,6 +2,12 @@
 // Step 3 · Authentication
 // Sumber: SPEC.md bagian 6 (Validation Rules) & bagian 10 (Asumsi Prototype, TF-15)
 
+/**
+ * Key localStorage salinan JWT (dibaca services/apiClient tanpa store, ditulis stores/useAuthStore).
+ * Nilai JANGAN diubah: sesi yang sudah tersimpan di perangkat pengguna memakai key ini.
+ */
+export const AUTH_TOKEN_STORAGE_KEY = 'ovenco_auth_token';
+
 /** Panjang minimal kata sandi (asumsi prototype TF-15) */
 export const PASSWORD_MIN_LENGTH = 8;
 

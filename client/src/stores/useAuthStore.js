@@ -4,6 +4,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { AUTH_TOKEN_STORAGE_KEY } from '../constants/auth';
 
 /**
  * Key persist Zustand.
@@ -34,13 +35,13 @@ const useAuthStore = create(
       /** Simpan sesi setelah login / register berhasil */
       setAuth: (user, token) => {
         // Simpan token juga di localStorage biasa agar apiClient bisa baca tanpa store
-        localStorage.setItem('ovenco_auth_token', token);
+        localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
         set({ user, token, sessionExpired: false });
       },
 
       /** Hapus sesi */
       logout: () => {
-        localStorage.removeItem('ovenco_auth_token');
+        localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
         set({ user: null, token: null });
       },
 
@@ -50,7 +51,7 @@ const useAuthStore = create(
        */
       sessionExpired: false,
       expireSession: () => {
-        localStorage.removeItem('ovenco_auth_token');
+        localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
         set({ user: null, token: null, sessionExpired: true });
       },
       dismissSessionNotice: () => set({ sessionExpired: false }),
