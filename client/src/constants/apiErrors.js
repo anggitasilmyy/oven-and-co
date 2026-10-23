@@ -17,6 +17,17 @@ export const SESSION_EXPIRED_MESSAGE = 'Sesi Anda telah berakhir. Silakan masuk 
  */
 export const SESSION_CHANGED_MESSAGE = 'Sesi akun berubah saat permintaan diproses. Silakan ulangi tindakan ini.';
 
+/**
+ * Kode error yang dibuat FRONTEND (services/apiClient) untuk kegagalan sesi. Sengaja berbeda dari kode server
+ * (API_ERROR_CODE.SESSION_INVALID = "token ditolak server") agar maknanya tidak tercampur.
+ */
+export const CLIENT_ERROR_CODE = {
+  /** Sesi request ini sudah berakhir dan dihapus (atau sudah dihapus request/tab lain) */
+  SESSION_EXPIRED: 'CLIENT_SESSION_EXPIRED',
+  /** Sesi berganti (masuk lagi / pengguna lain) saat request berjalan; request tidak diulang, sesi baru utuh */
+  SESSION_CHANGED: 'CLIENT_SESSION_CHANGED',
+};
+
 /** Hasil utils/apiErrors.js classifySessionState */
 export const SESSION_STATE = {
   ACTIVE: 'active',

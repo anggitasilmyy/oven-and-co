@@ -5,9 +5,14 @@
 
 import useAuthStore from '../stores/useAuthStore';
 import useCartStore from '../stores/useCartStore';
-import { isSessionInvalidResponse, classifySessionState } from '../utils/apiErrors';
+import {
+  isSessionInvalidResponse, isDesyncedSessionResponse, classifySessionState, createApiError, getSessionUserId,
+  canRetryWithReplacedSession,
+} from '../utils/apiErrors';
 import { resolveUploadUrl } from '../utils/uploadUrl';
-import { SESSION_EXPIRED_MESSAGE, SESSION_CHANGED_MESSAGE, SESSION_STATE } from '../constants/apiErrors';
+import {
+  SESSION_EXPIRED_MESSAGE, SESSION_CHANGED_MESSAGE, SESSION_STATE, CLIENT_ERROR_CODE,
+} from '../constants/apiErrors';
 import { AUTH_TOKEN_STORAGE_KEY } from '../constants/auth';
 
 // `?? {}`: import.meta.env hanya ada di Vite; fallback agar modul bisa diuji di Node (tests/unit)
@@ -17,10 +22,10 @@ const API_BASE = ENV.VITE_API_URL ?? 'http://localhost:4000/api';
 
 const readToken = () => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 
-function authError(message) {
-  const error = new Error(message);
-  error.status = 401;
-  return error;
+/** Error 401 sesi buatan frontend: pesan & kode (constants/apiErrors CLIENT_ERROR_CODE) selalu sepasang */
+function sessionError(code) {
+  const message = code === CLIENT_ERROR_CODE.SESSION_CHANGED ? SESSION_CHANGED_MESSAGE : SESSION_EXPIRED_MESSAGE;
+  return createApiError(message, 401, code);
 }
 
 /**
@@ -33,40 +38,57 @@ function clearExpiredSession() {
 }
 
 /**
- * Keadaan sesi untuk token yang ditolak; sesi hanya dihapus (dan notifikasi hanya dipicu) bila token itu masih
- * token aktif. Request lain yang menerima 401 untuk token yang sama setelahnya melihat CLEARED → tidak dobel.
+ * Selesaikan token yang ditolak server → CLIENT_ERROR_CODE.SESSION_EXPIRED atau SESSION_CHANGED.
+ * localStorage dibagi semua tab, store Zustand milik tab ini saja:
+ * - localStorage masih memegang token itu (ACTIVE) atau sudah dikosongkan request/tab lain (CLEARED), dan store
+ *   tab ini masih memegang token itu → sesi tab ini dihapus (keranjang kembali ke tamu, notifikasi sekali).
+ *   Setelah itu store kosong, sehingga request bersamaan berikutnya tidak memicu notifikasi lagi.
+ * - Store tab ini memegang token LAIN, atau localStorage memegang token lain (REPLACED) → sesi baru tidak disentuh.
+ * - Store tab ini sudah kosong → salinan token basi di localStorage dibuang tanpa notifikasi.
  */
 function settleInvalidSession(sentToken) {
   const state = classifySessionState(sentToken, readToken());
-  if (state === SESSION_STATE.ACTIVE) clearExpiredSession();
-  return state;
+  if (state === SESSION_STATE.REPLACED) return CLIENT_ERROR_CODE.SESSION_CHANGED;
+
+  const storeToken = useAuthStore.getState().token;
+  if (storeToken === sentToken) {
+    clearExpiredSession();
+    return CLIENT_ERROR_CODE.SESSION_EXPIRED;
+  }
+  if (storeToken) return CLIENT_ERROR_CODE.SESSION_CHANGED;
+  if (state === SESSION_STATE.ACTIVE) useAuthStore.getState().logout();
+  return CLIENT_ERROR_CODE.SESSION_EXPIRED;
 }
 
 /**
- * Respons 401 SESSION_INVALID untuk `token` → hasil akhir { res, json } atau lempar error.
- * Maksimal SATU request ulang per panggilan apiClient. Mengulang aman dari efek ganda karena 401 SESSION_INVALID
- * dikirim middleware auth SEBELUM handler route berjalan (tidak ada data yang sempat ditulis server).
- * - Sesi ini kedaluwarsa / sudah dihapus request lain: endpoint tamu → ulang tanpa token; lainnya → pesan ramah.
- * - Pengguna sudah masuk lagi (token baru): GET & endpoint tamu → ulang sekali dengan token baru; POST/PUT/PATCH/
- *   DELETE khusus akun → tidak diulang, error "sesi berubah" tanpa menghapus sesi baru.
+ * Respons 401 SESSION_INVALID untuk `token` → hasil akhir { res, json } atau lempar error. Maksimal SATU request
+ * ulang per panggilan apiClient (401 SESSION_INVALID dikirim middleware auth sebelum handler route, jadi request
+ * yang ditolak belum menulis data).
+ * - Sesi kedaluwarsa (dihapus): endpoint tamu → ulang sekali TANPA token; lainnya → error sesi berakhir.
+ * - Sesi berganti: hanya GET dari identitas yang sama (user_id awal diketahui = user_id sekarang, token baru masih
+ *   aktif) yang diulang dengan token baru. POST/PUT/PATCH/DELETE — termasuk endpoint tamu seperti desain & foto
+ *   custom cake — tidak pernah dikirim ulang dengan token pengganti agar data tidak berpindah ke pengguna lain.
  */
-async function handleInvalidSession(path, { method, body, token, allowGuest }) {
-  const state = settleInvalidSession(token);
+async function handleInvalidSession(path, { method, body, token, allowGuest, sentUserId }) {
+  const outcome = settleInvalidSession(token);
 
-  if (state !== SESSION_STATE.REPLACED) {
-    if (!allowGuest) throw authError(SESSION_EXPIRED_MESSAGE);
+  if (outcome === CLIENT_ERROR_CODE.SESSION_EXPIRED) {
+    if (!allowGuest) throw sessionError(outcome);
     return send(path, { method, body, token: null });
   }
 
-  if (!allowGuest && method.toUpperCase() !== 'GET') throw authError(SESSION_CHANGED_MESSAGE);
+  const activeToken = readToken();
+  const { token: storeToken, user } = useAuthStore.getState();
+  const retryAllowed = canRetryWithReplacedSession({
+    method, sentUserId, currentUserId: getSessionUserId(user), storeToken, activeToken,
+  });
+  if (!retryAllowed) throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED);
 
-  const retryToken = readToken();
-  const retried = await send(path, { method, body, token: retryToken });
+  const retried = await send(path, { method, body, token: activeToken });
 
   // Ulangan juga ditolak: diproses sekali tanpa ulang lagi; sesi dihapus hanya bila token ulangan masih aktif
-  if (isSessionInvalidResponse(retried.res.status, retried.json, retryToken)) {
-    const retryState = settleInvalidSession(retryToken);
-    throw authError(retryState === SESSION_STATE.REPLACED ? SESSION_CHANGED_MESSAGE : SESSION_EXPIRED_MESSAGE);
+  if (isSessionInvalidResponse(retried.res.status, retried.json, activeToken)) {
+    throw sessionError(settleInvalidSession(activeToken));
   }
 
   return retried;
@@ -118,21 +140,26 @@ export async function apiClient(path, { method = 'GET', body, mockHandler, allow
   }
 
   // ── Mode API ───────────────────────────────────────────────────────────────
-  // Token yang dipakai request INI dicatat, agar respons 401 yang terlambat tidak menghapus sesi yang lebih baru
+  // Token & identitas yang dipakai request INI dicatat, agar respons 401 yang terlambat tidak menghapus sesi yang
+  // lebih baru dan request tidak pernah diulang atas nama pengguna lain. Identitas dianggap diketahui hanya bila
+  // store tab ini memegang token yang sama dengan yang dikirim.
   const token = readToken();
+  const { token: storeToken, user } = useAuthStore.getState();
+  const sentUserId = token && storeToken === token ? getSessionUserId(user) : null;
   let { res, json } = await send(path, { method, body, token });
 
   if (isSessionInvalidResponse(res.status, json, token)) {
-    ({ res, json } = await handleInvalidSession(path, { method, body, token, allowGuest }));
+    ({ res, json } = await handleInvalidSession(path, { method, body, token, allowGuest, sentUserId }));
+  } else if (isDesyncedSessionResponse(res.status, token, storeToken)) {
+    // Tab lain sudah menghapus token dari localStorage sebelum request ini dikirim (tanpa token); store tab ini
+    // masih memegang sesi basi → bersihkan lewat jalur yang sama (notifikasi sekali), tanpa request ulang
+    throw sessionError(settleInvalidSession(storeToken));
   }
 
   if (!res.ok) {
-    const error = new Error(json.message ?? `HTTP ${res.status}`);
     // Kode HTTP & kode aplikasi (constants/apiErrors) disertakan agar service bisa membedakan
     // "tidak ditemukan" (404 / 400 INVALID_ID) dari gangguan lain
-    error.status = res.status;
-    if (typeof json.code === 'string') error.code = json.code;
-    throw error;
+    throw createApiError(json.message ?? `HTTP ${res.status}`, res.status, json.code);
   }
   return json.data ?? json;
 }

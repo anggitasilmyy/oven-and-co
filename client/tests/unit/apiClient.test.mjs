@@ -154,16 +154,14 @@ test('re-review #2: 401 terlambat dari token lama TIDAK menghapus sesi baru sete
   useCartStore.getState().addItem({ product_id: 1, quantity: 2, name: 'Croissant', price: 28000 });
   releaseStale();
 
-  const data = await pending;
+  // Kebijakan re-review #2: POST (termasuk endpoint tamu) tidak pernah dikirim ulang dengan token pengganti
+  await assert.rejects(pending, { status: 401, code: 'CLIENT_SESSION_CHANGED' });
   assert.equal(useAuthStore.getState().token, 'jwt-baru');
   assert.equal(localStorage.getItem('ovenco_auth_token'), 'jwt-baru');
   assert.equal(useAuthStore.getState().sessionExpired, false); // tidak ada notifikasi palsu
   assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_1'); // keranjang aktif tidak direset
   assert.equal(useCartStore.getState().items.length, 1);
-  // Retry tunggal memakai token sesi BARU
-  assert.equal(calls.length, 2);
-  assert.equal(calls[1].init.headers.Authorization, 'Bearer jwt-baru');
-  assert.deepEqual(data, { lines: ['sesi-baru'] });
+  assert.equal(calls.length, 1);
 });
 
 /**
@@ -396,15 +394,15 @@ test('C: ulangan gagal dan sesi sudah dihapus request lain selama ulangan → pe
   assert.equal(useAuthStore.getState().sessionExpired, false);
 });
 
-test('C: endpoint tamu — ulangan dengan token baru gagal → tidak ada ulangan ketiga tanpa token', async () => {
+test('C: endpoint tamu dengan sesi berganti → tidak ada ulangan sama sekali (bukan dengan token baru, bukan tanpa token)', async () => {
   login();
-  scriptFetch([
-    { before: relogin('jwt-baru'), ...SESSION_INVALID },
-    { ...SESSION_INVALID },
-  ]);
+  scriptFetch([{ before: relogin('jwt-baru'), ...SESSION_INVALID }]);
 
-  await assert.rejects(apiClient('/cart', { method: 'POST', body: { items: [] }, allowGuest: true }), { status: 401 });
-  assert.equal(calls.length, 2);
+  await assert.rejects(
+    apiClient('/cart', { method: 'POST', body: { items: [] }, allowGuest: true }),
+    { status: 401, code: 'CLIENT_SESSION_CHANGED' }
+  );
+  assert.equal(calls.length, 1);
 });
 
 test('#7: token disimpan & dibaca lewat key yang sama dengan sesi lama di perangkat', async () => {
