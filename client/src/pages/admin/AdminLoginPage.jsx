@@ -36,7 +36,7 @@ function getInitialForm() {
 export default function AdminLoginPage() {
   const navigate = useNavigate();
   const { user, setAuth } = useAuthStore();
-  const { loadUserCart } = useCartStore();
+  const loadCartForUser = useCartStore((s) => s.loadCartForUser);
 
   const [form, setForm] = useState(getInitialForm);
   const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem(REMEMBER_KEY));
@@ -70,7 +70,8 @@ export default function AdminLoginPage() {
       }
 
       setAuth(loggedUser, token);
-      loadUserCart(loggedUser.user_id);
+      // Step 6.3: staf/owner tidak punya keranjang akun → keranjang tamu (helper bersama)
+      loadCartForUser(loggedUser);
 
       // Simpan / hapus identifier berdasarkan "Ingat saya"
       if (rememberMe) {

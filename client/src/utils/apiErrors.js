@@ -1,7 +1,7 @@
 // utils/apiErrors.js
 // Step 6.3 · FR-26 · BR-04 — klasifikasi error REST API (fungsi murni, dipakai services/apiClient & service lain).
 
-import { API_ERROR_CODE, HTTP_METHOD } from '../constants/apiErrors';
+import { API_ERROR_CODE, CLIENT_ERROR_CODE, HTTP_METHOD } from '../constants/apiErrors';
 
 /**
  * true bila sesi lokal harus dihapus: hanya 401 ber-kode SESSION_INVALID untuk request yang memang membawa token.
@@ -19,14 +19,8 @@ export function createApiError(message, status, code) {
   return error;
 }
 
-/**
- * Identitas pengguna dari objek user di useAuthStore, sebagai string; null bila tidak ada.
- * Mode mock menyimpan `user_id` (angka), REST API (server auth.service publicUser) mengirim `userId` (string).
- */
-export function getSessionUserId(user) {
-  const id = user?.user_id ?? user?.userId;
-  return id === undefined || id === null || id === '' ? null : String(id);
-}
+// Identitas pengguna kini di utils/sessionIdentity.js (satu sumber); diekspor ulang untuk import lama
+export { getSessionUserId } from './sessionIdentity';
 
 /**
  * Re-review #2: request yang tokennya DIGANTI saat berjalan boleh diulang dengan token baru hanya bila
@@ -48,4 +42,9 @@ export function canRetryWithReplacedSession({ method, sentUserId, currentUserId,
  */
 export function isMissingResourceError(error) {
   return error?.status === 404 || (error?.status === 400 && error?.code === API_ERROR_CODE.INVALID_ID);
+}
+
+/** Error sesi buatan frontend (berakhir/berganti) — data milik sesi sebelumnya harus dibuang (useServiceQuery) */
+export function isSessionError(error) {
+  return Object.values(CLIENT_ERROR_CODE).includes(error?.code);
 }

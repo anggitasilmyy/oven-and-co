@@ -82,7 +82,7 @@ test.beforeEach(() => {
   calls.length = 0;
   useAuthStore.setState({ user: null, token: null, sessionExpired: false });
   useCartStore.getState().resetToGuest();
-  stopSync = startSessionSync(fakeWindow);
+  stopSync = startSessionSync({ win: fakeWindow, doc: null });
 });
 
 test.after(() => stopSync());
@@ -373,8 +373,8 @@ test('F10: setAuth/logout tetap bekerja; sesi bentuk API (userId string) memuat 
 });
 
 test('F10: startSessionSync aman tanpa API browser (Node / SSR) dan bisa dilepas', () => {
-  assert.equal(typeof startSessionSync(null), 'function');
-  const stop = startSessionSync(fakeWindow);
+  assert.equal(typeof startSessionSync({ win: null, doc: null }), 'function');
+  const stop = startSessionSync({ win: fakeWindow, doc: null });
   stop();
   assert.ok(listeners.size >= 1); // pendengar dari beforeEach masih ada, yang baru sudah dilepas
 });

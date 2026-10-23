@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { AUTH_PERSIST_KEY, AUTH_TOKEN_STORAGE_KEY } from '../constants/auth';
+import { getSessionUserId } from '../utils/sessionIdentity';
 
 /** Salinan token lama (kompatibilitas, tulis-saja); ditulis SETELAH state kanonis tersimpan */
 function writeTokenCopy(token) {
@@ -37,6 +38,20 @@ const useAuthStore = create(
       setAuth: (user, token) => {
         set({ user, token, sessionExpired: false });
         writeTokenCopy(token);
+      },
+
+      /**
+       * Step 6.3 (temuan #5): perbarui data profil pengguna yang SEDANG login tanpa menyentuh token.
+       * Hanya diterapkan bila id pada data baru sama dengan id sesi saat ini — respons terlambat milik pengguna lain
+       * (atau setelah logout) diabaikan, dan token lama tidak pernah ditulis kembali di atas sesi yang lebih baru.
+       * @returns {boolean} true bila diterapkan
+       */
+      updateCurrentUser: (updated) => {
+        const { user, token } = get();
+        const currentId = getSessionUserId(user);
+        if (!token || !currentId || getSessionUserId(updated) !== currentId) return false;
+        set({ user: updated });
+        return true;
       },
 
       /** Hapus sesi */

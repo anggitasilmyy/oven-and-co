@@ -15,6 +15,7 @@ import { register } from '../../services/authService';
 import useAuthStore from '../../stores/useAuthStore';
 import useCartStore from '../../stores/useCartStore';
 import { CUSTOMER_ROUTES } from '../../constants/routes';
+import { getCartOwnerId } from '../../utils/sessionIdentity';
 import {
   validateName,
   validateEmail,
@@ -113,7 +114,8 @@ export default function DaftarPage() {
       setAuth(user, token);
 
       // FR-04: gabungkan keranjang tamu dengan akun pelanggan.
-      mergeGuestCart(user.user_id);
+      // Step 6.3: id pemilik keranjang dari helper bersama (mock user_id / API userId)
+      mergeGuestCart(getCartOwnerId(user));
 
       navigate(CUSTOMER_ROUTES.BERANDA, {
         replace: true,

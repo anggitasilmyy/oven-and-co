@@ -7,14 +7,14 @@
 //   - sesi sudah kosong   → 401: pesan kedaluwarsa (tanpa notifikasi kedua, tanpa fallback); respons lain dibuang.
 //   - token lain, user sama → respons sukses tetap milik pengguna itu; 401 → GET boleh diulang SEKALI dengan token baru.
 //   - token lain, user lain/tidak diketahui → respons dibuang, tidak pernah diulang (CLIENT_SESSION_CHANGED).
+//   - request tanpa token (tamu/publik) → respons selalu dipakai (tidak ada identitas yang dilindungi).
 // Request yang ditolak dengan 401 SESSION_INVALID belum menulis data (middleware auth berjalan sebelum handler route).
 
 import useAuthStore from '../stores/useAuthStore';
 import useCartStore from '../stores/useCartStore';
 import { syncSessionFromStorage } from './sessionSync';
-import {
-  isSessionInvalidResponse, createApiError, getSessionUserId, canRetryWithReplacedSession,
-} from '../utils/apiErrors';
+import { isSessionInvalidResponse, createApiError, canRetryWithReplacedSession } from '../utils/apiErrors';
+import { getSessionUserId } from '../utils/sessionIdentity';
 import { SESSION_EXPIRED_MESSAGE, SESSION_CHANGED_MESSAGE, CLIENT_ERROR_CODE } from '../constants/apiErrors';
 
 /** Error 401 sesi buatan frontend: pesan & kode (CLIENT_ERROR_CODE) selalu sepasang */
@@ -39,9 +39,36 @@ function clearExpiredSession() {
   useCartStore.getState().resetToGuest();
 }
 
-/** Sebelum mengirim: sesi tab ini harus sama dengan sesi kanonis; bila tidak, disamakan dan request DIBATALKAN */
-export function assertSessionInSync() {
-  if (syncSessionFromStorage().changed) throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED);
+/**
+ * Sebelum mengirim: samakan sesi tab ini dengan sesi kanonis lalu tentukan sesi request.
+ * - Sesi tidak berubah → snapshot sesi sekarang.
+ * - Request dimulai sebagai TAMU (belum ada token) → tetap request tamu tanpa token (katalog, /auth/login, dsb.),
+ *   walau tab lain baru saja login: tidak ada identitas yang perlu dilindungi.
+ * - Request dimulai dengan identitas yang kini berubah → DIBATALKAN (body disusun untuk identitas lama).
+ * @returns {{token: string|null, userId: string|null}}
+ */
+export function prepareRequestSession() {
+  const before = takeSessionSnapshot();
+  if (!syncSessionFromStorage().changed) return takeSessionSnapshot();
+  if (!before.token) return { token: null, userId: null };
+  throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED);
+}
+
+/**
+ * Mode mock (Step 6.3, temuan #3): handler mock membaca pengguna dari useAuthStore saat dijalankan, jadi identitas
+ * dijaga di sekitar jeda simulasi. Request dengan identitas yang berubah selama jeda TIDAK dijalankan (data akun
+ * lama tidak dihitung/ditampilkan atas nama akun baru); request tamu tetap dijalankan.
+ * @param {() => any} run — pemanggil mockHandler
+ * @param {number} delayMs — simulasi latensi
+ */
+export async function runMockRequest(run, delayMs) {
+  const snapshot = prepareRequestSession();
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+  syncSessionFromStorage();
+  if (snapshot.token && takeSessionSnapshot().userId !== snapshot.userId) {
+    throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED);
+  }
+  return run();
 }
 
 /** Hasil ulangan (dengan token baru) diperiksa sekali lagi; tidak ada ulangan berikutnya */
@@ -68,6 +95,9 @@ function settleRetry(result, retrySnapshot) {
  * @returns {Promise<{res, json}>}
  */
 export async function settleResponse(result, snapshot, { method, guestFallback, resend }) {
+  // Request tanpa token (tamu/publik) tidak membawa identitas → hasilnya sah walau sesi berubah saat berjalan
+  if (!snapshot.token) return result;
+
   syncSessionFromStorage();
   const current = takeSessionSnapshot();
   const invalid = isSessionInvalidResponse(result.res.status, result.json, snapshot.token);

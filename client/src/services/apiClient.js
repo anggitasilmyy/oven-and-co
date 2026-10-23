@@ -4,7 +4,7 @@
 // Step 6.3: body FormData (unggah foto). Token request HANYA dari useAuthStore (satu sumber); identitas request
 // dijaga services/sessionRecovery.js (sinkron antar-tab, 401 kedaluwarsa, respons dari identitas lama dibuang).
 
-import { assertSessionInSync, takeSessionSnapshot, settleResponse } from './sessionRecovery';
+import { prepareRequestSession, settleResponse, runMockRequest } from './sessionRecovery';
 import { createApiError } from '../utils/apiErrors';
 import { resolveUploadUrl } from '../utils/uploadUrl';
 
@@ -12,6 +12,7 @@ import { resolveUploadUrl } from '../utils/uploadUrl';
 const ENV = import.meta.env ?? {};
 const USE_MOCK = ENV.VITE_USE_MOCK === 'true';
 const API_BASE = ENV.VITE_API_URL ?? 'http://localhost:4000/api';
+const MOCK_LATENCY_MS = 200;
 
 /** Path unggahan server (/uploads/...) → URL berdasarkan origin VITE_API_URL; nilai lain apa adanya */
 export function toUploadUrl(path) {
@@ -54,16 +55,14 @@ export async function apiClient(path, { method = 'GET', body, mockHandler, guest
     if (!mockHandler) {
       throw new Error(`[Mock] Tidak ada handler untuk ${method} ${path}`);
     }
-    // Simulasikan latensi jaringan ringan agar UI terasa realistis
-    await new Promise((r) => setTimeout(r, 200));
-    return mockHandler(body);
+    // Simulasikan latensi jaringan ringan agar UI terasa realistis; identitas dijaga selama jeda (Step 6.3)
+    return runMockRequest(() => mockHandler(body), MOCK_LATENCY_MS);
   }
 
   // ── Mode API ───────────────────────────────────────────────────────────────
-  // Sesi tab ini disamakan dulu dengan sesi kanonis; bila berubah, request (yang disusun untuk identitas lama)
-  // tidak dikirim. Snapshot token & identitas dipakai untuk memeriksa respons.
-  assertSessionInSync();
-  const snapshot = takeSessionSnapshot();
+  // Sesi tab ini disamakan dulu dengan sesi kanonis; request dengan identitas yang berubah tidak dikirim, request tamu
+  // tetap tamu. Snapshot token & identitas dipakai untuk memeriksa respons.
+  const snapshot = prepareRequestSession();
   const first = await send(path, { method, body, token: snapshot.token });
 
   const { res, json } = await settleResponse(first, snapshot, {

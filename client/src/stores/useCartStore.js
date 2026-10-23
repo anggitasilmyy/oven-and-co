@@ -11,6 +11,7 @@ import { create } from 'zustand';
 // Step 5.1 (review PR #5): identitas item (termasuk tanggal pre-order & catatan) dan id unik
 // diatur fungsi murni di utils/rules/cart.js — dipakai addItem dan mergeGuestCart.
 import { mergeCartItems, normalizeCartItems, wouldExceedLineLimit } from '../utils/rules/cart';
+import { isValidUserId, getCartOwnerId } from '../utils/sessionIdentity';
 
 /** Key localStorage keranjang tamu */
 const GUEST_CART_KEY = 'ovenco_mock_cart_guest';
@@ -124,6 +125,9 @@ const useCartStore = create((set, get) => ({
    * @param {number} userId
    */
   mergeGuestCart: (userId) => {
+    // Step 6.3: id tidak sah (mis. undefined dari bentuk user API) → tidak pernah digabung ke key bersama
+    // "ovenco_mock_cart_undefined"; keranjang tamu tetap utuh
+    if (!isValidUserId(userId)) return;
     const guestItems = readCart(GUEST_CART_KEY);
     const key = userCartKey(userId);
     const userItems = readCart(key);
@@ -147,9 +151,25 @@ const useCartStore = create((set, get) => ({
    * @param {number} userId
    */
   loadUserCart: (userId) => {
+    // Step 6.3: id tidak sah → keranjang tamu (bukan key bersama untuk semua akun)
+    if (!isValidUserId(userId)) {
+      get().resetToGuest();
+      return;
+    }
     const key = userCartKey(userId);
     const items = readCart(key);
     set({ items, _storageKey: key });
+  },
+
+  /**
+   * Step 6.3: keranjang aktif mengikuti identitas sesi (dipakai login admin, pemulihan saat load, sinkron antar-tab).
+   * Pelanggan → keranjang akunnya; staf/owner/tamu → keranjang tamu. Keranjang akun lain tidak pernah dihapus.
+   * @param {object|null} user — objek user useAuthStore (bentuk mock `user_id` atau API `userId`)
+   */
+  loadCartForUser: (user) => {
+    const ownerId = getCartOwnerId(user);
+    if (ownerId) get().loadUserCart(ownerId);
+    else get().resetToGuest();
   },
 
   /** Jumlah total item (untuk badge keranjang) */
