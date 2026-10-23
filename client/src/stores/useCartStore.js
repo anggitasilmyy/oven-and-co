@@ -13,7 +13,9 @@
 import { create } from 'zustand';
 // Step 5.1 (review PR #5): identitas item (termasuk tanggal pre-order & catatan) dan id unik
 // diatur fungsi murni di utils/rules/cart.js — dipakai addItem dan mergeGuestCart.
-import { mergeCartItems, normalizeCartItems, wouldExceedLineLimit } from '../utils/rules/cart';
+import {
+  mergeCartItems, normalizeCartItems, wouldExceedLineLimit, hasUnstableCartIds, subtractOrderedItems,
+} from '../utils/rules/cart';
 import { isValidUserId, getCartOwnerId } from '../utils/sessionIdentity';
 
 /** Key localStorage keranjang tamu */
@@ -28,13 +30,26 @@ const userCartKey = (userId) => `ovenco_mock_cart_${userId}`;
  * @returns {Array}
  */
 function readCart(key) {
+  let parsed;
   try {
     const raw = localStorage.getItem(key);
-    // Keranjang lama dilengkapi field default & id unik (kompatibilitas)
-    return raw ? normalizeCartItems(JSON.parse(raw)) : [];
+    if (!raw) return [];
+    parsed = JSON.parse(raw);
   } catch {
     return [];
   }
+  // Keranjang lama dilengkapi field default & id unik (kompatibilitas)
+  const items = normalizeCartItems(parsed);
+  // Review 776c824 (M-1): id baru untuk item lama/ganda disimpan SEKALI sehingga pembacaan berikutnya (dan operasi
+  // hapus/ubah jumlah yang membaca ulang) memakai id yang sama. Keranjang yang sudah valid tidak ditulis ulang.
+  if (hasUnstableCartIds(parsed)) {
+    try {
+      writeCart(key, items);
+    } catch {
+      // Penyimpanan penuh/diblokir: isi tetap dipakai di memori
+    }
+  }
+  return items;
 }
 
 /**
@@ -113,8 +128,8 @@ const useCartStore = create((set, get) => ({
   removeItem: (cart_item_id) => get().removeItems([cart_item_id]),
 
   /**
-   * Review c53a11c (M1/M2): hapus beberapa item (mis. item yang baru dipesan) dari keranjang aktif. Item lain —
-   * termasuk yang ditambahkan tab lain setelah checkout dimulai — tetap ada.
+   * Review c53a11c (M2): hapus beberapa baris dari keranjang aktif (isi terbaru localStorage). Untuk item yang baru
+   * dipesan pakai removeOrderedItems (berdasarkan jumlah).
    * @param {number[]} cartItemIds
    */
   removeItems: (cartItemIds) => {
@@ -126,20 +141,31 @@ const useCartStore = create((set, get) => ({
   },
 
   /**
-   * Review c53a11c (M1): hapus item dari keranjang MILIK pelanggan tertentu (pemilik pesanan yang sudah dibuat saat
-   * akun aktif berganti) tanpa mengganti atau mengubah keranjang aktif akun lain.
-   * @param {string|null} ownerId — null/tidak sah → tidak melakukan apa pun (tidak menyentuh keranjang tamu)
-   * @param {number[]} cartItemIds
+   * Review 776c824 (M-2): pesanan berhasil → kurangi keranjang aktif sebanyak jumlah yang dipesan (snapshot yang
+   * dikirim ke server). Jumlah yang bertambah selama checkout dan item lain tetap ada.
+   * @param {Array<{cart_item_id: number, quantity: number}>} orderedLines
    */
-  removeItemsFromOwnerCart: (ownerId, cartItemIds) => {
+  removeOrderedItems: (orderedLines) => {
+    const { _storageKey } = get();
+    const next = subtractOrderedItems(readCart(_storageKey), orderedLines);
+    writeCart(_storageKey, next);
+    set({ items: next });
+  },
+
+  /**
+   * Review c53a11c (M1) · 776c824 (M-2): kurangi jumlah yang dipesan dari keranjang MILIK pelanggan tertentu (pemilik
+   * pesanan yang sudah dibuat saat akun aktif berganti) tanpa mengganti atau mengubah keranjang aktif akun lain.
+   * @param {string|null} ownerId — null/tidak sah → tidak melakukan apa pun (tidak menyentuh keranjang tamu)
+   * @param {Array<{cart_item_id: number, quantity: number}>} orderedLines
+   */
+  removeOrderedItemsFromOwnerCart: (ownerId, orderedLines) => {
     if (!isValidUserId(ownerId)) return;
     const key = userCartKey(ownerId);
     if (key === get()._storageKey) {
-      get().removeItems(cartItemIds);
+      get().removeOrderedItems(orderedLines);
       return;
     }
-    const ids = new Set(cartItemIds);
-    writeCart(key, readCart(key).filter((i) => !ids.has(i.cart_item_id)));
+    writeCart(key, subtractOrderedItems(readCart(key), orderedLines));
   },
 
   /**

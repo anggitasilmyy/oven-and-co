@@ -80,6 +80,46 @@ export function normalizeCartItems(items) {
 }
 
 /**
+ * Review 776c824 (M-1): data mentah localStorage memiliki item dengan id kosong/ganda, sehingga normalizeCartItems
+ * akan memberi id baru. Id baru itu harus disimpan sekali agar pembacaan berikutnya menghasilkan id yang sama.
+ */
+export function hasUnstableCartIds(rawItems) {
+  if (!Array.isArray(rawItems)) return false;
+  const seen = new Set();
+  return rawItems.some((raw) => {
+    if (!raw || raw.product_id == null) return false;
+    const unstable = !Number.isFinite(raw.cart_item_id) || seen.has(raw.cart_item_id);
+    seen.add(raw.cart_item_id);
+    return unstable;
+  });
+}
+
+/** Review 776c824 (M-2): snapshot jumlah per baris yang dikirim dalam pesanan */
+export function toOrderedLines(items) {
+  return items.map(({ cart_item_id, quantity }) => ({ cart_item_id, quantity }));
+}
+
+/**
+ * Review 776c824 (M-2): kurangi keranjang dengan jumlah yang SUDAH dipesan (snapshot yang dikirim ke server).
+ * Jumlah yang bertambah selama checkout (tab lain, gabung keranjang tamu) tetap tersisa; baris dihapus hanya bila
+ * sisanya ≤ 0. Item yang tidak ada di snapshot tidak berubah.
+ * @param {Array} items — isi keranjang terkini
+ * @param {Array<{cart_item_id: number, quantity: number}>} orderedLines
+ * @returns {Array} keranjang baru (array asal tidak diubah)
+ */
+export function subtractOrderedItems(items, orderedLines) {
+  const ordered = new Map();
+  for (const line of orderedLines) {
+    ordered.set(line.cart_item_id, (ordered.get(line.cart_item_id) ?? 0) + (line.quantity ?? 0));
+  }
+  return items.flatMap((item) => {
+    if (!ordered.has(item.cart_item_id)) return [item];
+    const remaining = item.quantity - ordered.get(item.cart_item_id);
+    return remaining > 0 ? [{ ...item, quantity: remaining }] : [];
+  });
+}
+
+/**
  * Gabungkan `incoming` ke `base` (tambah item dan gabung keranjang tamu memakai aturan yang sama).
  * Item beridentitas sama dijumlahkan; item baru tetap terpisah dengan cart_item_id unik.
  * @returns {Array} keranjang baru (array asal tidak diubah)
