@@ -162,6 +162,22 @@ const useCartStore = create((set, get) => ({
   },
 
   /**
+   * Step 6.3 (temuan H1): tambahkan item ke keranjang MILIK pemilik tertentu tanpa mengganti keranjang aktif.
+   * Dipakai bila identitas berganti saat request berjalan: hasilnya masuk ke keranjang identitas pembuatnya
+   * (tamu → keranjang tamu), bukan ke keranjang pengguna yang baru masuk.
+   * @param {string|null} ownerId — id pelanggan pemilik keranjang; null/tidak sah = keranjang tamu
+   * @returns {boolean} false bila ditolak batas baris keranjang
+   */
+  addItemToOwnerCart: (ownerId, item) => {
+    const key = isValidUserId(ownerId) ? userCartKey(ownerId) : GUEST_CART_KEY;
+    if (key === get()._storageKey) return get().addItem(item);
+    const items = readCart(key);
+    if (wouldExceedLineLimit(items, item)) return false;
+    writeCart(key, mergeCartItems(items, [item]));
+    return true;
+  },
+
+  /**
    * Step 6.3: keranjang aktif mengikuti identitas sesi (dipakai login admin, pemulihan saat load, sinkron antar-tab).
    * Pelanggan → keranjang akunnya; staf/owner/tamu → keranjang tamu. Keranjang akun lain tidak pernah dihapus.
    * @param {object|null} user — objek user useAuthStore (bentuk mock `user_id` atau API `userId`)

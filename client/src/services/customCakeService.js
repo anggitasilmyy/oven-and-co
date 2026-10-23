@@ -7,12 +7,11 @@ import { apiClient, USE_MOCK } from './apiClient';
 import { dataUrlToBlob } from '../utils/image';
 import { getTables, updateTable, nextUserRowId } from './mock/db';
 import { getMockTodayKey, getMockCurrentTime } from './mock/mockClock';
-import useAuthStore from '../stores/useAuthStore';
+import { getCartOwnerId } from '../utils/sessionIdentity';
 import {
   getEarliestReadyDate, groupCustomOptions, getSelectedOptions, calculateCustomCakePrice, validateCustomCakeDesign,
 } from '../utils/businessRules';
 import { AVAILABILITY_TYPE } from '../constants/product';
-import { ROLES } from '../constants/roles';
 
 /** Produk Custom Celebration Cake yang aktif */
 const findCustomProduct = (products) =>
@@ -88,39 +87,48 @@ export function createCustomCakeDesign(design) {
     // Step 6.3: kebijakan eksplisit — desain tidak terikat akun, jadi bila sesi INI kedaluwarsa desain disimpan
     // sekali sebagai desain tamu (dengan design_token). Tidak pernah dikirim ulang dengan token pengguna lain.
     guestFallback: true,
-    mockHandler: () => {
-      const tables = getTables('products', 'custom_options', 'store_settings', 'custom_cake_designs');
-      const product = findCustomProduct(tables.products);
-      if (!product) throw new Error('Custom cake sedang tidak tersedia');
-      const ctx = buildContext(tables, product);
-      const error = validateCustomCakeDesign(design, ctx);
-      if (error) throw new Error(error);
-
-      const selected = getSelectedOptions(ctx.groupedOptions, design.selections);
-      const user = useAuthStore.getState().user;
-      const writingText = String(design.writingText ?? '').trim();
-      const row = {
-        design_id: nextUserRowId(tables.custom_cake_designs, 'design_id'),
-        product_id: product.product_id,
-        user_id: user?.role === ROLES.CUSTOMER ? user.user_id : null,
-        writing_text: writingText || null,
-        writing_color: writingText ? design.writingColor : null,
-        // Mode mock: data URL hasil kompresi; mode API: URL hasil upload (Step 6)
-        reference_photo_url: design.referencePhoto || null,
-        ready_date: design.readyDate,
-        price: calculateCustomCakePrice(product.price, selected),
-      };
-      try {
-        updateTable('custom_cake_designs', (rows) => [...rows, row]);
-      } catch {
-        throw new Error('Penyimpanan perangkat penuh. Coba tanpa foto referensi.');
-      }
-      updateTable('custom_cake_design_options', (rows) => [
-        ...rows,
-        ...selected.map((o) => ({ design_id: row.design_id, option_id: o.option_id })),
-      ]);
-      // Mode mock tidak memakai token akses desain tamu (mode API: string HMAC untuk desain tamu)
-      return { design_id: row.design_id, price: row.price, ready_date: row.ready_date, design_token: null };
-    },
+    mockHandler: (_body, { sessionUser = null } = {}) => createMockCustomCakeDesign(design, sessionUser),
   });
+}
+
+/**
+ * Handler mode mock untuk createCustomCakeDesign (diekspor agar jalur aslinya bisa diuji).
+ * Step 6.3 (temuan H1): pemilik desain = `sessionUser`, yaitu pengguna saat request DIMULAI (dari runMockRequest),
+ * bukan pengguna yang kebetulan login saat handler berjalan — desain tamu tetap milik tamu.
+ * @param {object} design
+ * @param {object|null} sessionUser
+ */
+export function createMockCustomCakeDesign(design, sessionUser) {
+  const tables = getTables('products', 'custom_options', 'store_settings', 'custom_cake_designs');
+  const product = findCustomProduct(tables.products);
+  if (!product) throw new Error('Custom cake sedang tidak tersedia');
+  const ctx = buildContext(tables, product);
+  const error = validateCustomCakeDesign(design, ctx);
+  if (error) throw new Error(error);
+
+  const selected = getSelectedOptions(ctx.groupedOptions, design.selections);
+  const writingText = String(design.writingText ?? '').trim();
+  const row = {
+    design_id: nextUserRowId(tables.custom_cake_designs, 'design_id'),
+    product_id: product.product_id,
+    // Pemilik = pelanggan sah saat request DIMULAI; tamu/staf → tanpa pemilik (helper bersama sessionIdentity)
+    user_id: getCartOwnerId(sessionUser) === null ? null : sessionUser.user_id,
+    writing_text: writingText || null,
+    writing_color: writingText ? design.writingColor : null,
+    // Mode mock: data URL hasil kompresi; mode API: URL hasil upload (Step 6)
+    reference_photo_url: design.referencePhoto || null,
+    ready_date: design.readyDate,
+    price: calculateCustomCakePrice(product.price, selected),
+  };
+  try {
+    updateTable('custom_cake_designs', (rows) => [...rows, row]);
+  } catch {
+    throw new Error('Penyimpanan perangkat penuh. Coba tanpa foto referensi.');
+  }
+  updateTable('custom_cake_design_options', (rows) => [
+    ...rows,
+    ...selected.map((o) => ({ design_id: row.design_id, option_id: o.option_id })),
+  ]);
+  // Mode mock tidak memakai token akses desain tamu (mode API: string HMAC untuk desain tamu)
+  return { design_id: row.design_id, price: row.price, ready_date: row.ready_date, design_token: null };
 }

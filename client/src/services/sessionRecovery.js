@@ -23,10 +23,13 @@ export function sessionError(code) {
   return createApiError(message, 401, code);
 }
 
-/** Sesi tab ini saat ini → { token, userId } (userId null bila tamu / tidak diketahui) */
+/**
+ * Sesi tab ini saat ini → { token, userId, user } (userId/user null bila tamu / tidak diketahui).
+ * `user` dipakai handler mode mock agar bekerja atas nama identitas saat request DIMULAI (temuan H1).
+ */
 export function takeSessionSnapshot() {
   const { token, user } = useAuthStore.getState();
-  return { token: token ?? null, userId: token ? getSessionUserId(user) : null };
+  return { token: token ?? null, userId: token ? getSessionUserId(user) : null, user: token ? user ?? null : null };
 }
 
 /**
@@ -44,21 +47,23 @@ function clearExpiredSession() {
  * - Sesi tidak berubah → snapshot sesi sekarang.
  * - Request dimulai sebagai TAMU (belum ada token) → tetap request tamu tanpa token (katalog, /auth/login, dsb.),
  *   walau tab lain baru saja login: tidak ada identitas yang perlu dilindungi.
- * - Request dimulai dengan identitas yang kini berubah → DIBATALKAN (body disusun untuk identitas lama).
- * @returns {{token: string|null, userId: string|null}}
+ * - Request dimulai dengan sesi yang kini berganti (token / id pengguna) → DIBATALKAN (body disusun untuk sesi lama).
+ * - Hanya data profil pengguna yang sama yang berubah (nama, email; token sama) → BUKAN pergantian sesi (temuan M1).
+ * @returns {{token: string|null, userId: string|null, user: object|null}}
  */
 export function prepareRequestSession() {
   const before = takeSessionSnapshot();
-  if (!syncSessionFromStorage().changed) return takeSessionSnapshot();
-  if (!before.token) return { token: null, userId: null };
+  if (!syncSessionFromStorage().sessionChanged) return takeSessionSnapshot();
+  if (!before.token) return { token: null, userId: null, user: null };
   throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED);
 }
 
 /**
- * Mode mock (Step 6.3, temuan #3): handler mock membaca pengguna dari useAuthStore saat dijalankan, jadi identitas
- * dijaga di sekitar jeda simulasi. Request dengan identitas yang berubah selama jeda TIDAK dijalankan (data akun
- * lama tidak dihitung/ditampilkan atas nama akun baru); request tamu tetap dijalankan.
- * @param {() => any} run — pemanggil mockHandler
+ * Mode mock (Step 6.3, temuan #3 & H1): identitas dijaga di sekitar jeda simulasi.
+ * - Request ber-identitas yang identitasnya berganti selama jeda → TIDAK dijalankan.
+ * - Handler menerima `sessionUser` = pengguna saat request DIMULAI (null untuk tamu), sehingga request tamu yang
+ *   selesai setelah ada login tetap tercatat milik tamu, bukan milik pengguna yang baru masuk.
+ * @param {(session: {sessionUser: object|null}) => any} run — pemanggil mockHandler
  * @param {number} delayMs — simulasi latensi
  */
 export async function runMockRequest(run, delayMs) {
@@ -68,7 +73,7 @@ export async function runMockRequest(run, delayMs) {
   if (snapshot.token && takeSessionSnapshot().userId !== snapshot.userId) {
     throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED);
   }
-  return run();
+  return run({ sessionUser: snapshot.user });
 }
 
 /** Hasil ulangan (dengan token baru) diperiksa sekali lagi; tidak ada ulangan berikutnya */

@@ -44,7 +44,7 @@ async function send(path, { method, body, token }) {
  * @param {object} [options]
  * @param {'GET'|'POST'|'PUT'|'PATCH'|'DELETE'} [options.method]
  * @param {object|FormData} [options.body]
- * @param {Function} [options.mockHandler] - fungsi async mock(body) → data
+ * @param {Function} [options.mockHandler] - fungsi async mock(body, { sessionUser }) → data
  * @param {boolean} [options.guestFallback] - kebijakan eksplisit per operasi: bila sesi request ini kedaluwarsa,
  *   kirim ulang SEKALI tanpa token. Hanya untuk endpoint tamu yang body-nya tetap aman sebagai request tamu.
  * @returns {Promise<any>}       - data response (sudah di-unwrap)
@@ -56,7 +56,8 @@ export async function apiClient(path, { method = 'GET', body, mockHandler, guest
       throw new Error(`[Mock] Tidak ada handler untuk ${method} ${path}`);
     }
     // Simulasikan latensi jaringan ringan agar UI terasa realistis; identitas dijaga selama jeda (Step 6.3)
-    return runMockRequest(() => mockHandler(body), MOCK_LATENCY_MS);
+    // Handler menerima { sessionUser } = pengguna saat request dimulai (handler lama boleh mengabaikannya)
+    return runMockRequest((session) => mockHandler(body, session), MOCK_LATENCY_MS);
   }
 
   // ── Mode API ───────────────────────────────────────────────────────────────

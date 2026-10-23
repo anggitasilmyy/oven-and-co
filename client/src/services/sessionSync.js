@@ -9,7 +9,7 @@
 
 import useAuthStore from '../stores/useAuthStore';
 import useCartStore from '../stores/useCartStore';
-import { getCartOwnerId } from '../utils/sessionIdentity';
+import { getCartOwnerId, getSessionUserId } from '../utils/sessionIdentity';
 import { AUTH_PERSIST_KEY } from '../constants/auth';
 
 /** Sesi kanonis tersimpan → { token, user }; kunci tidak ada / rusak → sesi kosong */
@@ -27,19 +27,24 @@ const sameUser = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? nul
 
 /**
  * Samakan store tab ini dengan sesi kanonis (token ATAU data user berbeda).
- * @returns {{changed: boolean}}
+ * @returns {{changed: boolean, sessionChanged: boolean}}
+ *   changed        — ada yang disalin dari sesi kanonis (termasuk perubahan profil saja: nama, email, …)
+ *   sessionChanged — SESI berganti: token atau id pengguna berbeda. Perubahan profil pengguna yang sama dengan token
+ *                    yang sama BUKAN pergantian sesi (temuan M1) dan tidak boleh membatalkan request.
  */
 export function syncSessionFromStorage() {
   const before = useAuthStore.getState();
   const canonical = readCanonicalSession();
-  if (canonical.token === before.token && sameUser(canonical.user, before.user)) return { changed: false };
+  if (canonical.token === before.token && sameUser(canonical.user, before.user)) {
+    return { changed: false, sessionChanged: false };
+  }
 
   if (canonical.token) {
     // Hidrasi ulang (sinkron untuk localStorage, tidak menulis balik). Bila hidrasi tidak menerapkan nilai kanonis
     // (mis. versi persist berbeda tanpa migrate), nilai kanonis diterapkan langsung agar tab tetap konvergen.
     useAuthStore.persist.rehydrate();
-    const after = useAuthStore.getState();
-    if (after.token !== canonical.token || !sameUser(after.user, canonical.user)) {
+    const hydrated = useAuthStore.getState();
+    if (hydrated.token !== canonical.token || !sameUser(hydrated.user, canonical.user)) {
       useAuthStore.setState({ token: canonical.token, user: canonical.user });
     }
     // Sesi baru dari tab lain → notifikasi "sesi berakhir" lama tidak relevan lagi
@@ -53,11 +58,13 @@ export function syncSessionFromStorage() {
   }
 
   // Keranjang hanya berpindah bila PEMILIK berubah (ubah nama/email tidak memuat ulang keranjang)
-  const nextUser = useAuthStore.getState().user;
-  if (getCartOwnerId(nextUser) !== getCartOwnerId(before.user)) {
-    useCartStore.getState().loadCartForUser(nextUser);
+  const after = useAuthStore.getState();
+  if (getCartOwnerId(after.user) !== getCartOwnerId(before.user)) {
+    useCartStore.getState().loadCartForUser(after.user);
   }
-  return { changed: true };
+  const sessionChanged =
+    after.token !== before.token || getSessionUserId(after.user) !== getSessionUserId(before.user);
+  return { changed: true, sessionChanged };
 }
 
 /**

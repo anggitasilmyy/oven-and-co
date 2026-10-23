@@ -11,6 +11,10 @@ export const CART_LINE_MAX_QUANTITY = NON_STOCK_MAX_QUANTITY;
 /** Maksimal baris (item berbeda) dalam satu keranjang */
 export const CART_MAX_LINES = 50;
 
+/** Step 6.3 (H1): sesi berganti saat desain disimpan → desain masuk keranjang identitas pembuatnya */
+export const DESIGN_SAVED_TO_PREVIOUS_CART_MESSAGE =
+  'Sesi akun berganti saat desain disimpan. Desain dimasukkan ke keranjang sebelumnya, bukan keranjang akun saat ini.';
+
 export const CART_LINE_LIMIT_MESSAGE =
   `Keranjang maksimal berisi ${CART_MAX_LINES} item berbeda. Hapus item lain atau tambah jumlah item yang sudah ada.`;
 
