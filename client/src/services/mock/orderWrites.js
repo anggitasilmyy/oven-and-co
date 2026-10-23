@@ -21,7 +21,8 @@ const fail = (message) => { throw new Error(message); };
 
 /** Validasi semua aturan checkout lalu hitung ringkasan biaya */
 function validate(user, input, t) {
-  const lines = buildCartLines(input.items, t);
+  // Step 6.3 (re-review #4): desain milik pelanggan ini, belum pernah dipesan, dan tanggal siap masih ≥ H+3
+  const lines = buildCartLines(input.items, t, { checkDesignUsage: true, userId: user.user_id });
   if (lines.length === 0) fail('Keranjang masih kosong');
   // Step 6.3: batas baris keranjang (asumsi prototype) juga ditegakkan saat pesanan dibuat
   if (exceedsLineLimit(input.items)) fail(CART_LINE_LIMIT_MESSAGE);

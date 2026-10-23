@@ -21,6 +21,16 @@ const designRateLimit = createRateLimiter({
   message: 'Terlalu banyak desain dibuat. Coba lagi beberapa menit lagi.',
 });
 
+// Pembatas awal yang jauh lebih longgar, SEBELUM autentikasi: melindungi verifikasi JWT & query users dari banjir
+// request (termasuk yang berakhir 401/403). 6× pembatas utama agar beberapa pengguna di balik NAT/proxy yang berbagi
+// satu IP tidak terkena lebih dulu daripada pembatas utama. Juga in-memory per proses (asumsi prototype).
+const DESIGN_PRE_AUTH_RATE_LIMIT = { windowMs: DESIGN_RATE_LIMIT.windowMs, max: DESIGN_RATE_LIMIT.max * 6 };
+
+const designPreAuthRateLimit = createRateLimiter({
+  ...DESIGN_PRE_AUTH_RATE_LIMIT,
+  message: 'Terlalu banyak permintaan. Coba lagi beberapa menit lagi.',
+});
+
 function asyncHandler(handler) {
   return function (req, res, next) {
     Promise.resolve(handler(req, res, next)).catch(next);
@@ -29,11 +39,14 @@ function asyncHandler(handler) {
 
 // POST /api/custom-cake-designs
 // Pengunjung boleh membuat desain tanpa login; bila token dikirim, token tetap wajib valid.
-// Urutan: autentikasi & peran → rate limit → baca multipart. Request 401/403 (termasuk 401 sesi kedaluwarsa
-// sebelum frontend mengulang sebagai tamu) tidak dihitung, dan request berlebih ditolak sebelum file diproses.
-// Catatan: kunci limit = req.ip; di balik NAT/proxy banyak pengguna berbagi IP (asumsi prototype, tanpa trust proxy).
+// Urutan: pembatas awal (longgar) → autentikasi & peran → pembatas utama → baca multipart.
+// Request 401/403 (termasuk 401 sesi kedaluwarsa sebelum frontend mengulang sebagai tamu) tidak menghabiskan kuota
+// pembatas UTAMA, tetapi tetap dihitung pembatas awal. Request berlebih ditolak sebelum file diproses.
+// Catatan: kunci limit = req.ip; di balik NAT/proxy banyak pengguna berbagi IP. `trust proxy` sengaja TIDAK
+// diaktifkan (header X-Forwarded-For bisa dipalsukan bila tidak ada proxy tepercaya) — asumsi prototype.
 router.post(
   '/',
+  designPreAuthRateLimit,
   optionalAuth,
   (req, res, next) => {
     if (req.user && req.user.role !== ROLES.CUSTOMER) {
@@ -70,3 +83,5 @@ router.post(
 module.exports = router;
 module.exports.designRateLimit = designRateLimit;
 module.exports.DESIGN_RATE_LIMIT = DESIGN_RATE_LIMIT;
+module.exports.designPreAuthRateLimit = designPreAuthRateLimit;
+module.exports.DESIGN_PRE_AUTH_RATE_LIMIT = DESIGN_PRE_AUTH_RATE_LIMIT;

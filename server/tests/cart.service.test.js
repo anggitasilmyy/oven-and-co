@@ -331,3 +331,21 @@ test('re-review B: desain kedaluwarsa / sudah dipesan di baris pertama tidak "me
   assert.deepEqual(view.lines.map((l) => l.unavailable_reason), ['design_expired', null, 'design_duplicate_line']);
   assert.equal(view.subtotal, 625000 * 2);
 });
+
+test('re-review #3: validitas desain ≠ validitas jumlah — baris pertama > 99 tetap pemilik desain', async () => {
+  // Baris pertama desain sah tetapi jumlahnya di atas batas; baris kedua dengan desain yang sama tetap duplikat
+  const view = await getCartView(
+    [line({ cart_item_id: 'a', design_id: '10', quantity: 150 }), line({ cart_item_id: 'b', design_id: '10', quantity: 2 })],
+    { userId: '1', now: NOW }
+  );
+  assert.deepEqual(view.lines.map((l) => l.unavailable_reason), ['quantity_exceeds_limit', 'design_duplicate_line']);
+  assert.equal(view.subtotal, 0);
+
+  // Setelah jumlah baris pertama disesuaikan (≤ 99), baris itu tersedia dan baris kedua tetap duplikat
+  const fixed = await getCartView(
+    [line({ cart_item_id: 'a', design_id: '10', quantity: 99 }), line({ cart_item_id: 'b', design_id: '10', quantity: 2 })],
+    { userId: '1', now: NOW }
+  );
+  assert.deepEqual(fixed.lines.map((l) => l.unavailable_reason), [null, 'design_duplicate_line']);
+  assert.equal(fixed.subtotal, 625000 * 99);
+});

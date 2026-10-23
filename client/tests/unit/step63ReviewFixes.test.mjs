@@ -83,3 +83,27 @@ test('H1: data URL hasil kompresi → Blob untuk multipart; data URL rusak → n
   assert.equal(dataUrlToBlob('data:image/jpeg;base64,***'), null);
   assert.equal(dataUrlToBlob(null), null);
 });
+
+test('re-review #4: checkCartDesign (mock) mengikuti urutan pemeriksaan server', async () => {
+  const { checkCartDesign } = await import('../../src/utils/rules/cart.js');
+  const product = { product_id: 6, availability_type: 'custom', is_active: true };
+  const design = { design_id: 50, product_id: 6, user_id: 1, ready_date: '2026-10-26' };
+  const item = { design_id: 50 };
+  const usage = { userId: 1, orderedDesignIds: new Set(), earliestCustomDate: '2026-10-25' };
+
+  assert.deepEqual(checkCartDesign(item, product, design, usage), { reason: null, designValid: true });
+  // Kepemilikan: desain pelanggan lain → tidak ditemukan; desain tamu (user_id kosong) boleh
+  assert.equal(checkCartDesign(item, product, design, { ...usage, userId: 2 }).reason, 'design_not_found');
+  assert.equal(checkCartDesign(item, product, { ...design, user_id: null }, { ...usage, userId: null }).designValid, true);
+  // Sekali pakai & kedaluwarsa
+  assert.equal(checkCartDesign(item, product, design, { ...usage, orderedDesignIds: new Set([50]) }).reason, 'design_already_ordered');
+  assert.equal(checkCartDesign(item, product, design, { ...usage, earliestCustomDate: '2026-10-27' }).reason, 'design_expired');
+  // Struktur
+  assert.equal(checkCartDesign({ design_id: null }, product, null, usage).reason, 'design_required');
+  assert.equal(checkCartDesign(item, product, null, usage).reason, 'design_not_found');
+  assert.equal(checkCartDesign(item, product, { ...design, product_id: 7 }, usage).reason, 'design_mismatch');
+  assert.equal(checkCartDesign(item, { ...product, availability_type: 'ready' }, design, usage).reason, 'design_mismatch');
+  assert.deepEqual(checkCartDesign({ design_id: null }, { ...product, availability_type: 'ready' }, null, usage), { reason: null, designValid: false });
+  // Tanpa konteks pemakaian (tampilan pesanan lama): desain yang sudah dipesan tetap terbaca
+  assert.equal(checkCartDesign(item, product, design, {}).designValid, true);
+});

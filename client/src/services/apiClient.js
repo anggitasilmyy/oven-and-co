@@ -14,6 +14,8 @@ import { SESSION_EXPIRED_MESSAGE } from '../constants/apiErrors';
 const ENV = import.meta.env ?? {};
 const USE_MOCK = ENV.VITE_USE_MOCK === 'true';
 const API_BASE = ENV.VITE_API_URL ?? 'http://localhost:4000/api';
+// Disalin useAuthStore.setAuth ke localStorage biasa agar bisa dibaca tanpa store
+const AUTH_TOKEN_KEY = 'ovenco_auth_token';
 
 /**
  * Hapus sesi yang sudah tidak berlaku, kembali ke keranjang tamu (keranjang akun tetap tersimpan di perangkat),
@@ -70,15 +72,22 @@ export async function apiClient(path, { method = 'GET', body, mockHandler, allow
   }
 
   // ── Mode API ───────────────────────────────────────────────────────────────
-  const token = localStorage.getItem('ovenco_auth_token');
+  // Token yang dipakai request INI dicatat, agar respons 401 yang terlambat tidak menghapus sesi yang lebih baru
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
   let { res, json } = await send(path, { method, body, token });
 
   if (isSessionInvalidResponse(res.status, json, token)) {
-    clearExpiredSession();
+    const currentToken = localStorage.getItem(AUTH_TOKEN_KEY);
+    const sessionUnchanged = currentToken === token;
+
+    // Hanya sesi yang memakai token kedaluwarsa itu yang dihapus; bila pengguna sudah masuk lagi (token berbeda),
+    // sesi & keranjang yang sedang aktif tidak disentuh
+    if (sessionUnchanged) clearExpiredSession();
+
     if (allowGuest) {
-      // Maksimal SATU kali ulang, tanpa token; hasilnya diproses biasa (tidak ada pengulangan lagi)
-      ({ res, json } = await send(path, { method, body, token: null }));
-    } else {
+      // Maksimal SATU kali ulang: tanpa token (sesi dihapus) atau dengan token sesi baru; tidak ada pengulangan lagi
+      ({ res, json } = await send(path, { method, body, token: sessionUnchanged ? null : currentToken }));
+    } else if (sessionUnchanged) {
       const error = new Error(SESSION_EXPIRED_MESSAGE);
       error.status = 401;
       throw error;

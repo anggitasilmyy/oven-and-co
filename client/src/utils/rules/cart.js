@@ -12,6 +12,7 @@
 // baris/keranjang tersebut agar pelanggan menyesuaikan sendiri sebelum checkout.
 
 import { CART_LINE_MAX_QUANTITY, CART_MAX_LINES, CART_UNAVAILABLE_REASON } from '../../constants/cart';
+import { AVAILABILITY_TYPE } from '../../constants/product';
 
 /** Lengkapi field opsional dengan nilai default (kompatibel dengan keranjang lama) */
 export function normalizeCartItem(item) {
@@ -145,4 +146,31 @@ export function getCartLineQuantityControl(line, maxQuantity) {
     return { stepperMax: target, adjustTo: target > 0 ? target : null, soldOut: target <= 0 };
   }
   return { stepperMax: line.available ? Math.max(maxQuantity, line.quantity) : 0, adjustTo: null, soldOut: false };
+}
+
+/**
+ * Step 6.3 (re-review #4) — pemeriksaan desain custom cake untuk mode mock, urutannya sama dengan
+ * server/src/services/cart.service.js checkDesign. Token desain tamu TIDAK diperiksa di mock (data mock hanya ada di
+ * perangkat ini dan tidak ada kunci server); token hanya ditegakkan di mode API.
+ * @param {object} item — item keranjang
+ * @param {object} product — baris products (aktif)
+ * @param {object|null} design — baris custom_cake_designs
+ * @param {{userId?: number|string|null, orderedDesignIds?: Set|null, earliestCustomDate?: string|null}} ctx
+ *   userId: undefined = kepemilikan tidak diperiksa; orderedDesignIds/earliestCustomDate: null = pemeriksaan
+ *   pemakaian (sekali pakai/kedaluwarsa) dilewati, mis. untuk tampilan pesanan lama.
+ * @returns {{reason: string|null, designValid: boolean}}
+ */
+export function checkCartDesign(item, product, design, ctx = {}) {
+  const R = CART_UNAVAILABLE_REASON;
+  const isCustom = product.availability_type === AVAILABILITY_TYPE.CUSTOM;
+  if (!isCustom) return { reason: item.design_id != null ? R.DESIGN_MISMATCH : null, designValid: false };
+  if (item.design_id == null) return { reason: R.DESIGN_REQUIRED, designValid: false };
+  const owned = ctx.userId === undefined || design?.user_id == null || String(design.user_id) === String(ctx.userId);
+  if (!design || !owned) return { reason: R.DESIGN_NOT_FOUND, designValid: false };
+  if (design.product_id !== product.product_id) return { reason: R.DESIGN_MISMATCH, designValid: false };
+  if (ctx.orderedDesignIds?.has(design.design_id)) return { reason: R.DESIGN_ALREADY_ORDERED, designValid: false };
+  if (ctx.earliestCustomDate && design.ready_date < ctx.earliestCustomDate) {
+    return { reason: R.DESIGN_EXPIRED, designValid: false };
+  }
+  return { reason: null, designValid: true };
 }

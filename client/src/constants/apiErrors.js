@@ -9,11 +9,10 @@ export const API_ERROR_CODE = {
   INVALID_ID: 'INVALID_ID',
 };
 
-export const SESSION_EXPIRED_MESSAGE = 'Sesi kamu sudah berakhir. Silakan masuk kembali.';
+export const SESSION_EXPIRED_MESSAGE = 'Sesi Anda telah berakhir. Silakan masuk kembali.';
 
-/** Notifikasi global setelah sesi dihapus otomatis (SessionExpiredNotice) */
-export const SESSION_EXPIRED_NOTICE =
-  'Sesi kamu sudah berakhir, jadi kamu keluar otomatis. Masuk lagi untuk melihat keranjang & pesanan akunmu.';
+/** Notifikasi global setelah sesi dihapus otomatis (SessionExpiredNotice) — netral untuk semua peran */
+export const SESSION_EXPIRED_NOTICE = 'Sesi Anda telah berakhir. Silakan masuk kembali untuk menggunakan fitur akun.';
 
 /** Lama notifikasi sesi berakhir tampil (ms) */
 export const SESSION_EXPIRED_NOTICE_DURATION = 8000;

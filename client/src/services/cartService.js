@@ -4,7 +4,10 @@
 
 import { apiClient } from './apiClient';
 import { getMockTodayKey } from './mock/mockClock';
-import { buildCartLines } from './mock/cartViews';
+import { buildCartLines, CART_VIEW_TABLES } from './mock/cartViews';
+import { getTables } from './mock/db';
+import useAuthStore from '../stores/useAuthStore';
+import { ROLES } from '../constants/roles';
 import { findStockIssues, getCombinedReadyDate, exceedsLineLimit } from '../utils/businessRules';
 import { CART_MAX_LINES } from '../constants/cart';
 
@@ -17,9 +20,13 @@ export function getCartView(items) {
     method: 'POST', // API: keranjang dibaca dari server; mock: dari item lokal
     body: { items },
     allowGuest: true, // Step 6.3: sesi kedaluwarsa → dihitung ulang sebagai tamu
-
     mockHandler: () => {
-      const lines = buildCartLines(items);
+      // Step 6.3 (re-review #4): kepemilikan, sekali pakai & kedaluwarsa desain diperiksa seperti di API
+      const user = useAuthStore.getState().user;
+      const lines = buildCartLines(items, getTables(...CART_VIEW_TABLES, 'order_items'), {
+        checkDesignUsage: true,
+        userId: user?.role === ROLES.CUSTOMER ? user.user_id : null,
+      });
       const valid = lines.filter((l) => l.available);
       return {
         lines,

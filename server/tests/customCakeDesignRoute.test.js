@@ -15,7 +15,9 @@ process.env.UPLOAD_DIR = uploadRoot;
 process.env.JWT_SECRET = 'test-jwt-secret-only';
 
 const app = require('../src/app');
-const { designRateLimit, DESIGN_RATE_LIMIT } = require('../src/routes/customer/customCakeDesign.routes');
+const {
+  designRateLimit, DESIGN_RATE_LIMIT, designPreAuthRateLimit, DESIGN_PRE_AUTH_RATE_LIMIT,
+} = require('../src/routes/customer/customCakeDesign.routes');
 
 const photoDir = path.join(uploadRoot, 'custom-cakes');
 // Route memakai waktu nyata → tanggal siap valid = hari ini + 5 (di antara H+3 dan jendela 30 hari)
@@ -73,6 +75,7 @@ test.after(async () => {
 
 test.beforeEach(() => {
   designRateLimit.reset();
+  designPreAuthRateLimit.reset();
   failCreate = false;
 });
 
@@ -257,4 +260,24 @@ test('re-review: rate limit tidak menghitung request 401/403 (mis. 401 sesi keda
 
   // Kuota tamu dari IP yang sama masih utuh
   assert.equal((await post(design())).status, 201);
+});
+
+test('re-review #6: pembatas awal (sebelum auth) lebih longgar dari pembatas utama dan juga menahan request 401/403', async () => {
+  assert.ok(DESIGN_PRE_AUTH_RATE_LIMIT.max > DESIGN_RATE_LIMIT.max);
+  const staffToken = jwt.sign({ sub: '2' }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '5m' });
+
+  for (let i = 0; i < DESIGN_PRE_AUTH_RATE_LIMIT.max; i++) {
+    assert.equal((await post(design(), { Authorization: `Bearer ${staffToken}` })).status, 403);
+  }
+
+  // Request berikutnya ditolak SEBELUM verifikasi JWT/query users, dengan pesan umum
+  const limited = await post(design(), { Authorization: `Bearer ${staffToken}` });
+  assert.equal(limited.status, 429);
+  assert.match((await limited.json()).message, /Terlalu banyak permintaan/);
+  assert.ok(Number(limited.headers.get('retry-after')) > 0);
+
+  // Pembatas utama tidak terpakai oleh 403 tadi: setelah jendela pembatas awal dipulihkan, kuota desain masih penuh
+  designPreAuthRateLimit.reset();
+  for (let i = 0; i < DESIGN_RATE_LIMIT.max; i++) assert.equal((await post(design())).status, 201);
+  assert.equal((await post(design())).status, 429);
 });

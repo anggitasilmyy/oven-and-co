@@ -224,9 +224,25 @@ Catatan khusus:
     transaksi Prisma dan dihapus bila validasi data server/penyimpanan gagal. Frontend menampilkan path unggahan lewat
     `toUploadUrl()` (`services/apiClient.js`, origin dari `VITE_API_URL`; API relatif `/api` → path tetap relatif).
     Validasi body cart & custom cake memakai zod (`server/src/validators/`).
-  - Pembatas laju pembuatan desain: maks. 20 per IP per 15 menit, **in-memory per proses** (hilang saat restart,
-    tidak dibagi antar-instance, tanpa `trust proxy` sehingga pengguna di balik NAT berbagi kuota) — asumsi
-    prototype, bukan solusi produksi. Request 401/403 tidak dihitung.
+  - Pembatas laju pembuatan desain, **in-memory per proses** (hilang saat restart, tidak dibagi antar-instance,
+    tanpa `trust proxy` sehingga pengguna di balik NAT berbagi kuota) — asumsi prototype, bukan solusi produksi:
+    pembatas awal sebelum autentikasi 120 request/IP/15 menit (melindungi verifikasi JWT & query users; request
+    401/403 ikut dihitung di sini), lalu pembatas utama 20 desain/IP/15 menit setelah autentikasi & cek peran
+    (401/403 tidak menghabiskan kuota ini).
+  - Validitas desain berbeda dari validitas jumlah: baris pertama dengan desain sah tetap "pemilik" desain walau
+    jumlahnya > 99 (`quantity_exceeds_limit`); baris berikutnya dengan desain yang sama tetap `design_duplicate_line`.
+  - Mode mock memeriksa kepemilikan, sekali pakai, dan kedaluwarsa desain dengan urutan yang sama dengan server
+    (`utils/rules/cart.js` `checkCartDesign`), tetapi **tidak** memeriksa `design_token` (data mock hanya di perangkat
+    ini, tanpa kunci server); token hanya ditegakkan di mode API.
+  - Keterbatasan yang belum ditangani: bila proses server berhenti mendadak setelah foto ditulis tetapi sebelum
+    transaksi selesai (atau penghapusan file gagal dan hanya dicatat di log), file yatim bisa tertinggal di
+    `uploads/custom-cakes/` tanpa baris database. Perlu job pembersihan berkala (file tanpa referensi & berumur > N jam).
+  - **Ditunda ke Step 6.4:** API pesanan admin (`GET /api/admin/orders/:orderNumber`) harus mengembalikan
+    `design_spec` termasuk `reference_photo_url` sesuai kontrak frontend AD-04 (`components/admin/AdminOrderItems.jsx`,
+    sudah memakai `toUploadUrl()`), lalu tampilan foto diuji di mode API. Saat ini foto referensi pada pesanan admin
+    **belum** berfungsi end-to-end di mode API (hanya mode mock).
+  - Ditunda (tanpa bukti dampak nyata): race kecil Best Sellers bila produk dinonaktifkan di antara dua query, dan
+    pemecahan `cart.service.js` (> ±150 baris).
   - Sesi kedaluwarsa: 401 dengan `code: SESSION_INVALID` menghapus sesi lokal dan menampilkan notifikasi global
     (`SessionExpiredNotice`); endpoint tamu (keranjang, desain) diulang maksimal sekali tanpa token. 403 dan 401
     login gagal tidak menghapus sesi. Id produk tidak valid → 400 `code: INVALID_ID` (ditampilkan "tidak ditemukan").

@@ -16,11 +16,12 @@ globalThis.localStorage = {
 
 const calls = [];
 let responses = [];
-globalThis.fetch = async (url, init) => {
+const defaultFetch = async (url, init) => {
   calls.push({ url, init });
   const { status, body } = responses.shift();
   return { ok: status >= 200 && status < 300, status, json: async () => body };
 };
+globalThis.fetch = defaultFetch;
 
 const { apiClient } = await import('../../src/services/apiClient.js');
 const { default: useAuthStore } = await import('../../src/stores/useAuthStore.js');
@@ -32,6 +33,7 @@ function login() {
 }
 
 test.beforeEach(() => {
+  globalThis.fetch = defaultFetch;
   store.clear();
   calls.length = 0;
   responses = [];
@@ -98,7 +100,7 @@ test('sesi kedaluwarsa pada endpoint khusus pelanggan: sesi dihapus, TIDAK diula
   login();
   responses = [SESSION_INVALID];
 
-  await assert.rejects(apiClient('/checkout/context'), { status: 401, message: /Sesi kamu sudah berakhir/ });
+  await assert.rejects(apiClient('/checkout/context'), { status: 401, message: /Sesi Anda telah berakhir/ });
   assert.equal(calls.length, 1);
   assert.equal(useAuthStore.getState().token, null);
 });
@@ -129,4 +131,93 @@ test('body FormData dikirim apa adanya tanpa Content-Type JSON (boundary diatur 
 
   assert.equal(calls[0].init.body, form);
   assert.equal(calls[0].init.headers['Content-Type'], undefined);
+});
+
+test('re-review #2: 401 terlambat dari token lama TIDAK menghapus sesi baru setelah login ulang', async () => {
+  login(); // token lama: jwt-lama
+  let releaseStale;
+  const stale = new Promise((resolve) => { releaseStale = resolve; });
+  // Request lama baru dijawab SETELAH pengguna login ulang dengan token baru
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, init });
+    if (calls.length === 1) {
+      await stale;
+      return { ok: false, status: 401, json: async () => SESSION_INVALID.body };
+    }
+    return { ok: true, status: 200, json: async () => ({ data: { lines: ['sesi-baru'] } }) };
+  };
+
+  const pending = apiClient('/cart', { method: 'POST', body: { items: [] }, allowGuest: true });
+  await new Promise((resolve) => setImmediate(resolve)); // tunggu request lama terkirim
+  useAuthStore.getState().setAuth({ user_id: '1', role: 'customer' }, 'jwt-baru');
+  useCartStore.getState().loadUserCart('1');
+  useCartStore.getState().addItem({ product_id: 1, quantity: 2, name: 'Croissant', price: 28000 });
+  releaseStale();
+
+  const data = await pending;
+  assert.equal(useAuthStore.getState().token, 'jwt-baru');
+  assert.equal(localStorage.getItem('ovenco_auth_token'), 'jwt-baru');
+  assert.equal(useAuthStore.getState().sessionExpired, false); // tidak ada notifikasi palsu
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_1'); // keranjang aktif tidak direset
+  assert.equal(useCartStore.getState().items.length, 1);
+  // Retry tunggal memakai token sesi BARU
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].init.headers.Authorization, 'Bearer jwt-baru');
+  assert.deepEqual(data, { lines: ['sesi-baru'] });
+});
+
+test('re-review #2: 401 terlambat pada endpoint khusus akun juga tidak menghapus sesi baru', async () => {
+  login();
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, init });
+    useAuthStore.getState().setAuth({ user_id: '1', role: 'customer' }, 'jwt-baru'); // login ulang saat menunggu
+    return { ok: false, status: 401, json: async () => SESSION_INVALID.body };
+  };
+
+  await assert.rejects(apiClient('/checkout/context'), { status: 401 });
+  assert.equal(calls.length, 1);
+  assert.equal(useAuthStore.getState().token, 'jwt-baru');
+  assert.equal(useAuthStore.getState().sessionExpired, false);
+});
+
+test('re-review #9: pesan sesi berakhir netral untuk semua peran; setelah ditutup tidak muncul lagi tanpa kedaluwarsa baru', async () => {
+  const { SESSION_EXPIRED_NOTICE } = await import('../../src/constants/apiErrors.js');
+  assert.equal(SESSION_EXPIRED_NOTICE, 'Sesi Anda telah berakhir. Silakan masuk kembali untuk menggunakan fitur akun.');
+  assert.doesNotMatch(SESSION_EXPIRED_NOTICE, /keranjang|pesanan/i);
+
+  globalThis.fetch = defaultFetch;
+  useAuthStore.getState().setAuth({ user_id: '3', role: 'owner' }, 'jwt-owner');
+  responses = [SESSION_INVALID];
+  await assert.rejects(apiClient('/admin/orders'));
+  assert.equal(useAuthStore.getState().sessionExpired, true);
+  useAuthStore.getState().dismissSessionNotice();
+
+  // Request lain tanpa sesi (sukses, 403, 401 biasa) tidak memunculkan notifikasi lagi
+  responses = [
+    { status: 200, body: { data: [] } },
+    { status: 403, body: { message: 'Akses ditolak' } },
+    { status: 401, body: { message: 'Email atau kata sandi salah.' } },
+  ];
+  await apiClient('/products');
+  await assert.rejects(apiClient('/admin/orders'));
+  await assert.rejects(apiClient('/auth/login', { method: 'POST', body: {} }));
+  assert.equal(useAuthStore.getState().sessionExpired, false);
+});
+
+test('re-review #5: reset sesi tidak mencampur keranjang akun dan tamu (retry tidak menulis ke store)', async () => {
+  localStorage.setItem('ovenco_mock_cart_guest', JSON.stringify([{ cart_item_id: 1, product_id: 9, quantity: 1 }]));
+  login();
+  useCartStore.getState().addItem({ product_id: 1, quantity: 3, name: 'Croissant', price: 28000 });
+  const accountCart = localStorage.getItem('ovenco_mock_cart_1');
+  const accountItems = useCartStore.getState().items;
+
+  globalThis.fetch = defaultFetch;
+  responses = [SESSION_INVALID, { status: 200, body: { data: { lines: accountItems } } }];
+  await apiClient('/cart', { method: 'POST', body: { items: accountItems }, allowGuest: true });
+
+  // Store kini keranjang tamu (isi tamu asli), keranjang akun tetap utuh di perangkat untuk login berikutnya
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
+  assert.deepEqual(useCartStore.getState().items.map((i) => i.product_id), [9]);
+  assert.deepEqual(JSON.parse(localStorage.getItem('ovenco_mock_cart_guest')).map((i) => i.product_id), [9]);
+  assert.equal(localStorage.getItem('ovenco_mock_cart_1'), accountCart);
 });
