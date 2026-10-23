@@ -7,6 +7,7 @@ import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import useRestoreUserCart from './hooks/useRestoreUserCart';
 import SessionExpiredNotice from './components/layout/SessionExpiredNotice';
+import AppNotice from './components/layout/AppNotice';
 import useSessionSync from './hooks/useSessionSync';
 import useAuthStore from './stores/useAuthStore';
 import { getSessionTreeKey } from './utils/sessionIdentity';
@@ -25,6 +26,8 @@ export default function App() {
       <AppRoutes key={sessionKey} />
       {/* Step 6.3: beri tahu pengguna bila sesi dihapus otomatis (token kedaluwarsa) */}
       <SessionExpiredNotice />
+      {/* Step 6.3 (temuan L1): pesan hasil operasi yang tetap terlihat walau halaman dipasang ulang */}
+      <AppNotice />
     </BrowserRouter>
   );
 }

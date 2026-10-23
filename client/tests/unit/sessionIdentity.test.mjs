@@ -189,11 +189,16 @@ test('F4: respons GET terlambat juga dibuang bila tab lain logout (data akun tid
   assert.equal(useAuthStore.getState().token, null);
 });
 
-test('F4: pengguna yang SAMA masuk lagi (token baru) → respons sukses miliknya tetap dikembalikan', async () => {
+test('F4/L6: pengguna yang SAMA masuk lagi (token baru) → respons sesi lama TIDAK dipakai; GET diulang sekali di sesi baru', async () => {
   thisTabLogin('1', 'jwt-A');
-  scriptFetch([{ before: () => thisTabLogin('1', 'jwt-A-baru'), status: 200, body: { data: { name: 'Anisa' } } }]);
+  scriptFetch([
+    { before: () => thisTabLogin('1', 'jwt-A-baru'), status: 200, body: { data: { name: 'Anisa (sesi lama)' } } },
+    { status: 200, body: { data: { name: 'Anisa' } } },
+  ]);
 
   assert.deepEqual(await apiClient('/me/profile'), { name: 'Anisa' });
+  assert.equal(calls.length, 2);
+  assert.equal(authOf(1), 'Bearer jwt-A-baru');
 });
 
 test('F5: respons 401 milik A tidak menghapus sesi B; GET tidak diulang dengan token B', async () => {

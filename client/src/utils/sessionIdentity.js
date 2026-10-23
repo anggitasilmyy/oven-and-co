@@ -39,3 +39,19 @@ export const GUEST_SESSION_KEY = 'tamu';
 export function getSessionTreeKey(user) {
   return getSessionUserId(user) ?? GUEST_SESSION_KEY;
 }
+
+/**
+ * Step 6.3 (temuan L6): jenis perubahan antara dua keadaan sesi `{ token, user }`.
+ *   identityChanged — kunci identitas berbeda (masuk, keluar, pengguna lain) → state per identitas (draft) direset
+ *   tokenChanged    — token berbeda, termasuk pengguna yang sama masuk lagi
+ *   sessionChanged  — token ATAU identitas berubah: sesi yang memulai request tidak aktif lagi
+ *   profileChanged  — hanya data profil pengguna yang sama (nama, email, …) dengan token sama: BUKAN pergantian sesi
+ */
+export function describeSessionChange(before, after) {
+  const tokenChanged = (before?.token ?? null) !== (after?.token ?? null);
+  const identityChanged = getSessionTreeKey(before?.user) !== getSessionTreeKey(after?.user);
+  const sessionChanged = tokenChanged || identityChanged;
+  const profileChanged =
+    !sessionChanged && JSON.stringify(before?.user ?? null) !== JSON.stringify(after?.user ?? null);
+  return { tokenChanged, identityChanged, sessionChanged, profileChanged };
+}

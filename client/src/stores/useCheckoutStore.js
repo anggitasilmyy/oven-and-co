@@ -21,6 +21,9 @@ const INITIAL = {
   ownerKey: null,
 };
 
+/** Versi persist draft; versi 1 = draft dicap ownerKey */
+const CHECKOUT_DRAFT_VERSION = 1;
+
 const useCheckoutStore = create(
   persist(
     (set) => ({
@@ -30,7 +33,13 @@ const useCheckoutStore = create(
       /** Kosongkan setelah pesanan dibuat / identitas berganti */
       resetCheckout: () => set(INITIAL),
     }),
-    { name: 'ovenco_checkout', storage: createJSONStorage(() => sessionStorage) }
+    {
+      name: 'ovenco_checkout',
+      storage: createJSONStorage(() => sessionStorage),
+      // Step 6.3 (temuan L5): draft versi lama (tanpa ownerKey) tidak bisa diverifikasi pemiliknya → dibuang
+      version: CHECKOUT_DRAFT_VERSION,
+      migrate: () => ({ ...INITIAL }),
+    }
   )
 );
 

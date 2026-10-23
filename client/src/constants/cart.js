@@ -11,12 +11,40 @@ export const CART_LINE_MAX_QUANTITY = NON_STOCK_MAX_QUANTITY;
 /** Maksimal baris (item berbeda) dalam satu keranjang */
 export const CART_MAX_LINES = 50;
 
-/** Step 6.3 (H1): sesi berganti saat desain disimpan → desain masuk keranjang identitas pembuatnya */
-export const DESIGN_SAVED_TO_PREVIOUS_CART_MESSAGE =
-  'Sesi akun berganti saat desain disimpan. Desain dimasukkan ke keranjang sebelumnya, bukan keranjang akun saat ini.';
-
 export const CART_LINE_LIMIT_MESSAGE =
   `Keranjang maksimal berisi ${CART_MAX_LINES} item berbeda. Hapus item lain atau tambah jumlah item yang sudah ada.`;
+
+/** Desain custom cake ditambahkan ke keranjang aktif (identitas tidak berubah) */
+export const DESIGN_ADDED_MESSAGE = 'Ditambahkan ke keranjang';
+
+/**
+ * Step 6.3 (temuan H1, M-A, L2, L3): pesan hasil simpan desain bila identitas berganti selama penyimpanan.
+ * Kunci = DESIGN_CART_TARGET / GUEST_CART_REASON (services/customCakeCartService.js).
+ */
+export const DESIGN_CART_NOTICE = {
+  /** Desain tamu digabung ke keranjang pelanggan yang baru masuk (FR-04) */
+  account_merged: 'Kamu masuk saat desain disimpan. Desain sudah ditambahkan ke keranjang akunmu.',
+  /** Desain akun → keranjang akun pembuatnya (bukan akun yang aktif sekarang) */
+  original_owner:
+    'Sesi akun berganti saat desain disimpan. Desain dimasukkan ke keranjang akun yang membuatnya, bukan akun yang aktif sekarang.',
+  /** Sesi akun berakhir (token ditolak) → desain disimpan sebagai tamu */
+  session_expired:
+    'Sesi akunmu berakhir saat desain disimpan. Desain disimpan sebagai tamu di keranjang perangkat ini dan akan digabung ke keranjang akunmu setelah kamu masuk kembali.',
+  /** Yang aktif akun staf/owner → desain tetap desain tamu */
+  staff_session:
+    'Desain disimpan sebagai desain tamu di keranjang tamu perangkat ini dan tidak dimasukkan ke akun staf/owner.',
+  /** Akun lain sempat aktif selama penyimpanan → tidak digabung diam-diam */
+  not_merged:
+    'Akun berganti saat desain disimpan. Desain disimpan di keranjang tamu perangkat ini dan belum digabung ke keranjang akun yang aktif. Keranjang tamu digabung saat masuk berikutnya di perangkat ini.',
+};
+
+/** Desain tersimpan di server, tetapi keranjang tujuan sudah penuh → tidak diklaim berhasil */
+export const DESIGN_SAVED_CART_FULL_MESSAGE =
+  `Desain tersimpan, tetapi belum masuk keranjang karena keranjang tujuan sudah berisi ${CART_MAX_LINES} item berbeda. Hapus item lain lalu tambahkan desain lagi.`;
+
+/** Desain tersimpan di server, tetapi keranjang gagal ditulis ke perangkat */
+export const DESIGN_SAVED_STORAGE_FAILED_MESSAGE =
+  'Desain tersimpan, tetapi gagal dimasukkan ke keranjang karena penyimpanan perangkat penuh. Kosongkan ruang lalu desain ulang.';
 
 /** Kode `unavailable_reason` dari POST /api/cart (server/src/services/cart.service.js) */
 export const CART_UNAVAILABLE_REASON = {

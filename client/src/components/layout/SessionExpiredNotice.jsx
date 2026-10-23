@@ -4,17 +4,20 @@
 
 import Toast from '../ui/Toast';
 import useAuthStore from '../../stores/useAuthStore';
+import useNoticeStore from '../../stores/useNoticeStore';
 import { SESSION_EXPIRED_NOTICE, SESSION_EXPIRED_NOTICE_DURATION } from '../../constants/apiErrors';
 
 export default function SessionExpiredNotice() {
   const sessionExpired = useAuthStore((s) => s.sessionExpired);
   const dismiss = useAuthStore((s) => s.dismissSessionNotice);
+  // Posisi sama dengan AppNotice: tampil bergantian (setelah AppNotice ditutup), tidak bertumpuk
+  const appNoticeShown = useNoticeStore((s) => s.notice !== null);
 
   return (
     <Toast
       type="info"
       message={SESSION_EXPIRED_NOTICE}
-      show={sessionExpired}
+      show={sessionExpired && !appNoticeShown}
       onClose={dismiss}
       duration={SESSION_EXPIRED_NOTICE_DURATION}
     />

@@ -36,3 +36,6 @@ export const SESSION_EXPIRED_NOTICE = 'Sesi Anda telah berakhir. Silakan masuk k
 
 /** Lama notifikasi sesi berakhir tampil (ms) */
 export const SESSION_EXPIRED_NOTICE_DURATION = 8000;
+
+/** Lama notifikasi global AppNotice tampil (ms) — pesan hasil operasi saat identitas berganti */
+export const APP_NOTICE_DURATION = 8000;

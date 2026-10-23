@@ -4,13 +4,14 @@
 
 import { useState } from 'react';
 import useCartStore from '../stores/useCartStore';
-import { saveCustomCakeToCart, DESIGN_CART_TARGET } from '../services/customCakeCartService';
+import { saveCustomCakeToCart, getDesignCartNotice } from '../services/customCakeCartService';
+import { createSessionBoundNotifier } from '../services/sessionScope';
 import {
   getSelectedOptions, calculateCustomCakePrice, getCustomCakeStepCompletion, canOpenCustomCakeStep,
   validateCustomCakeDesign,
 } from '../utils/businessRules';
 import { CUSTOM_CAKE_STEPS, CUSTOM_OPTION_GROUPS, WRITING_COLORS } from '../constants/customCake';
-import { CART_MAX_LINES, CART_LINE_LIMIT_MESSAGE, DESIGN_SAVED_TO_PREVIOUS_CART_MESSAGE } from '../constants/cart';
+import { CART_MAX_LINES, CART_LINE_LIMIT_MESSAGE } from '../constants/cart';
 
 const emptyDesign = (earliestKey) => ({
   selections: Object.fromEntries(CUSTOM_OPTION_GROUPS.map((g) => [g, null])),
@@ -59,19 +60,18 @@ export default function useCustomCakeBuilder(builder, notify) {
       return;
     }
     setSubmitting(true);
+    // Step 6.3 (temuan L1): bila identitas berganti, halaman ini dipasang ulang → pesan lewat notifikasi global
+    const report = createSessionBoundNotifier(notify);
     try {
-      // Step 6.3 (temuan H1): simpan & masukkan ke keranjang identitas yang memulai penyimpanan
-      const { added, target } = await saveCustomCakeToCart(design, builder.product);
-      if (!added) {
-        notify('error', CART_LINE_LIMIT_MESSAGE);
-        return;
-      }
-      if (target === DESIGN_CART_TARGET.ORIGINAL_OWNER) notify('info', DESIGN_SAVED_TO_PREVIOUS_CART_MESSAGE);
-      else notify('success', 'Ditambahkan ke keranjang');
+      // Step 6.3 (temuan H1, M-A, L2): simpan & masukkan ke keranjang pemilik yang sah
+      const result = await saveCustomCakeToCart(design, builder.product);
+      const { type, message, replacesSessionNotice } = getDesignCartNotice(result);
+      report(type, message, { replacesSessionNotice });
+      if (!result.added) return;
       setDesign(emptyDesign(builder.earliest_ready_date));
       setStepIndex(0);
     } catch (e) {
-      notify('error', e.message || 'Desain gagal disimpan');
+      report('error', e.message || 'Desain gagal disimpan');
     } finally {
       setSubmitting(false);
     }

@@ -57,13 +57,13 @@ export async function apiClient(path, { method = 'GET', body, mockHandler, guest
     }
     // Simulasikan latensi jaringan ringan agar UI terasa realistis; identitas dijaga selama jeda (Step 6.3)
     // Handler menerima { sessionUser } = pengguna saat request dimulai (handler lama boleh mengabaikannya)
-    return runMockRequest((session) => mockHandler(body, session), MOCK_LATENCY_MS);
+    return runMockRequest((session) => mockHandler(body, session), MOCK_LATENCY_MS, method);
   }
 
   // ── Mode API ───────────────────────────────────────────────────────────────
   // Sesi tab ini disamakan dulu dengan sesi kanonis; request dengan identitas yang berubah tidak dikirim, request tamu
   // tetap tamu. Snapshot token & identitas dipakai untuk memeriksa respons.
-  const snapshot = prepareRequestSession();
+  const snapshot = prepareRequestSession(method);
   const first = await send(path, { method, body, token: snapshot.token });
 
   const { res, json } = await settleResponse(first, snapshot, {

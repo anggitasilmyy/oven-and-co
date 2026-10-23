@@ -162,16 +162,20 @@ const useCartStore = create((set, get) => ({
   },
 
   /**
-   * Step 6.3 (temuan H1): tambahkan item ke keranjang MILIK pemilik tertentu tanpa mengganti keranjang aktif.
-   * Dipakai bila identitas berganti saat request berjalan: hasilnya masuk ke keranjang identitas pembuatnya
-   * (tamu → keranjang tamu), bukan ke keranjang pengguna yang baru masuk.
+   * Step 6.3 (temuan H1 & M-A): tambahkan item ke keranjang MILIK pemilik tertentu tanpa mengganti keranjang aktif
+   * (keranjang aktif bila pemiliknya sama). Dipakai saat menyimpan desain custom cake, termasuk bila identitas berganti
+   * selama request berjalan (services/customCakeCartService menentukan pemilik yang sah).
+   * Idempoten untuk desain: desain yang sudah ada di keranjang tujuan tidak ditambahkan lagi (tanpa baris/jumlah ganda).
    * @param {string|null} ownerId — id pelanggan pemilik keranjang; null/tidak sah = keranjang tamu
    * @returns {boolean} false bila ditolak batas baris keranjang
    */
   addItemToOwnerCart: (ownerId, item) => {
     const key = isValidUserId(ownerId) ? userCartKey(ownerId) : GUEST_CART_KEY;
-    if (key === get()._storageKey) return get().addItem(item);
-    const items = readCart(key);
+    const isActive = key === get()._storageKey;
+    const items = isActive ? get().items : readCart(key);
+    const designId = item.design_id == null ? null : String(item.design_id);
+    if (designId !== null && items.some((i) => i.design_id != null && String(i.design_id) === designId)) return true;
+    if (isActive) return get().addItem(item);
     if (wouldExceedLineLimit(items, item)) return false;
     writeCart(key, mergeCartItems(items, [item]));
     return true;

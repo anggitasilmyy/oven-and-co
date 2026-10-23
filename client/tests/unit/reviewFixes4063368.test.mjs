@@ -307,7 +307,9 @@ test('#9: isi kanonis rusak (bukan JSON) → diperlakukan sebagai keluar, tanpa 
 
 // ── #10 Pembersihan ───────────────────────────────────────────────────────────────────────────────────────────────
 
-test('#10: syncSessionFromStorage hanya mengembalikan { changed, sessionChanged } (tanpa field mati)', () => {
-  // sessionChanged ditambahkan untuk temuan M1 review db7d58d (profil ≠ pergantian sesi)
-  assert.deepEqual(syncSessionFromStorage(), { changed: false, sessionChanged: false });
+test('#10: syncSessionFromStorage hanya mengembalikan field yang dipakai (tanpa field mati)', () => {
+  // sessionChanged: temuan M1 review db7d58d; tokenChanged/identityChanged/profileChanged: temuan L6 review dc054bd
+  assert.deepEqual(syncSessionFromStorage(), {
+    changed: false, tokenChanged: false, identityChanged: false, sessionChanged: false, profileChanged: false,
+  });
 });

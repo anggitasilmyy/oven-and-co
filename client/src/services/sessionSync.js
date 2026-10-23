@@ -9,7 +9,7 @@
 
 import useAuthStore from '../stores/useAuthStore';
 import useCartStore from '../stores/useCartStore';
-import { getCartOwnerId, getSessionUserId } from '../utils/sessionIdentity';
+import { getCartOwnerId, describeSessionChange } from '../utils/sessionIdentity';
 import { AUTH_PERSIST_KEY } from '../constants/auth';
 
 /** Sesi kanonis tersimpan → { token, user }; kunci tidak ada / rusak → sesi kosong */
@@ -25,19 +25,21 @@ export function readCanonicalSession() {
 
 const sameUser = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
+const NO_CHANGE = Object.freeze({
+  changed: false, tokenChanged: false, identityChanged: false, sessionChanged: false, profileChanged: false,
+});
+
 /**
  * Samakan store tab ini dengan sesi kanonis (token ATAU data user berbeda).
- * @returns {{changed: boolean, sessionChanged: boolean}}
- *   changed        — ada yang disalin dari sesi kanonis (termasuk perubahan profil saja: nama, email, …)
- *   sessionChanged — SESI berganti: token atau id pengguna berbeda. Perubahan profil pengguna yang sama dengan token
- *                    yang sama BUKAN pergantian sesi (temuan M1) dan tidak boleh membatalkan request.
+ * @returns {{changed, tokenChanged, identityChanged, sessionChanged, profileChanged}}
+ *   changed — ada yang disalin dari sesi kanonis (termasuk perubahan profil saja: nama, email, …);
+ *   field lain: lihat describeSessionChange. Perubahan profil saja BUKAN pergantian sesi (temuan M1) dan tidak boleh
+ *   membatalkan request.
  */
 export function syncSessionFromStorage() {
   const before = useAuthStore.getState();
   const canonical = readCanonicalSession();
-  if (canonical.token === before.token && sameUser(canonical.user, before.user)) {
-    return { changed: false, sessionChanged: false };
-  }
+  if (canonical.token === before.token && sameUser(canonical.user, before.user)) return { ...NO_CHANGE };
 
   if (canonical.token) {
     // Hidrasi ulang (sinkron untuk localStorage, tidak menulis balik). Bila hidrasi tidak menerapkan nilai kanonis
@@ -62,9 +64,7 @@ export function syncSessionFromStorage() {
   if (getCartOwnerId(after.user) !== getCartOwnerId(before.user)) {
     useCartStore.getState().loadCartForUser(after.user);
   }
-  const sessionChanged =
-    after.token !== before.token || getSessionUserId(after.user) !== getSessionUserId(before.user);
-  return { changed: true, sessionChanged };
+  return { changed: true, ...describeSessionChange(before, after) };
 }
 
 /**

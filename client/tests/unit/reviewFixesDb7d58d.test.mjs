@@ -69,7 +69,9 @@ test.beforeEach(() => {
 
 // ── H1: desain tamu & keranjang ───────────────────────────────────────────────────────────────────────────────────
 
-test('H1 (API): tamu menyimpan desain, pelanggan Y login di tab lain selama request → desain masuk keranjang TAMU, keranjang Y utuh', async () => {
+// Review dc054bd (temuan M-A): desain tamu yang selesai setelah SATU pelanggan masuk (dan masih aktif) mengikuti
+// aturan penggabungan keranjang tamu FR-04 → masuk keranjang pelanggan itu (dulu: keranjang tamu yang tidak terlihat).
+test('H1/M-A (API): tamu menyimpan desain, pelanggan Y login di tab lain & masih aktif → desain masuk keranjang Y (FR-04), token desain ikut', async () => {
   store.set('ovenco_mock_cart_7', JSON.stringify([{ cart_item_id: 1, product_id: 2, quantity: 1 }]));
   scriptFetch([{
     before: () => otherTabWrites(apiCustomer(7), 'jwt-Y'),
@@ -78,18 +80,17 @@ test('H1 (API): tamu menyimpan desain, pelanggan Y login di tab lain selama requ
 
   const result = await saveCustomCakeToCart(DESIGN, PRODUCT);
 
-  assert.equal(result.target, DESIGN_CART_TARGET.ORIGINAL_OWNER);
+  assert.equal(result.target, DESIGN_CART_TARGET.ACCOUNT_MERGED);
   assert.equal(result.added, true);
   assert.equal(result.saved.design_id, '55'); // hasil tidak dibuang: desain tamu memang sah
-  // Keranjang Y: tetap satu item lamanya, tanpa desain tamu
-  assert.equal(JSON.parse(store.get('ovenco_mock_cart_7')).length, 1);
-  assert.ok(!cartDesigns('ovenco_mock_cart_7').includes('55'));
-  const guestCart = JSON.parse(store.get('ovenco_mock_cart_guest'));
-  assert.deepEqual(guestCart.map((i) => [i.design_id, i.design_token]), [['55', 'tok-tamu']]);
-  // Tab ini kini mengikuti sesi Y, keranjang aktif = keranjang Y (tanpa desain tamu)
+  const yCart = JSON.parse(store.get('ovenco_mock_cart_7'));
+  assert.equal(yCart.length, 2);
+  assert.deepEqual(yCart.filter((i) => i.design_id === '55').map((i) => i.design_token), ['tok-tamu']);
+  assert.equal(store.has('ovenco_mock_cart_guest'), false);
+  // Tab ini kini mengikuti sesi Y; keranjang aktif (yang terlihat) = keranjang Y berisi desain
   assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_7');
-  assert.ok(!useCartStore.getState().items.some((i) => i.design_id === '55'));
-  assert.equal(calls[0].init.headers.Authorization, undefined);
+  assert.ok(useCartStore.getState().items.some((i) => i.design_id === '55'));
+  assert.equal(calls[0].init.headers.Authorization, undefined); // request tetap request tamu
 });
 
 test('H1 (API): identitas tidak berubah → desain masuk keranjang aktif (tamu maupun pelanggan)', async () => {
@@ -121,18 +122,19 @@ test('H1 (API): pelanggan A menyimpan desain, beralih ke pelanggan B → ditolak
   assert.equal(useCartStore.getState().items.length, 0);
 });
 
-test('H1 (API): batas baris keranjang pemilik asli tetap ditegakkan', async () => {
-  const fullGuest = Array.from({ length: 50 }, (_, i) => ({ cart_item_id: i + 1, product_id: 1, quantity: 1, note: `n${i}` }));
-  store.set('ovenco_mock_cart_guest', JSON.stringify(fullGuest));
-  useCartStore.getState().resetToGuest();
+test('H1/M-A (API): batas baris keranjang TUJUAN tetap ditegakkan', async () => {
+  const full = Array.from({ length: 50 }, (_, i) => ({ cart_item_id: i + 1, product_id: 1, quantity: 1, note: `n${i}` }));
+  store.set('ovenco_mock_cart_7', JSON.stringify(full));
   scriptFetch([{
     before: () => otherTabWrites(apiCustomer(7), 'jwt-Y'),
     status: 201, body: { data: { design_id: '80', price: 1, ready_date: '2026-10-30', design_token: 'tok' } },
   }]);
 
   const result = await saveCustomCakeToCart(DESIGN, PRODUCT);
+  assert.equal(result.target, DESIGN_CART_TARGET.ACCOUNT_MERGED);
   assert.equal(result.added, false);
-  assert.equal(JSON.parse(store.get('ovenco_mock_cart_guest')).length, 50);
+  assert.equal(JSON.parse(store.get('ovenco_mock_cart_7')).length, 50);
+  assert.equal(store.has('ovenco_mock_cart_guest'), false);
 });
 
 /** Desain sah dari data mock nyata (opsi aktif pertama per kelompok, tanggal tercepat) */
@@ -187,12 +189,20 @@ test('M1 (mock): profil diubah di tab lain → request mock tetap dijalankan', a
   assert.equal(await runMockRequest(() => 'jalan', 1), 'jalan');
 });
 
-test('M1: pergantian sesi sungguhan (token atau pengguna lain) tetap membatalkan request ber-identitas', async () => {
+test('M1/L6: pergantian sesi sungguhan membatalkan mutasi; GET pengguna yang sama dikirim di sesi baru; pengguna lain → batal', async () => {
   useAuthStore.getState().setAuth(apiCustomer(1), 'jwt-1');
-  otherTabWrites(apiCustomer(1), 'jwt-1-baru'); // token baru
+  otherTabWrites(apiCustomer(1), 'jwt-1-baru'); // token baru, pengguna sama
   scriptFetch([]);
-  await assert.rejects(apiClient('/me/profile'), CHANGED);
+  await assert.rejects(apiClient('/me/addresses', { method: 'POST', body: {} }), CHANGED);
+  assert.equal(calls.length, 0);
 
+  useAuthStore.getState().setAuth(apiCustomer(1), 'jwt-1');
+  otherTabWrites(apiCustomer(1), 'jwt-1-baru');
+  scriptFetch([{ status: 200, body: { data: 'profil' } }]);
+  assert.equal(await apiClient('/me/profile'), 'profil');
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer jwt-1-baru');
+
+  calls.length = 0;
   useAuthStore.getState().setAuth(apiCustomer(1), 'jwt-1');
   otherTabWrites(apiCustomer(2), 'jwt-2'); // pengguna lain
   await assert.rejects(apiClient('/me/profile'), CHANGED);
@@ -202,7 +212,9 @@ test('M1: pergantian sesi sungguhan (token atau pengguna lain) tetap membatalkan
     otherTabWrites(apiCustomer(2, { name: 'X' }), 'jwt-2');
     return syncSessionFromStorage();
   })();
-  assert.deepEqual(profileOnly, { changed: true, sessionChanged: false });
+  assert.deepEqual(profileOnly, {
+    changed: true, tokenChanged: false, identityChanged: false, sessionChanged: false, profileChanged: true,
+  });
 });
 
 // ── L1: draft checkout ────────────────────────────────────────────────────────────────────────────────────────────
