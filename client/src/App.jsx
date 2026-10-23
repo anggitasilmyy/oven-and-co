@@ -7,9 +7,12 @@ import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import useRestoreUserCart from './hooks/useRestoreUserCart';
 import SessionExpiredNotice from './components/layout/SessionExpiredNotice';
+import useSessionSync from './hooks/useSessionSync';
 
 export default function App() {
   useRestoreUserCart();
+  // Step 6.3: sesi & keranjang mengikuti login/logout/ganti pengguna di tab lain
+  useSessionSync();
 
   return (
     <BrowserRouter>

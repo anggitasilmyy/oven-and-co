@@ -108,10 +108,21 @@ test('re-review #4: checkCartDesign (mock) mengikuti urutan pemeriksaan server',
   assert.equal(checkCartDesign(item, product, design, {}).designValid, true);
 });
 
-test('#1–#3: classifySessionState membedakan token aktif, sesi sudah dihapus, dan token pengganti', async () => {
-  const { classifySessionState } = await import('../../src/utils/apiErrors.js');
-  assert.equal(classifySessionState('jwt-lama', 'jwt-lama'), 'active');
-  assert.equal(classifySessionState('jwt-lama', null), 'cleared');
-  assert.equal(classifySessionState('jwt-lama', ''), 'cleared'); // token kosong tidak pernah dianggap aktif
-  assert.equal(classifySessionState('jwt-lama', 'jwt-baru'), 'replaced');
+test('canRetryWithReplacedSession: hanya GET, identitas awal diketahui & sama, token baru ada', async () => {
+  const { canRetryWithReplacedSession, getSessionUserId } = await import('../../src/utils/apiErrors.js');
+  const base = { method: 'GET', sentUserId: '1', currentUserId: '1', currentToken: 'jwt-baru' };
+
+  assert.equal(canRetryWithReplacedSession(base), true);
+  assert.equal(canRetryWithReplacedSession({ ...base, method: 'get' }), true);
+  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+    assert.equal(canRetryWithReplacedSession({ ...base, method }), false, method);
+  }
+  assert.equal(canRetryWithReplacedSession({ ...base, currentUserId: '2' }), false);
+  assert.equal(canRetryWithReplacedSession({ ...base, sentUserId: null, currentUserId: null }), false);
+  assert.equal(canRetryWithReplacedSession({ ...base, currentToken: null }), false);
+
+  assert.equal(getSessionUserId({ user_id: 1 }), '1');
+  assert.equal(getSessionUserId({ userId: '1' }), '1');
+  assert.equal(getSessionUserId({}), null);
+  assert.equal(getSessionUserId(null), null);
 });

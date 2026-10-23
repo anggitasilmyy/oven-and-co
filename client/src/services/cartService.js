@@ -19,7 +19,8 @@ export function getCartView(items) {
   return apiClient('/cart', {
     method: 'POST', // API: keranjang dibaca dari server; mock: dari item lokal
     body: { items },
-    allowGuest: true, // Step 6.3: sesi kedaluwarsa → dihitung ulang sebagai tamu
+    // Step 6.3: tanpa guestFallback — body berisi item keranjang AKUN; setelah sesi kedaluwarsa store pindah ke
+    // keranjang tamu dan keranjang dihitung ulang otomatis dengan item tamu (bukan body lama dikirim sebagai tamu)
     mockHandler: () => {
       // Step 6.3 (re-review #4): kepemilikan, sekali pakai & kedaluwarsa desain diperiksa seperti di API
       const user = useAuthStore.getState().user;

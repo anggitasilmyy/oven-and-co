@@ -85,7 +85,9 @@ export function createCustomCakeDesign(design) {
   return apiClient('/custom-cake-designs', {
     method: 'POST',
     body: USE_MOCK ? design : toDesignRequestBody(design),
-    allowGuest: true, // Step 6.3: tamu boleh mendesain; sesi kedaluwarsa → disimpan sebagai desain tamu
+    // Step 6.3: kebijakan eksplisit — desain tidak terikat akun, jadi bila sesi INI kedaluwarsa desain disimpan
+    // sekali sebagai desain tamu (dengan design_token). Tidak pernah dikirim ulang dengan token pengguna lain.
+    guestFallback: true,
     mockHandler: () => {
       const tables = getTables('products', 'custom_options', 'store_settings', 'custom_cake_designs');
       const product = findCustomProduct(tables.products);

@@ -1,17 +1,18 @@
 // stores/useAuthStore.js
 // Step 3 · Authentication
 // FR-02 · FR-26 · Zustand store untuk sesi pengguna
+// Step 6.3: store ini satu-satunya sumber token request (services/apiClient). Sesi kanonis dipersist di
+// AUTH_PERSIST_KEY dan disinkronkan antar-tab oleh services/sessionSync.js.
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { AUTH_TOKEN_STORAGE_KEY } from '../constants/auth';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { AUTH_PERSIST_KEY, AUTH_TOKEN_STORAGE_KEY } from '../constants/auth';
 
-/**
- * Key persist Zustand.
- * Dipisahkan dari "ovenco_mock_*" karena ini state sesi (bukan data mock),
- * tetap dipakai di mode API juga.
- */
-const AUTH_STORAGE_KEY = 'ovenco_auth';
+/** Salinan token lama (kompatibilitas, tulis-saja); ditulis SETELAH state kanonis tersimpan */
+function writeTokenCopy(token) {
+  if (token) localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  else localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+}
 
 /**
  * useAuthStore
@@ -32,17 +33,16 @@ const useAuthStore = create(
       user: null,
       token: null,
 
-      /** Simpan sesi setelah login / register berhasil */
+      /** Simpan sesi setelah login / register berhasil (state kanonis ditulis persist saat set) */
       setAuth: (user, token) => {
-        // Simpan token juga di localStorage biasa agar apiClient bisa baca tanpa store
-        localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
         set({ user, token, sessionExpired: false });
+        writeTokenCopy(token);
       },
 
       /** Hapus sesi */
       logout: () => {
-        localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
         set({ user: null, token: null });
+        writeTokenCopy(null);
       },
 
       /**
@@ -51,8 +51,8 @@ const useAuthStore = create(
        */
       sessionExpired: false,
       expireSession: () => {
-        localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
         set({ user: null, token: null, sessionExpired: true });
+        writeTokenCopy(null);
       },
       dismissSessionNotice: () => set({ sessionExpired: false }),
 
@@ -67,8 +67,10 @@ const useAuthStore = create(
       },
     }),
     {
-      name: AUTH_STORAGE_KEY,
-      // Hanya persist user & token; fungsi tidak perlu di-persist
+      name: AUTH_PERSIST_KEY,
+      // Eksplisit (default Zustand = window.localStorage; di browser objeknya sama). Sesi kanonis selalu di sini.
+      storage: createJSONStorage(() => localStorage),
+      // Hanya persist user & token; fungsi & sessionExpired tidak perlu di-persist
       partialize: (state) => ({ user: state.user, token: state.token }),
     }
   )

@@ -28,12 +28,8 @@ export const CLIENT_ERROR_CODE = {
   SESSION_CHANGED: 'CLIENT_SESSION_CHANGED',
 };
 
-/** Hasil utils/apiErrors.js classifySessionState */
-export const SESSION_STATE = {
-  ACTIVE: 'active',
-  CLEARED: 'cleared',
-  REPLACED: 'replaced',
-};
+/** Metode HTTP yang dipakai aturan ulangan sesi (services/sessionRecovery) */
+export const HTTP_METHOD = { GET: 'GET' };
 
 /** Notifikasi global setelah sesi dihapus otomatis (SessionExpiredNotice) — netral untuk semua peran */
 export const SESSION_EXPIRED_NOTICE = 'Sesi Anda telah berakhir. Silakan masuk kembali untuk menggunakan fitur akun.';
