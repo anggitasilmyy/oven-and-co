@@ -275,13 +275,13 @@ test('L6: epoch naik saat token atau identitas berganti, TIDAK saat profil berub
   assert.equal(getSessionEpoch(), start + 2);
 });
 
-test('L6: keluar lalu masuk lagi sebagai pengguna sama (token SAMA) selama POST → respons sesi lama ditolak', async () => {
+test('L6/M1: keluar lalu masuk lagi sebagai pengguna sama selama POST → mutasi yang sudah tersimpan dipakai, tidak diulang', async () => {
   signIn(customer(1), 'jwt-A');
   scriptFetch([{
     before: () => { useAuthStore.getState().logout(); useAuthStore.getState().setAuth(customer(1), 'jwt-A'); },
     status: 201, body: { data: { address_id: 'baru' } },
   }]);
-  await assert.rejects(apiClient('/me/addresses', { method: 'POST', body: {} }), CHANGED);
+  assert.deepEqual(await apiClient('/me/addresses', { method: 'POST', body: {} }), { address_id: 'baru' });
   assert.equal(calls.length, 1);
 });
 
@@ -295,7 +295,7 @@ test('L6: keluar lalu masuk lagi selama GET → respons lama tidak dipakai, GET 
   assert.equal(calls[1].init.headers.Authorization, 'Bearer jwt-A2');
 });
 
-test('L6: token ganti untuk pengguna sama → PUT ditolak sebelum dikirim, sama seperti setelah respons', async () => {
+test('L6/M1: token ganti untuk pengguna sama → PUT ditolak SEBELUM dikirim; bila sudah diproses, hasilnya dipakai', async () => {
   signIn(customer(1), 'jwt-A');
   otherTabWrites(customer(1), 'jwt-A2');
   scriptFetch([]);
@@ -303,7 +303,7 @@ test('L6: token ganti untuk pengguna sama → PUT ditolak sebelum dikirim, sama 
 
   signIn(customer(1), 'jwt-A');
   scriptFetch([{ before: () => otherTabWrites(customer(1), 'jwt-A2'), status: 200, body: { data: 'ok' } }]);
-  await assert.rejects(apiClient('/me/profile', { method: 'PUT', body: {} }), CHANGED);
+  assert.equal(await apiClient('/me/profile', { method: 'PUT', body: {} }), 'ok');
   assert.equal(calls.length, 1);
 });
 

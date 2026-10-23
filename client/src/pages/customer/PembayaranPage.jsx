@@ -3,6 +3,8 @@
 // Step 5.3: QRIS, e-wallet, virtual account, Bayar di Toko (hanya pickup + semua item ready).
 // "Bayar Sekarang" membuat pesanan: online → Halaman Bayar (C-15) · Bayar di Toko → Pesanan Berhasil (C-16).
 // ?pesanan=OVC-… : mode "Ganti Metode" untuk pesanan yang masih Menunggu Pembayaran.
+// Review c53a11c (M1): pesanan yang sudah dibuat server tidak dianggap gagal hanya karena sesi berganti; hanya item yang
+// dipesan yang dihapus dari keranjang pemiliknya. POST pesanan tidak pernah dikirim ulang otomatis.
 
 import { useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -17,6 +19,9 @@ import useCheckoutForm from '../../hooks/useCheckoutForm';
 import useServiceQuery from '../../hooks/useServiceQuery';
 import { getCheckoutContext } from '../../services/checkoutService';
 import { createOrder, getOrderPayment, changePaymentMethod } from '../../services/orderService';
+import { createSessionBoundNotifier } from '../../services/sessionScope';
+import { isCommittedForOtherSessionError } from '../../utils/apiErrors';
+import { orderPlacedNotice } from '../../constants/checkout';
 import { CUSTOMER_ROUTES, buildPath } from '../../constants/routes';
 import { PAYMENT_OPTION } from '../../constants/orderStatus';
 
@@ -26,11 +31,14 @@ const nextRoute = ({ order_number, payment_option }) =>
 /** Pesanan baru dari keranjang + pilihan checkout */
 function NewOrderPayment({ ctx, cart, notify, onPlaced }) {
   const f = useCheckoutForm(ctx, cart);
-  const clearCart = useCartStore((s) => s.clearCart);
+  const removeItems = useCartStore((s) => s.removeItems);
   const resetCheckout = useCheckoutStore((s) => s.resetCheckout);
   if (f.blockedReason) return <Navigate to={CUSTOMER_ROUTES.CHECKOUT} replace />;
 
   const submit = async (methodCode) => {
+    // Halaman bisa dipasang ulang saat identitas berganti → pesan hasil lewat notifikasi global
+    const report = createSessionBoundNotifier(notify);
+    const orderedItemIds = cart.items.map((i) => i.cart_item_id);
     try {
       const result = await createOrder({
         items: cart.items,
@@ -42,12 +50,16 @@ function NewOrderPayment({ ctx, cart, notify, onPlaced }) {
         use_points: f.draft.usePoints,
         method_code: methodCode,
       });
-      // Tujuan dicatat bersamaan dengan pengosongan keranjang agar halaman ini tidak mengalihkan ke Keranjang
-      onPlaced(nextRoute(result));
-      clearCart();
+      // Tujuan dicatat bersamaan dengan pengosongan keranjang agar halaman ini tidak mengalihkan ke Keranjang.
+      // Halaman sudah dipasang ulang (pemilik yang sama masuk lagi) → arahan tidak berlaku, beri tahu nomor pesanan.
+      if (report.isPageReplaced()) report('success', orderPlacedNotice(result.order_number));
+      else onPlaced(nextRoute(result));
+      // Hanya item yang dipesan: item yang ditambahkan tab lain selama checkout tetap di keranjang
+      removeItems(orderedItemIds);
       resetCheckout();
     } catch (e) {
-      notify('error', e.message);
+      // M1: akun aktif sudah berbeda — pesanan milik akun sebelumnya, keranjang akun aktif tidak disentuh
+      report(isCommittedForOtherSessionError(e) ? 'info' : 'error', e.message);
     }
   };
   return <PaymentMethodScreen methods={ctx.payment_methods} total={f.quote.total} payAtStoreAllowed={f.quote.payAtStoreAllowed} onSubmit={submit} />;

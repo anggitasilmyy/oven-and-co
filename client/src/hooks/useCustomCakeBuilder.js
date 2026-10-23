@@ -6,6 +6,7 @@ import { useState } from 'react';
 import useCartStore from '../stores/useCartStore';
 import { saveCustomCakeToCart, getDesignCartNotice } from '../services/customCakeCartService';
 import { createSessionBoundNotifier } from '../services/sessionScope';
+import { isCommittedForOtherSessionError } from '../utils/apiErrors';
 import {
   getSelectedOptions, calculateCustomCakePrice, getCustomCakeStepCompletion, canOpenCustomCakeStep,
   validateCustomCakeDesign,
@@ -71,7 +72,8 @@ export default function useCustomCakeBuilder(builder, notify) {
       setDesign(emptyDesign(builder.earliest_ready_date));
       setStepIndex(0);
     } catch (e) {
-      report('error', e.message || 'Desain gagal disimpan');
+      // M1: desain sudah tersimpan untuk akun sebelumnya → informasi, bukan kegagalan
+      report(isCommittedForOtherSessionError(e) ? 'info' : 'error', e.message || 'Desain gagal disimpan');
     } finally {
       setSubmitting(false);
     }

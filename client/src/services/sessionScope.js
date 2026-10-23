@@ -17,8 +17,13 @@ import { getSessionTreeKey, describeSessionChange } from '../utils/sessionIdenti
 
 // ── Epoch sesi (L6) ───────────────────────────────────────────────────────────────────────────────────────────────
 let sessionEpoch = 0;
+// Review c53a11c (M1): naik setiap kali kunci identitas berganti = pohon halaman dipasang ulang (App.jsx), termasuk
+// A → tamu → A yang kunci awal & akhirnya sama
+let identityGeneration = 0;
 useAuthStore.subscribe((state, prev) => {
-  if (describeSessionChange(prev, state).sessionChanged) sessionEpoch += 1;
+  const change = describeSessionChange(prev, state);
+  if (change.sessionChanged) sessionEpoch += 1;
+  if (change.identityChanged) identityGeneration += 1;
 });
 
 /** Nomor urut sesi aktif tab ini; berubah setiap kali token atau identitas berganti (bukan saat profil berubah) */
@@ -66,20 +71,26 @@ export function trackSessionKeys() {
 // ── Notifikasi hasil operasi (L1) ─────────────────────────────────────────────────────────────────────────────────
 
 /**
- * Pemberi pesan untuk operasi yang dimulai sekarang: identitas sama → toast halaman (`localNotify`); identitas sudah
- * berganti (halaman pemanggil dipasang ulang / unmount) → notifikasi global yang tetap terlihat.
+ * Pemberi pesan untuk operasi yang dimulai sekarang: identitas tidak pernah berganti → toast halaman (`localNotify`);
+ * identitas sempat berganti (halaman pemanggil dipasang ulang / unmount, termasuk bila akhirnya kembali ke pengguna
+ * yang sama) → notifikasi global yang tetap terlihat.
  * @param {(type: string, message: string) => void} localNotify
- * @returns {(type: string, message: string, options?: {replacesSessionNotice?: boolean}) => void}
- *   replacesSessionNotice — pesan sudah menjelaskan sesi berakhir, jadi notifikasi "sesi berakhir" ditutup
+ * @returns {((type: string, message: string, options?: {replacesSessionNotice?: boolean}) => void)
+ *   & {isPageReplaced: () => boolean}}
+ *   replacesSessionNotice — pesan sudah menjelaskan sesi berakhir, jadi notifikasi "sesi berakhir" ditutup;
+ *   isPageReplaced — true bila halaman pemanggil sudah dipasang ulang (navigasi/state lokalnya tidak berlaku lagi)
  */
 export function createSessionBoundNotifier(localNotify) {
-  const startKey = getSessionTreeKey(useAuthStore.getState().user);
-  return (type, message, { replacesSessionNotice = false } = {}) => {
-    if (getSessionTreeKey(useAuthStore.getState().user) === startKey) {
+  const startGeneration = identityGeneration;
+  const isPageReplaced = () => identityGeneration !== startGeneration;
+  const report = (type, message, { replacesSessionNotice = false } = {}) => {
+    if (!isPageReplaced()) {
       localNotify(type, message);
       return;
     }
     if (replacesSessionNotice) useAuthStore.getState().dismissSessionNotice();
     useNoticeStore.getState().showNotice(type, message);
   };
+  report.isPageReplaced = isPageReplaced;
+  return report;
 }

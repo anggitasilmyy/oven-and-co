@@ -10,8 +10,9 @@
 //   - desain TAMU lainnya (sesi berakhir, staf/owner aktif, akun lain sempat aktif) → keranjang tamu (tidak digabung
 //     diam-diam ke akun mana pun; pengguna diberi tahu lewat pesan hasil).
 // Token akses desain tamu (design_token) ikut disimpan di baris keranjang; pemeriksaan kepemilikan di server tetap.
-// Request ber-identitas yang berganti pengguna sudah ditolak apiClient (CLIENT_SESSION_CHANGED) sehingga tidak sampai
-// ke sini.
+// Review c53a11c (M1): desain AKUN yang sudah tersimpan saat akun aktif berganti tidak sampai ke sini sebagai hasil;
+// apiClient memanggil `reconcileOwner` → desain masuk keranjang pelanggan pembuatnya (bukan akun aktif), lalu melempar
+// CLIENT_SESSION_CHANGED_COMMITTED. Desain yang gagal / ditolak 401 tidak tersimpan dan tidak dikirim ulang.
 
 import useAuthStore from '../stores/useAuthStore';
 import useCartStore from '../stores/useCartStore';
@@ -105,7 +106,8 @@ function toCartItem(saved, product) {
  * @param {{product_id, name, image_url}} product — produk custom cake dari builder
  * @returns {Promise<{saved: object, added: boolean, target: string, ownerId: string|null, reason: string|null}>}
  *   added false = ditolak batas baris keranjang tujuan (desain tetap tersimpan)
- * @throws {Error} gagal menyimpan desain, sesi berganti (CLIENT_SESSION_CHANGED), atau keranjang gagal ditulis
+ * @throws {Error} gagal menyimpan desain, sesi berganti (CLIENT_SESSION_CHANGED), desain tersimpan untuk akun
+ *   sebelumnya (CLIENT_SESSION_CHANGED_COMMITTED), atau keranjang gagal ditulis
  */
 export async function saveCustomCakeToCart(design, product) {
   // Event storage dari tab lain mungkin belum diproses → identitas awal dicatat setelah tab ini disamakan
@@ -114,7 +116,13 @@ export async function saveCustomCakeToCart(design, product) {
   const startOwnerId = getCartOwnerId(useAuthStore.getState().user);
 
   try {
-    const saved = await createCustomCakeDesign(design);
+    const saved = await createCustomCakeDesign(design, {
+      // Hanya pelanggan pembuat desain yang punya keranjang akun; staf/owner tidak (desain tanpa token tidak dipakai)
+      reconcileOwner: (savedForOwner, ownerUser) => {
+        const ownerId = getCartOwnerId(ownerUser);
+        if (ownerId) useCartStore.getState().addItemToOwnerCart(ownerId, toCartItem(savedForOwner, product));
+      },
+    });
     syncSessionFromStorage();
     const placement = resolveDesignCart({
       keys: tracker.keys(),

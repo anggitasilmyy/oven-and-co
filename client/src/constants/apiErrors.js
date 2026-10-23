@@ -26,7 +26,16 @@ export const CLIENT_ERROR_CODE = {
   SESSION_EXPIRED: 'CLIENT_SESSION_EXPIRED',
   /** Sesi berganti (masuk lagi / pengguna lain) saat request berjalan; request tidak diulang, sesi baru utuh */
   SESSION_CHANGED: 'CLIENT_SESSION_CHANGED',
+  /**
+   * Step 6.3 (review c53a11c, M1): mutasi SUDAH berhasil di server untuk akun yang memulainya, tetapi akun aktif kini
+   * berbeda (atau sudah keluar). Hasil tidak ditampilkan ke akun aktif; state pemilik asli direkonsiliasi terpisah.
+   */
+  SESSION_CHANGED_COMMITTED: 'CLIENT_SESSION_CHANGED_COMMITTED',
 };
+
+/** Pesan untuk CLIENT_ERROR_CODE.SESSION_CHANGED_COMMITTED — tanpa detail transaksi akun sebelumnya */
+export const SESSION_CHANGED_COMMITTED_MESSAGE =
+  'Akun berganti saat permintaan diproses. Permintaan sudah diproses untuk akun sebelumnya dan tidak ditampilkan di akun ini.';
 
 /** Metode HTTP yang dipakai aturan ulangan sesi (services/sessionRecovery) */
 export const HTTP_METHOD = { GET: 'GET' };

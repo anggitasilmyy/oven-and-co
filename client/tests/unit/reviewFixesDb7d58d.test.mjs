@@ -45,10 +45,15 @@ const { default: useCheckoutStore } = await import('../../src/stores/useCheckout
 const { getTables } = await import('../../src/services/mock/db.js');
 const { getMockCurrentTime } = await import('../../src/services/mock/mockClock.js');
 const { groupCustomOptions, getEarliestReadyDate } = await import('../../src/utils/businessRules.js');
-const { CLIENT_ERROR_CODE, SESSION_CHANGED_MESSAGE } = await import('../../src/constants/apiErrors.js');
+const {
+  CLIENT_ERROR_CODE, SESSION_CHANGED_MESSAGE, SESSION_CHANGED_COMMITTED_MESSAGE,
+} = await import('../../src/constants/apiErrors.js');
 const { AUTH_PERSIST_KEY } = await import('../../src/constants/auth.js');
 
 const CHANGED = { status: 401, code: CLIENT_ERROR_CODE.SESSION_CHANGED, message: SESSION_CHANGED_MESSAGE };
+const COMMITTED = {
+  status: 401, code: CLIENT_ERROR_CODE.SESSION_CHANGED_COMMITTED, message: SESSION_CHANGED_COMMITTED_MESSAGE,
+};
 const apiCustomer = (id, extra = {}) => ({ userId: String(id), name: `Pelanggan ${id}`, role: 'customer', ...extra });
 const otherTabWrites = (user, token) => store.set(AUTH_PERSIST_KEY, JSON.stringify({ state: { user, token }, version: 0 }));
 const cartDesigns = (key) => JSON.parse(store.get(key) ?? '[]').map((i) => i.design_id);
@@ -107,7 +112,7 @@ test('H1 (API): identitas tidak berubah → desain masuk keranjang aktif (tamu m
   assert.deepEqual(cartDesigns('ovenco_mock_cart_3'), ['61']);
 });
 
-test('H1 (API): pelanggan A menyimpan desain, beralih ke pelanggan B → ditolak, keranjang A & B tidak tersentuh', async () => {
+test('H1/M1 (API): desain A tersimpan, lalu beralih ke B → hasil tidak untuk B; desain masuk keranjang A, keranjang B utuh', async () => {
   useAuthStore.getState().setAuth(apiCustomer(1), 'jwt-A');
   useCartStore.getState().loadCartForUser(apiCustomer(1));
   scriptFetch([{
@@ -115,8 +120,9 @@ test('H1 (API): pelanggan A menyimpan desain, beralih ke pelanggan B → ditolak
     status: 201, body: { data: { design_id: '70', price: 1, ready_date: '2026-10-30', design_token: null } },
   }]);
 
-  await assert.rejects(saveCustomCakeToCart(DESIGN, PRODUCT), CHANGED);
-  assert.equal(store.has('ovenco_mock_cart_1'), false);
+  await assert.rejects(saveCustomCakeToCart(DESIGN, PRODUCT), COMMITTED);
+  // Rekonsiliasi pemilik asli: desain milik A (tanpa token) masuk keranjang A, bukan keranjang aktif B
+  assert.deepEqual(JSON.parse(store.get('ovenco_mock_cart_1')).map((i) => i.design_id), ['70']);
   assert.equal(store.has('ovenco_mock_cart_2'), false);
   assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_2');
   assert.equal(useCartStore.getState().items.length, 0);

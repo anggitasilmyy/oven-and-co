@@ -6,6 +6,9 @@
 //   - Tamu   : localStorage key "ovenco_mock_cart_guest"
 //   - Login  : localStorage key "ovenco_mock_cart_{userId}"
 // Saat login, keranjang tamu digabung ke keranjang akun (FR-04).
+// Review c53a11c (M2): tab lain bisa menulis key keranjang yang sama. Setiap perubahan membaca isi TERBARU dari
+// localStorage (bukan salinan memori) sebelum menulis, dan keranjang aktif dimuat ulang saat event `storage` untuk
+// key-nya tiba (services/sessionSync) — item dari tab lain tidak tertimpa data lama.
 
 import { create } from 'zustand';
 // Step 5.1 (review PR #5): identitas item (termasuk tanggal pre-order & catatan) dan id unik
@@ -58,7 +61,8 @@ const useCartStore = create((set, get) => ({
    * @returns {boolean} false bila ditolak karena keranjang sudah berisi CART_MAX_LINES item berbeda (Step 6.3)
    */
   addItem: (item) => {
-    const { items, _storageKey } = get();
+    const { _storageKey } = get();
+    const items = readCart(_storageKey);
     const entry = {
       product_id: item.product_id,
       variant_id: item.variant_id ?? null,
@@ -92,7 +96,8 @@ const useCartStore = create((set, get) => ({
    * @param {number} quantity
    */
   updateQuantity: (cart_item_id, quantity) => {
-    const { items, _storageKey } = get();
+    const { _storageKey } = get();
+    const items = readCart(_storageKey);
     const next =
       quantity <= 0
         ? items.filter((i) => i.cart_item_id !== cart_item_id)
@@ -105,11 +110,46 @@ const useCartStore = create((set, get) => ({
    * Hapus satu item dari keranjang.
    * @param {number} cart_item_id
    */
-  removeItem: (cart_item_id) => {
-    const { items, _storageKey } = get();
-    const next = items.filter((i) => i.cart_item_id !== cart_item_id);
+  removeItem: (cart_item_id) => get().removeItems([cart_item_id]),
+
+  /**
+   * Review c53a11c (M1/M2): hapus beberapa item (mis. item yang baru dipesan) dari keranjang aktif. Item lain —
+   * termasuk yang ditambahkan tab lain setelah checkout dimulai — tetap ada.
+   * @param {number[]} cartItemIds
+   */
+  removeItems: (cartItemIds) => {
+    const { _storageKey } = get();
+    const ids = new Set(cartItemIds);
+    const next = readCart(_storageKey).filter((i) => !ids.has(i.cart_item_id));
     writeCart(_storageKey, next);
     set({ items: next });
+  },
+
+  /**
+   * Review c53a11c (M1): hapus item dari keranjang MILIK pelanggan tertentu (pemilik pesanan yang sudah dibuat saat
+   * akun aktif berganti) tanpa mengganti atau mengubah keranjang aktif akun lain.
+   * @param {string|null} ownerId — null/tidak sah → tidak melakukan apa pun (tidak menyentuh keranjang tamu)
+   * @param {number[]} cartItemIds
+   */
+  removeItemsFromOwnerCart: (ownerId, cartItemIds) => {
+    if (!isValidUserId(ownerId)) return;
+    const key = userCartKey(ownerId);
+    if (key === get()._storageKey) {
+      get().removeItems(cartItemIds);
+      return;
+    }
+    const ids = new Set(cartItemIds);
+    writeCart(key, readCart(key).filter((i) => !ids.has(i.cart_item_id)));
+  },
+
+  /**
+   * Review c53a11c (M2): muat ulang keranjang AKTIF dari localStorage (ditulis tab lain). Hanya key aktif yang dibaca,
+   * jadi keranjang akun lain tidak pernah menggantikannya. Tidak menulis apa pun → tidak memicu event/loop.
+   */
+  reloadActiveCart: () => {
+    const { items, _storageKey } = get();
+    const fresh = readCart(_storageKey);
+    if (JSON.stringify(fresh) !== JSON.stringify(items)) set({ items: fresh });
   },
 
   /** Kosongkan keranjang (setelah checkout berhasil). */
@@ -172,7 +212,7 @@ const useCartStore = create((set, get) => ({
   addItemToOwnerCart: (ownerId, item) => {
     const key = isValidUserId(ownerId) ? userCartKey(ownerId) : GUEST_CART_KEY;
     const isActive = key === get()._storageKey;
-    const items = isActive ? get().items : readCart(key);
+    const items = readCart(key);
     const designId = item.design_id == null ? null : String(item.design_id);
     if (designId !== null && items.some((i) => i.design_id != null && String(i.design_id) === designId)) return true;
     if (isActive) return get().addItem(item);

@@ -8,9 +8,16 @@
 //                                 notifikasi sekali); fallback tamu hanya untuk operasi yang secara eksplisit
 //                                 `guestFallback`.
 //   - sesi sudah kosong         → 401: pesan kedaluwarsa (tanpa notifikasi kedua, tanpa fallback); respons dibuang.
-//   - sesi lain, pengguna sama  → respons sesi lama TIDAK dipakai; hanya GET yang dikirim (ulang) SEKALI di sesi aktif.
-//                                 POST/PUT/PATCH/DELETE ditolak (CLIENT_SESSION_CHANGED).
+//   - sesi lain, pengguna sama  → GET: respons sesi lama TIDAK dipakai, dikirim ulang SEKALI di sesi aktif.
+//                                 Sebelum dikirim, POST/PUT/PATCH/DELETE ditolak (CLIENT_SESSION_CHANGED).
 //   - sesi lain, pengguna lain/tidak diketahui → respons dibuang, tidak pernah diulang (CLIENT_SESSION_CHANGED).
+//   - Review c53a11c (M1): mutasi yang SUDAH diproses server (respons bukan 401 SESSION_INVALID) tidak dianggap gagal
+//     hanya karena token/epoch berganti. Pemilik transaksi = pengguna yang memulai request:
+//       · pemilik masih aktif (mis. keluar lalu masuk lagi)  → respons dipakai apa adanya (sukses atau gagal);
+//       · akun aktif berbeda / sudah keluar, respons sukses → hasil TIDAK diberikan ke pemanggil; apiClient
+//         merekonsiliasi state pemilik asli (`reconcileOwner`) lalu melempar CLIENT_SESSION_CHANGED_COMMITTED;
+//       · akun aktif berbeda, respons gagal                → CLIENT_SESSION_CHANGED (tidak ada yang tersimpan).
+//     Mutasi TIDAK PERNAH dikirim ulang otomatis.
 //   - request tanpa token (tamu/publik) → respons selalu dipakai (tidak ada identitas yang dilindungi).
 //   - perubahan profil saja (nama, email; token sama) bukan pergantian sesi (temuan M1).
 // Request yang ditolak dengan 401 SESSION_INVALID belum menulis data (middleware auth berjalan sebelum handler route).
@@ -22,13 +29,17 @@ import { getSessionEpoch } from './sessionScope';
 import { isSessionInvalidResponse, createApiError, canRetryWithReplacedSession } from '../utils/apiErrors';
 import { getSessionUserId } from '../utils/sessionIdentity';
 import {
-  SESSION_EXPIRED_MESSAGE, SESSION_CHANGED_MESSAGE, CLIENT_ERROR_CODE, HTTP_METHOD,
+  SESSION_EXPIRED_MESSAGE, SESSION_CHANGED_MESSAGE, SESSION_CHANGED_COMMITTED_MESSAGE, CLIENT_ERROR_CODE, HTTP_METHOD,
 } from '../constants/apiErrors';
+
+const SESSION_ERROR_MESSAGE = {
+  [CLIENT_ERROR_CODE.SESSION_CHANGED]: SESSION_CHANGED_MESSAGE,
+  [CLIENT_ERROR_CODE.SESSION_CHANGED_COMMITTED]: SESSION_CHANGED_COMMITTED_MESSAGE,
+};
 
 /** Error 401 sesi buatan frontend: pesan & kode (CLIENT_ERROR_CODE) selalu sepasang */
 export function sessionError(code) {
-  const message = code === CLIENT_ERROR_CODE.SESSION_CHANGED ? SESSION_CHANGED_MESSAGE : SESSION_EXPIRED_MESSAGE;
-  return createApiError(message, 401, code);
+  return createApiError(SESSION_ERROR_MESSAGE[code] ?? SESSION_EXPIRED_MESSAGE, 401, code);
 }
 
 /**
@@ -49,6 +60,11 @@ export function takeSessionSnapshot() {
 function isSameSession(snapshot, current) {
   return current.token === snapshot.token && current.epoch === snapshot.epoch;
 }
+
+const isMutation = (method) => String(method).toUpperCase() !== HTTP_METHOD.GET;
+
+/** Pemilik transaksi (pengguna yang memulai request ber-token) masih pengguna aktif tab ini */
+const isSameOwner = (snapshot, current) => snapshot.userId !== null && current.userId === snapshot.userId;
 
 /** Sesi berganti untuk pengguna yang SAMA: hanya GET yang boleh dijalankan (lagi) di sesi aktif */
 function canRunInReplacedSession(method, snapshot, current) {
@@ -128,7 +144,8 @@ function settleRetry(result, retrySnapshot) {
  * @param {{res, json}} result — respons pertama
  * @param {{token, userId, epoch}} snapshot — sesi saat request dikirim
  * @param {{method: string, guestFallback: boolean, resend: (token: string|null) => Promise<{res, json}>}} options
- * @returns {Promise<{res, json}>}
+ * @returns {Promise<{res, json, committedFor?: object|null}>} `committedFor` = pengguna pemilik mutasi yang sudah
+ *   berhasil, bila akun aktif kini berbeda (M1) — apiClient tidak mengembalikan hasilnya ke pemanggil
  */
 export async function settleResponse(result, snapshot, { method, guestFallback, resend }) {
   // Request tanpa token (tamu/publik) tidak membawa identitas → hasilnya sah walau sesi berubah saat berjalan
@@ -145,8 +162,9 @@ export async function settleResponse(result, snapshot, { method, guestFallback, 
     if (!guestFallback) throw sessionError(CLIENT_ERROR_CODE.SESSION_EXPIRED);
     const guestResult = await resend(null); // satu kali, tanpa token
     syncSessionFromStorage();
-    // Pengguna lain masuk saat fallback berjalan → hasil tamu tidak boleh masuk ke sesi barunya
-    if (takeSessionSnapshot().token) throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED);
+    // Pengguna lain masuk saat fallback berjalan: hasil tamu yang SUDAH tersimpan tetap dikembalikan (request tamu tidak
+    // membawa identitas; pemanggil menentukan keranjangnya, mis. customCakeCartService). Hasil gagal tidak ditampilkan.
+    if (takeSessionSnapshot().token && !guestResult.res.ok) throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED);
     return guestResult;
   }
 
@@ -156,13 +174,20 @@ export async function settleResponse(result, snapshot, { method, guestFallback, 
     throw sessionError(CLIENT_ERROR_CODE.SESSION_EXPIRED);
   }
 
+  // M1: mutasi sudah diproses server → tidak diulang, tidak dianggap gagal hanya karena sesi berganti
+  if (!invalid && isMutation(method)) {
+    if (isSameOwner(snapshot, current)) return result;
+    if (!result.res.ok) throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED);
+    return { ...result, committedFor: snapshot.user };
+  }
+
   // Sesi sudah kosong (kedaluwarsa oleh request lain / logout di tab lain): tidak ada fallback, respons lama dibuang
   if (!current.token) {
     throw sessionError(invalid ? CLIENT_ERROR_CODE.SESSION_EXPIRED : CLIENT_ERROR_CODE.SESSION_CHANGED);
   }
 
-  // L6: sesi yang memulai request tidak aktif lagi → responsnya TIDAK dipakai walau id pengguna sama.
-  // Hanya GET milik pengguna yang sama yang dikirim ulang SEKALI di sesi aktif.
+  // L6: sesi yang memulai GET tidak aktif lagi → responsnya TIDAK dipakai walau id pengguna sama; GET milik pengguna
+  // yang sama dikirim ulang SEKALI di sesi aktif. Mutasi yang ditolak 401 belum tersimpan dan tidak diulang.
   if (!canRunInReplacedSession(method, snapshot, current)) throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED);
   return settleRetry(await resend(current.token), current);
 }

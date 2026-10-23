@@ -43,7 +43,7 @@ const { startSessionSync, syncSessionFromStorage } = await import('../../src/ser
 const { default: useAuthStore } = await import('../../src/stores/useAuthStore.js');
 const { default: useCartStore } = await import('../../src/stores/useCartStore.js');
 const {
-  CLIENT_ERROR_CODE, API_ERROR_CODE, SESSION_EXPIRED_MESSAGE, SESSION_CHANGED_MESSAGE,
+  CLIENT_ERROR_CODE, API_ERROR_CODE, SESSION_EXPIRED_MESSAGE, SESSION_CHANGED_MESSAGE, SESSION_CHANGED_COMMITTED_MESSAGE,
 } = await import('../../src/constants/apiErrors.js');
 const { AUTH_PERSIST_KEY, AUTH_TOKEN_STORAGE_KEY } = await import('../../src/constants/auth.js');
 
@@ -53,6 +53,10 @@ const SESSION_INVALID = {
 };
 const EXPIRED = { status: 401, code: CLIENT_ERROR_CODE.SESSION_EXPIRED, message: SESSION_EXPIRED_MESSAGE };
 const CHANGED = { status: 401, code: CLIENT_ERROR_CODE.SESSION_CHANGED, message: SESSION_CHANGED_MESSAGE };
+// Review c53a11c (M1): mutasi sudah berhasil untuk akun sebelumnya → kode berbeda, hasil tetap tidak dikembalikan
+const COMMITTED = {
+  status: 401, code: CLIENT_ERROR_CODE.SESSION_CHANGED_COMMITTED, message: SESSION_CHANGED_COMMITTED_MESSAGE,
+};
 
 const customer = (id) => ({ user_id: id, role: 'customer' });
 const authOf = (index) => calls[index].init.headers.Authorization;
@@ -260,7 +264,11 @@ test('F5: ulangan 401 tetapi pengguna B masuk di tab lain selama ulangan → ses
 });
 
 test('F6: POST /custom-cake-designs (foto) milik A — 401 atau 201 setelah B masuk → tidak diulang dengan token B, hasil A tidak masuk sesi B', async () => {
-  for (const response of [SESSION_INVALID, { status: 201, body: { data: { design_id: '1000001', design_token: null } } }]) {
+  const cases = [
+    [SESSION_INVALID, CHANGED],
+    [{ status: 201, body: { data: { design_id: '1000001', design_token: null } } }, COMMITTED],
+  ];
+  for (const [response, expected] of cases) {
     calls.length = 0;
     thisTabLogin('1', 'jwt-A');
     const form = new FormData();
@@ -268,7 +276,7 @@ test('F6: POST /custom-cake-designs (foto) milik A — 401 atau 201 setelah B ma
     form.append('referencePhoto', new Blob([new Uint8Array([0xff, 0xd8, 0xff])], { type: 'image/jpeg' }), 'a.jpg');
     scriptFetch([{ before: () => { otherTabLogin('2', 'jwt-B')(); deliverStorageEvent(); }, ...response }]);
 
-    await assert.rejects(apiClient('/custom-cake-designs', { method: 'POST', body: form, guestFallback: true }), CHANGED);
+    await assert.rejects(apiClient('/custom-cake-designs', { method: 'POST', body: form, guestFallback: true }), expected);
     assert.equal(calls.length, 1);
     assert.ok(!calls.some((c) => c.init.headers.Authorization === 'Bearer jwt-B'));
     assert.equal(useAuthStore.getState().token, 'jwt-B');
@@ -294,16 +302,27 @@ test('F6: fallback tamu tidak dipakai bila sesi sudah dihapus oleh tab/request L
   assert.equal(calls.length, 1);
 });
 
-test('F6: pengguna lain masuk saat fallback tamu berjalan → hasil tamu tidak dikembalikan ke sesi barunya', async () => {
+test('F6 (M1): pengguna lain masuk saat fallback tamu berjalan → hasil TAMU yang tersimpan tetap hasil tamu; gagal → ditolak', async () => {
   thisTabLogin('1', 'jwt-A');
   scriptFetch([
     { ...SESSION_INVALID },
     { before: () => { otherTabLogin('2', 'jwt-B')(); deliverStorageEvent(); }, status: 201, body: { data: { design_id: '9' } } },
   ]);
 
-  await assert.rejects(apiClient('/custom-cake-designs', { method: 'POST', body: {}, guestFallback: true }), CHANGED);
+  // Request tamu tanpa token: pemanggil (customCakeCartService) yang menentukan keranjangnya, bukan sesi B
+  assert.deepEqual(await apiClient('/custom-cake-designs', { method: 'POST', body: {}, guestFallback: true }), { design_id: '9' });
+  assert.equal(calls.length, 2);
   assert.equal(authOf(1), undefined);
   assert.equal(useAuthStore.getState().token, 'jwt-B');
+
+  calls.length = 0;
+  thisTabLogin('1', 'jwt-A');
+  scriptFetch([
+    { ...SESSION_INVALID },
+    { before: () => { otherTabLogin('2', 'jwt-B')(); deliverStorageEvent(); }, status: 400, body: { message: 'tidak valid' } },
+  ]);
+  await assert.rejects(apiClient('/custom-cake-designs', { method: 'POST', body: {}, guestFallback: true }), CHANGED);
+  assert.equal(calls.length, 2);
 });
 
 test('F8: keranjang pelanggan B tidak dihapus, ditimpa, atau dikirim atas nama A oleh request keranjang A yang terlambat', async () => {
@@ -313,12 +332,12 @@ test('F8: keranjang pelanggan B tidak dihapus, ditimpa, atau dikirim atas nama A
   const cartB = JSON.stringify([{ cart_item_id: 5, product_id: 7, quantity: 2 }]);
   store.set('ovenco_mock_cart_2', cartB);
 
-  for (const response of [SESSION_INVALID, { status: 200, body: { data: { lines: itemsA } } }]) {
+  for (const [response, expected] of [[SESSION_INVALID, CHANGED], [{ status: 200, body: { data: { lines: itemsA } } }, COMMITTED]]) {
     calls.length = 0;
     thisTabLogin('1', 'jwt-A');
     scriptFetch([{ before: () => { otherTabLogin('2', 'jwt-B')(); deliverStorageEvent(); }, ...response }]);
 
-    await assert.rejects(apiClient('/cart', { method: 'POST', body: { items: itemsA } }), CHANGED);
+    await assert.rejects(apiClient('/cart', { method: 'POST', body: { items: itemsA } }), expected);
     assert.equal(calls.length, 1);
     assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_2');
     assert.deepEqual(useCartStore.getState().items.map((i) => i.product_id), [7]);
@@ -353,7 +372,11 @@ test('F9: request bersamaan dengan token kedaluwarsa → semua pesan & kode EXPI
 });
 
 test('F9: kode sesi buatan frontend stabil & tidak bentrok dengan kode server', () => {
-  assert.deepEqual(CLIENT_ERROR_CODE, { SESSION_EXPIRED: 'CLIENT_SESSION_EXPIRED', SESSION_CHANGED: 'CLIENT_SESSION_CHANGED' });
+  assert.deepEqual(CLIENT_ERROR_CODE, {
+    SESSION_EXPIRED: 'CLIENT_SESSION_EXPIRED',
+    SESSION_CHANGED: 'CLIENT_SESSION_CHANGED',
+    SESSION_CHANGED_COMMITTED: 'CLIENT_SESSION_CHANGED_COMMITTED',
+  });
   assert.ok(!Object.values(API_ERROR_CODE).some((code) => Object.values(CLIENT_ERROR_CODE).includes(code)));
 });
 

@@ -44,6 +44,11 @@ export function isMissingResourceError(error) {
   return error?.status === 404 || (error?.status === 400 && error?.code === API_ERROR_CODE.INVALID_ID);
 }
 
+/** M1: mutasi sudah berhasil untuk akun sebelumnya (bukan kegagalan transaksi) — ditampilkan sebagai info */
+export function isCommittedForOtherSessionError(error) {
+  return error?.code === CLIENT_ERROR_CODE.SESSION_CHANGED_COMMITTED;
+}
+
 /** Error sesi buatan frontend (berakhir/berganti) — data milik sesi sebelumnya harus dibuang (useServiceQuery) */
 export function isSessionError(error) {
   return Object.values(CLIENT_ERROR_CODE).includes(error?.code);

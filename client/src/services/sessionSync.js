@@ -67,8 +67,15 @@ export function syncSessionFromStorage() {
   return { changed: true, ...describeSessionChange(before, after) };
 }
 
+/** Sesi lalu keranjang aktif disamakan dengan isi localStorage terbaru (kembali ke tab, pageshow, clear()) */
+function syncAllFromStorage() {
+  syncSessionFromStorage();
+  useCartStore.getState().reloadActiveCart();
+}
+
 /**
  * Pasang pendengar sinkronisasi (hanya browser).
+ * Review c53a11c (M2): event `storage` untuk key keranjang AKTIF tab ini memuat ulang keranjang dari localStorage.
  * @param {{win?: object|null, doc?: object|null}} [targets] — default window & document; null di Node/SSR
  * @returns {() => void} pelepas semua pendengar
  */
@@ -81,9 +88,12 @@ export function startSessionSync({
   if (win?.addEventListener) {
     const onStorage = (event) => {
       // key null = localStorage.clear() di tab lain
-      if (event.key === AUTH_PERSIST_KEY || event.key === null) syncSessionFromStorage();
+      if (event.key === null) syncAllFromStorage();
+      else if (event.key === AUTH_PERSIST_KEY) syncSessionFromStorage();
+      // Key dibandingkan SETELAH sesi disamakan: hanya keranjang milik identitas aktif yang dimuat ulang
+      else if (event.key === useCartStore.getState()._storageKey) useCartStore.getState().reloadActiveCart();
     };
-    const onPageShow = () => syncSessionFromStorage();
+    const onPageShow = () => syncAllFromStorage();
     win.addEventListener('storage', onStorage);
     win.addEventListener('pageshow', onPageShow);
     cleanups.push(() => win.removeEventListener('storage', onStorage));
@@ -92,7 +102,7 @@ export function startSessionSync({
 
   if (doc?.addEventListener) {
     const onVisibility = () => {
-      if (doc.visibilityState === 'visible') syncSessionFromStorage();
+      if (doc.visibilityState === 'visible') syncAllFromStorage();
     };
     doc.addEventListener('visibilitychange', onVisibility);
     cleanups.push(() => doc.removeEventListener('visibilitychange', onVisibility));

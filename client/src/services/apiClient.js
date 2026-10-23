@@ -4,8 +4,9 @@
 // Step 6.3: body FormData (unggah foto). Token request HANYA dari useAuthStore (satu sumber); identitas request
 // dijaga services/sessionRecovery.js (sinkron antar-tab, 401 kedaluwarsa, respons dari identitas lama dibuang).
 
-import { prepareRequestSession, settleResponse, runMockRequest } from './sessionRecovery';
+import { prepareRequestSession, settleResponse, runMockRequest, sessionError } from './sessionRecovery';
 import { createApiError } from '../utils/apiErrors';
+import { CLIENT_ERROR_CODE } from '../constants/apiErrors';
 import { resolveUploadUrl } from '../utils/uploadUrl';
 
 // `?? {}`: import.meta.env hanya ada di Vite; fallback agar modul bisa diuji di Node (tests/unit)
@@ -47,10 +48,16 @@ async function send(path, { method, body, token }) {
  * @param {Function} [options.mockHandler] - fungsi async mock(body, { sessionUser }) → data
  * @param {boolean} [options.guestFallback] - kebijakan eksplisit per operasi: bila sesi request ini kedaluwarsa,
  *   kirim ulang SEKALI tanpa token. Hanya untuk endpoint tamu yang body-nya tetap aman sebagai request tamu.
+ * @param {(data: any, ownerUser: object|null) => void} [options.reconcileOwner] - Review c53a11c (M1): mutasi SUDAH
+ *   berhasil di server untuk `ownerUser`, tetapi akun aktif kini berbeda / sudah keluar. Dipanggil untuk merapikan
+ *   state milik pemilik asli (mis. keranjangnya) TANPA menyentuh state akun aktif; lalu apiClient melempar
+ *   CLIENT_SESSION_CHANGED_COMMITTED sehingga hasilnya tidak ditampilkan ke akun aktif.
  * @returns {Promise<any>}       - data response (sudah di-unwrap)
  * @throws {Error}               - pesan error dari server / mock; error sesi ber-kode CLIENT_ERROR_CODE
  */
-export async function apiClient(path, { method = 'GET', body, mockHandler, guestFallback = false } = {}) {
+export async function apiClient(
+  path, { method = 'GET', body, mockHandler, guestFallback = false, reconcileOwner } = {},
+) {
   if (USE_MOCK) {
     if (!mockHandler) {
       throw new Error(`[Mock] Tidak ada handler untuk ${method} ${path}`);
@@ -66,11 +73,20 @@ export async function apiClient(path, { method = 'GET', body, mockHandler, guest
   const snapshot = prepareRequestSession(method);
   const first = await send(path, { method, body, token: snapshot.token });
 
-  const { res, json } = await settleResponse(first, snapshot, {
+  const { res, json, committedFor } = await settleResponse(first, snapshot, {
     method,
     guestFallback,
     resend: (token) => send(path, { method, body, token }),
   });
+
+  if (committedFor !== undefined) {
+    try {
+      reconcileOwner?.(json.data ?? json, committedFor);
+    } catch {
+      // Rekonsiliasi lokal gagal (mis. penyimpanan penuh) tidak mengubah fakta bahwa transaksi sudah tersimpan
+    }
+    throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED_COMMITTED);
+  }
 
   if (!res.ok) {
     // Kode HTTP & kode aplikasi (constants/apiErrors) disertakan agar service bisa membedakan

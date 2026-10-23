@@ -78,15 +78,18 @@ function toDesignRequestBody(design) {
  * Simpan desain custom cake (dipanggil saat Tambah ke Keranjang).
  * Pengunjung boleh mendesain (user_id kosong bila tamu).
  * @param {{selections, writingText, writingColor, referencePhoto, readyDate}} design
+ * @param {{reconcileOwner?: (saved: object, ownerUser: object|null) => void}} [options] — Review c53a11c (M1):
+ *   desain akun SUDAH tersimpan tetapi akun aktif berganti (lihat apiClient)
  * @returns {Promise<{design_id, price, ready_date, design_token}>} design_token hanya untuk desain tamu (mode API)
  */
-export function createCustomCakeDesign(design) {
+export function createCustomCakeDesign(design, { reconcileOwner } = {}) {
   return apiClient('/custom-cake-designs', {
     method: 'POST',
     body: USE_MOCK ? design : toDesignRequestBody(design),
     // Step 6.3: kebijakan eksplisit — desain tidak terikat akun, jadi bila sesi INI kedaluwarsa desain disimpan
     // sekali sebagai desain tamu (dengan design_token). Tidak pernah dikirim ulang dengan token pengguna lain.
     guestFallback: true,
+    reconcileOwner,
     mockHandler: (_body, { sessionUser = null } = {}) => createMockCustomCakeDesign(design, sessionUser),
   });
 }
