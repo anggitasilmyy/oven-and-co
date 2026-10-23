@@ -41,7 +41,10 @@ export async function apiClient(path, { method = 'GET', body, mockHandler } = {}
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(json.message ?? `HTTP ${res.status}`);
+    const error = new Error(json.message ?? `HTTP ${res.status}`);
+    // Kode HTTP disertakan agar service bisa membedakan "tidak ditemukan" (404) dari gangguan lain
+    error.status = res.status;
+    throw error;
   }
   return json.data ?? json;
 }

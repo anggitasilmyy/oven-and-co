@@ -70,5 +70,6 @@ export function getCustomCakeInfo() {
       );
       return product ? toProductView(product, ctx) : null;
     },
-  });
+    // API mengembalikan array produk (GET /products?type=custom); banner hanya butuh produk pertama
+  }).then((result) => (Array.isArray(result) ? result[0] ?? null : result));
 }

@@ -60,7 +60,7 @@ export function getCustomCakeBuilder() {
  * Simpan desain custom cake (dipanggil saat Tambah ke Keranjang).
  * Pengunjung boleh mendesain (user_id kosong bila tamu).
  * @param {{selections, writingText, writingColor, referencePhoto, readyDate}} design
- * @returns {Promise<{design_id, price, ready_date}>}
+ * @returns {Promise<{design_id, price, ready_date, design_token}>} design_token hanya untuk desain tamu (mode API)
  */
 export function createCustomCakeDesign(design) {
   return apiClient('/custom-cake-designs', {
@@ -97,7 +97,8 @@ export function createCustomCakeDesign(design) {
         ...rows,
         ...selected.map((o) => ({ design_id: row.design_id, option_id: o.option_id })),
       ]);
-      return { design_id: row.design_id, price: row.price, ready_date: row.ready_date };
+      // Mode mock tidak memakai token akses desain tamu (mode API: string HMAC untuk desain tamu)
+      return { design_id: row.design_id, price: row.price, ready_date: row.ready_date, design_token: null };
     },
   });
 }

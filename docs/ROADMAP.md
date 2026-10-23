@@ -194,6 +194,28 @@ Catatan khusus:
   rujukan di pesanan lama tidak dikosongkan) kecuali tabel penghubung M:N & `cart_items` (`CASCADE`); tidak ada UNIQUE
   di luar SPEC (mis. `order_items.design_id`). Seed pilihan A: data master SPEC §9/§10 + 9 pesanan contoh (semua status,
   termasuk OVC-261012-018), id tetap, `upsert` tanpa menimpa (idempoten). `BigInt`/`Decimal` perlu serializer di 6.2+.
+- 6.3 (sebagian, belum selesai): produk, kategori, opsi custom, simpan desain, `POST /api/cart`, `GET /api/checkout/context`.
+  Pesanan, ulasan, akun (`/me/*`), keranjang persisten & gabung keranjang setelah login masih dikerjakan.
+  Uji server tanpa MySQL: `cd server && npm test` (Prisma dipalsukan).
+  - Aturan eksplisit SPEC yang dipakai: custom cake ≥ H+3 dan pre-order ≥ H-1 dengan batas jam pesan (BR-02),
+    catatan item ≤ 255 karakter (SPEC §8), batas jam pre-order 17.00 (SPEC §10, OI-04). "Hari ini" selalu WIB
+    (Asia/Jakarta) di server (`server/src/utils/jakartaDate.js`).
+  - **Asumsi prototype (bukan persyaratan dokumen)**, nilainya sama di client & server:
+
+    | Batas | Nilai | Client | Server |
+    |---|---|---|---|
+    | Tanggal pre-order paling lambat | hari ini + 13 (jendela 14 hari) | `constants/productDetail.js` `PREORDER_DATE_WINDOW_DAYS` | `utils/businessConstants.js` — di luar jendela: `date_out_of_range` |
+    | Tanggal custom cake paling lambat | hari ini + 29 (jendela 30 hari) | `constants/customCake.js` `CUSTOM_CAKE_DATE_WINDOW_DAYS` | ditolak 400 saat desain disimpan |
+    | Jumlah per baris keranjang | 99 unit | `constants/cart.js` `CART_LINE_MAX_QUANTITY` | baris ditandai `quantity_exceeds_limit` (tidak dipotong, request tidak gagal) |
+    | Baris keranjang | 50 item berbeda | `constants/cart.js` `CART_MAX_LINES` (tambah item ditolak dengan pesan) | `exceeds_line_limit: true`, checkout diblokir; request > 100 item ditolak 400 |
+
+  - Desain custom cake: desain milik pelanggan hanya untuk pemiliknya; desain tamu (`user_id` kosong) hanya dengan
+    `design_token` HMAC-SHA256 yang dikembalikan `POST /api/custom-cake-designs` (tanpa kolom baru; kunci
+    `DESIGN_TOKEN_SECRET` atau turunan `JWT_SECRET`). Kebijakan sekali pakai: desain yang pernah masuk pesanan tidak
+    bisa dipakai lagi, termasuk bila pesanan dibatalkan. Desain dengan tanggal siap < H+3 ditolak (`design_expired`).
+  - Untuk Phase berikutnya (gabung keranjang setelah login): `selectClaimableGuestDesignIds()` di
+    `server/src/services/designAccess.service.js` memilih desain tamu yang aman diklaim (token valid, belum dipesan);
+    penulisan `user_id` dilakukan dengan `updateMany` bersyarat `user_id IS NULL`.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

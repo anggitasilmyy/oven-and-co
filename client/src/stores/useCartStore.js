@@ -10,7 +10,7 @@
 import { create } from 'zustand';
 // Step 5.1 (review PR #5): identitas item (termasuk tanggal pre-order & catatan) dan id unik
 // diatur fungsi murni di utils/rules/cart.js — dipakai addItem dan mergeGuestCart.
-import { mergeCartItems, normalizeCartItems } from '../utils/rules/cart';
+import { mergeCartItems, normalizeCartItems, wouldExceedLineLimit } from '../utils/rules/cart';
 
 /** Key localStorage keranjang tamu */
 const GUEST_CART_KEY = 'ovenco_mock_cart_guest';
@@ -53,20 +53,27 @@ const useCartStore = create((set, get) => ({
 
   /**
    * Tambah item ke keranjang.
-   * @param {{product_id, variant_id?, design_id?, quantity, note?, preferred_date?}} item
+   * @param {{product_id, variant_id?, design_id?, design_token?, quantity, note?, preferred_date?}} item
+   * @returns {boolean} false bila ditolak karena keranjang sudah berisi CART_MAX_LINES item berbeda (Step 6.3)
    */
   addItem: (item) => {
     const { items, _storageKey } = get();
+    const entry = {
+      product_id: item.product_id,
+      variant_id: item.variant_id ?? null,
+      design_id: item.design_id ?? null,
+      preferred_date: item.preferred_date ?? null,
+      note: item.note ?? '',
+    };
+    if (wouldExceedLineLimit(items, entry)) return false;
     // Item dengan produk, varian, desain, tanggal pre-order, dan catatan yang sama dijumlahkan;
     // selain itu menjadi item baru dengan cart_item_id unik.
     const next = mergeCartItems(items, [
       {
-        product_id: item.product_id,
-        variant_id: item.variant_id ?? null,
-        design_id: item.design_id ?? null,
+        ...entry,
+        // Step 6.3: bukti akses desain custom cake tamu (dari POST /custom-cake-designs)
+        design_token: item.design_token ?? null,
         quantity: item.quantity ?? 1,
-        note: item.note ?? '',
-        preferred_date: item.preferred_date ?? null,
         // Snapshot harga & nama untuk tampilan keranjang (diisi caller)
         name: item.name ?? '',
         price: item.price ?? 0,
@@ -75,6 +82,7 @@ const useCartStore = create((set, get) => ({
     ]);
     writeCart(_storageKey, next);
     set({ items: next });
+    return true;
   },
 
   /**

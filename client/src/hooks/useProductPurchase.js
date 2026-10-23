@@ -8,6 +8,7 @@ import useCartStore from '../stores/useCartStore';
 import { getMaxAddableQuantity, clampQuantity, isSelectableDate } from '../utils/businessRules';
 import { AVAILABILITY_TYPE } from '../constants/product';
 import { NON_STOCK_MAX_QUANTITY } from '../constants/productDetail';
+import { CART_LINE_LIMIT_MESSAGE } from '../constants/cart';
 
 /** Jumlah produk ini di keranjang (semua varian) */
 const quantityInCart = (items, productId) =>
@@ -53,7 +54,7 @@ export default function useProductPurchase(product, notify) {
       notify('error', blockedReason ?? `Stok ${product.name} hari ini tinggal ${product.remaining_today}.`);
       return;
     }
-    addItem({
+    const added = addItem({
       product_id: product.product_id,
       variant_id: variant?.variant_id ?? null,
       quantity,
@@ -63,6 +64,10 @@ export default function useProductPurchase(product, notify) {
       price: unitPrice,
       image_url: product.image_url,
     });
+    if (!added) {
+      notify('error', CART_LINE_LIMIT_MESSAGE);
+      return;
+    }
     notify('success', 'Ditambahkan ke keranjang');
     setQuantity(1);
     setNote('');

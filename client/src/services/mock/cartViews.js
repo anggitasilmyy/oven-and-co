@@ -6,6 +6,7 @@ import { getTables } from './db';
 import { getMockTodayKey, getMockCurrentTime } from './mockClock';
 import { getRemainingStock, getCartItemReadyDate } from '../../utils/businessRules';
 import { AVAILABILITY_TYPE } from '../../constants/product';
+import { CART_LINE_MAX_QUANTITY, CART_UNAVAILABLE_REASON } from '../../constants/cart';
 
 export const CART_VIEW_TABLES = [
   'products', 'product_images', 'product_variants', 'daily_stocks', 'store_settings',
@@ -36,9 +37,17 @@ export function buildCartLines(items, tables = getTables(...CART_VIEW_TABLES)) {
     const variant = item.variant_id ? tables.product_variants.find((v) => v.variant_id === item.variant_id) : null;
     const design = item.design_id ? tables.custom_cake_designs.find((d) => d.design_id === item.design_id) : null;
     const isCustom = product?.availability_type === AVAILABILITY_TYPE.CUSTOM;
-    const available = Boolean(
-      product?.is_active && (!item.variant_id || variant?.is_active) && (!isCustom || design)
-    );
+    // Step 6.3: alasan sama dengan API (constants/cart.js); jumlah > batas ditandai, tidak dipotong
+    const unavailableReason = !product?.is_active
+      ? CART_UNAVAILABLE_REASON.PRODUCT_UNAVAILABLE
+      : item.variant_id && !variant?.is_active
+        ? CART_UNAVAILABLE_REASON.VARIANT_UNAVAILABLE
+        : isCustom && !design
+          ? CART_UNAVAILABLE_REASON.DESIGN_NOT_FOUND
+          : item.quantity > CART_LINE_MAX_QUANTITY
+            ? CART_UNAVAILABLE_REASON.QUANTITY_EXCEEDS_LIMIT
+            : null;
+    const available = unavailableReason === null;
     const unitPrice = isCustom ? design?.price ?? item.price : (product?.price ?? item.price) + (variant?.extra_price ?? 0);
     const stock = tables.daily_stocks.find((s) => s.product_id === item.product_id && s.stock_date === todayKey);
     const image = tables.product_images
@@ -61,6 +70,7 @@ export function buildCartLines(items, tables = getTables(...CART_VIEW_TABLES)) {
       remaining_today: product?.availability_type === AVAILABILITY_TYPE.READY ? getRemainingStock(stock) : null,
       ready_date: product ? getCartItemReadyDate(item, product, now, tables.store_settings) : todayKey,
       available,
+      unavailable_reason: unavailableReason,
     };
   });
 }

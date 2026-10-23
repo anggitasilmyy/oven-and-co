@@ -6,6 +6,12 @@
 //   - Catatan berbeda → item terpisah, agar catatan tidak tertimpa atau tercampur saat digabung.
 //   - Semua atribut sama → jumlah dijumlahkan.
 // Item lama di localStorage (tanpa preferred_date/note) dibaca sebagai null/'' sehingga tetap kompatibel.
+//
+// Step 6.3: design_token (bukti akses desain custom cake tamu) ikut disimpan, bukan bagian identitas item.
+// Penggabungan TIDAK memotong jumlah > CART_LINE_MAX_QUANTITY maupun baris > CART_MAX_LINES; keranjang menandai
+// baris/keranjang tersebut agar pelanggan menyesuaikan sendiri sebelum checkout.
+
+import { CART_LINE_MAX_QUANTITY, CART_MAX_LINES, CART_UNAVAILABLE_REASON } from '../../constants/cart';
 
 /** Lengkapi field opsional dengan nilai default (kompatibel dengan keranjang lama) */
 export function normalizeCartItem(item) {
@@ -13,6 +19,7 @@ export function normalizeCartItem(item) {
     ...item,
     variant_id: item.variant_id ?? null,
     design_id: item.design_id ?? null,
+    design_token: item.design_token ?? null,
     preferred_date: item.preferred_date ?? null,
     note: String(item.note ?? '').trim(),
   };
@@ -61,11 +68,43 @@ export function mergeCartItems(base, incoming) {
     const item = normalizeCartItem(raw);
     const idx = result.findIndex((r) => cartItemKey(r) === cartItemKey(item));
     if (idx !== -1) {
-      result[idx] = { ...result[idx], quantity: result[idx].quantity + (item.quantity ?? 1) };
+      result[idx] = {
+        ...result[idx],
+        quantity: result[idx].quantity + (item.quantity ?? 1),
+        design_token: result[idx].design_token ?? item.design_token,
+      };
     } else {
       const idTaken = !Number.isFinite(item.cart_item_id) || result.some((r) => r.cart_item_id === item.cart_item_id);
       result.push({ ...item, quantity: item.quantity ?? 1, cart_item_id: idTaken ? nextCartItemId(result) : item.cart_item_id });
     }
   }
   return result;
+}
+
+/** true bila menambah `item` membuat baris baru melewati CART_MAX_LINES (menambah jumlah baris lama tetap boleh) */
+export function wouldExceedLineLimit(items, item, maxLines = CART_MAX_LINES) {
+  const current = normalizeCartItems(items);
+  const key = cartItemKey(item);
+  return !current.some((i) => cartItemKey(i) === key) && current.length >= maxLines;
+}
+
+/** Keranjang (mis. hasil gabung keranjang tamu) berisi lebih dari CART_MAX_LINES baris */
+export function exceedsLineLimit(items, maxLines = CART_MAX_LINES) {
+  return Array.isArray(items) && items.length > maxLines;
+}
+
+/**
+ * Terapkan jumlah terbaru dari store pada baris hasil service (service bisa masih memuat ulang):
+ * jumlah > CART_LINE_MAX_QUANTITY langsung ditandai; tanda batas jumlah lama dilepas bila sudah disesuaikan.
+ */
+export function applyLineQuantity(line, quantity, maxQuantity = CART_LINE_MAX_QUANTITY) {
+  const next = { ...line, quantity, line_total: line.unit_price * quantity };
+  const overLimit = quantity > maxQuantity;
+  if (overLimit && line.available) {
+    return { ...next, available: false, unavailable_reason: CART_UNAVAILABLE_REASON.QUANTITY_EXCEEDS_LIMIT };
+  }
+  if (!overLimit && line.unavailable_reason === CART_UNAVAILABLE_REASON.QUANTITY_EXCEEDS_LIMIT) {
+    return { ...next, available: true, unavailable_reason: null };
+  }
+  return next;
 }

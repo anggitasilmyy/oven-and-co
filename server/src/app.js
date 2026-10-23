@@ -5,7 +5,12 @@ const cors = require('cors');
 const authRoutes = require('./routes/customer/auth.routes');
 const categoryRoutes = require('./routes/customer/category.routes');
 const productRoutes = require('./routes/customer/product.routes');
+const customOptionsRoutes = require('./routes/customer/customOptions.routes');
+const customCakeDesignRoutes = require('./routes/customer/customCakeDesign.routes');
+const cartRoutes = require('./routes/customer/cart.routes');
+const checkoutRoutes = require('./routes/customer/checkout.routes');
 const adminOrderRoutes = require('./routes/admin/order.routes');
+
 const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
@@ -31,14 +36,18 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// Auth API — Step 6.2
+// Auth API
 app.use('/api/auth', authRoutes);
 
-// Customer API — Step 6.3
+// Customer API
 app.use('/api/categories', categoryRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/custom-options', customOptionsRoutes);
+app.use('/api/custom-cake-designs', customCakeDesignRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/checkout', checkoutRoutes);
 
-// Admin API — Step 6.4.1
+// Admin API
 app.use('/api/admin/orders', adminOrderRoutes);
 
 // 404 handler

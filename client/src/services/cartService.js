@@ -5,11 +5,12 @@
 import { apiClient } from './apiClient';
 import { getMockTodayKey } from './mock/mockClock';
 import { buildCartLines } from './mock/cartViews';
-import { findStockIssues, getCombinedReadyDate } from '../utils/businessRules';
+import { findStockIssues, getCombinedReadyDate, exceedsLineLimit } from '../utils/businessRules';
+import { CART_MAX_LINES } from '../constants/cart';
 
 /**
  * @param {Array} items — item useCartStore
- * @returns {Promise<{lines, subtotal, ready_date, today_key, stock_issues}>}
+ * @returns {Promise<{lines, subtotal, ready_date, today_key, stock_issues, line_limit, exceeds_line_limit}>}
  */
 export function getCartView(items) {
   return apiClient('/cart', {
@@ -25,6 +26,9 @@ export function getCartView(items) {
         ready_date: getCombinedReadyDate(valid.map((l) => l.ready_date)),
         today_key: getMockTodayKey(),
         stock_issues: findStockIssues(valid),
+        // Step 6.3: sama dengan API — keranjang > batas baris tetap tampil, checkout diblokir
+        line_limit: CART_MAX_LINES,
+        exceeds_line_limit: exceedsLineLimit(items),
       };
     },
   });

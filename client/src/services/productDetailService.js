@@ -46,5 +46,9 @@ export function getProductDetail(productId) {
         review_preview: reviews.slice(0, REVIEW_PREVIEW_LIMIT),
       };
     },
+  }).catch((err) => {
+    // API mengembalikan 404 untuk produk tidak ada/nonaktif → sama dengan mock (null = "tidak ditemukan")
+    if (err.status === 404) return null;
+    throw err;
   });
 }

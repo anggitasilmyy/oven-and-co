@@ -10,8 +10,9 @@ import { buildCartLines, CART_VIEW_TABLES } from './cartViews';
 import { addStockSold, paymentCodeFor, randomDigits, recordOrderStatus } from './orderEffects';
 import {
   buildCheckoutQuote, findStockIssues, distanceKm, getTimeSlotOptions, nextOrderNumber, getPointBalance,
-  getOperatingHoursFor,
+  getOperatingHoursFor, exceedsLineLimit,
 } from '../../utils/businessRules';
+import { CART_LINE_LIMIT_MESSAGE } from '../../constants/cart';
 import { ORDER_STATUS, PAYMENT_STATUS, PAYMENT_OPTION, FULFILLMENT_TYPE } from '../../constants/orderStatus';
 import { TIME_SLOTS, PAY_AT_STORE_METHOD, VOUCHER_INVALID_TEXT, PAY_AT_STORE_DISABLED_TEXT } from '../../constants/checkout';
 import { AVAILABILITY_TYPE } from '../../constants/product';
@@ -22,6 +23,8 @@ const fail = (message) => { throw new Error(message); };
 function validate(user, input, t) {
   const lines = buildCartLines(input.items, t);
   if (lines.length === 0) fail('Keranjang masih kosong');
+  // Step 6.3: batas baris keranjang (asumsi prototype) juga ditegakkan saat pesanan dibuat
+  if (exceedsLineLimit(input.items)) fail(CART_LINE_LIMIT_MESSAGE);
   if (lines.some((l) => !l.available)) fail('Ada produk yang sudah tidak tersedia. Hapus dari keranjang.');
   if (findStockIssues(lines).length) fail('Stok produk ready tidak mencukupi. Periksa keranjang.');
 

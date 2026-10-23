@@ -10,6 +10,7 @@ import {
   validateCustomCakeDesign,
 } from '../utils/businessRules';
 import { CUSTOM_CAKE_STEPS, CUSTOM_OPTION_GROUPS, WRITING_COLORS } from '../constants/customCake';
+import { CART_MAX_LINES, CART_LINE_LIMIT_MESSAGE } from '../constants/cart';
 
 const emptyDesign = (earliestKey) => ({
   selections: Object.fromEntries(CUSTOM_OPTION_GROUPS.map((g) => [g, null])),
@@ -53,12 +54,19 @@ export default function useCustomCakeBuilder(builder, notify) {
       notify('error', error);
       return;
     }
+    // Desain baru selalu menjadi baris baru: cek batas baris sebelum desain disimpan (Step 6.3)
+    if (useCartStore.getState().items.length >= CART_MAX_LINES) {
+      notify('error', CART_LINE_LIMIT_MESSAGE);
+      return;
+    }
     setSubmitting(true);
     try {
       const saved = await createCustomCakeDesign(design);
       addItem({
         product_id: builder.product.product_id,
         design_id: saved.design_id,
+        // Step 6.3: token akses desain tamu (null untuk pelanggan login & mode mock)
+        design_token: saved.design_token ?? null,
         quantity: 1,
         preferred_date: saved.ready_date,
         name: builder.product.name,

@@ -1,9 +1,13 @@
 
+// routes/customer/product.routes.js
+// FR-05 · FR-06 · FR-07 · FR-08 · C-05 – C-09 — katalog, pencarian, detail produk, Fresh from Oven, Best Sellers
+
 const express = require('express');
 const productService = require('../../services/product.service');
 
 const router = express.Router();
 
+// Meneruskan error dari handler async ke errorHandler Express.
 function asyncHandler(handler) {
   return function (req, res, next) {
     Promise.resolve(handler(req, res, next)).catch(next);
@@ -11,6 +15,7 @@ function asyncHandler(handler) {
 }
 
 // GET /api/products
+// Mengambil daftar produk dengan pencarian, filter, dan pagination.
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -23,7 +28,40 @@ router.get(
   })
 );
 
+// GET /api/products/fresh-today
+// Mengambil produk ready yang masih memiliki stok hari ini.
+router.get(
+  '/fresh-today',
+  asyncHandler(async (req, res) => {
+    const products = await productService.getFreshFromOvenToday(
+      req.query
+    );
+
+    return res.status(200).json({
+      status: 'success',
+      data: products,
+    });
+  })
+);
+
+// GET /api/products/best-sellers
+// Mengambil produk terlaris berdasarkan penjualan tujuh hari terakhir.
+router.get(
+  '/best-sellers',
+  asyncHandler(async (req, res) => {
+    const products = await productService.getBestSellers(
+      req.query
+    );
+
+    return res.status(200).json({
+      status: 'success',
+      data: products,
+    });
+  })
+);
+
 // GET /api/products/:id
+// Mengambil detail satu produk berdasarkan ID.
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
@@ -33,9 +71,7 @@ router.get(
 
     return res.status(200).json({
       status: 'success',
-      data: {
-        product,
-      },
+      data: product,
     });
   })
 );

@@ -21,6 +21,7 @@ import useCartView from '../../hooks/useCartView';
 import { formatRupiah } from '../../utils/format';
 import { CUSTOMER_ROUTES } from '../../constants/routes';
 import { AVAILABILITY_TYPE } from '../../constants/product';
+import { CART_MAX_LINES } from '../../constants/cart';
 
 export default function KeranjangPage() {
   const navigate = useNavigate();
@@ -74,6 +75,12 @@ export default function KeranjangPage() {
         <PageHeader title={`Keranjang (${cart.itemCount})`} />
         {reorderNotice && (
           <p role="status" className="rounded-btn bg-peach/50 border border-peach px-4 py-3 text-sm font-medium text-cocoa">{reorderNotice}</p>
+        )}
+        {/* Step 6.3: keranjang hasil gabung bisa melebihi batas baris; tidak dipotong otomatis */}
+        {cart.overLineLimit && (
+          <p role="alert" className="rounded-btn bg-red-50 border border-error/30 px-4 py-3 text-sm font-medium text-error">
+            Keranjang berisi {cart.items.length} item berbeda, maksimal {CART_MAX_LINES}. Hapus beberapa item sebelum checkout.
+          </p>
         )}
         {cart.loading ? (
           <div className="space-y-3" aria-busy="true" aria-label="Memuat keranjang">

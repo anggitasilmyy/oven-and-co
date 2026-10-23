@@ -84,6 +84,7 @@ cp server/.env.example server/.env
 | `DATABASE_URL` | `mysql://root:password@localhost:3306/oven_and_co` | Koneksi MySQL 8 untuk Prisma (Step 6.1) |
 | `SEED_ANCHOR_DATE` | `2026-10-16` | Opsional: tanggal acuan data contoh seed (`YYYY-MM-DD`) |
 | `JWT_SECRET` | — | Diisi saat Step 6.2 |
+| `DESIGN_TOKEN_SECRET` | (kosong) | Opsional (Step 6.3): kunci HMAC token desain custom cake tamu; bila kosong diturunkan dari `JWT_SECRET` |
 
 ---
 
