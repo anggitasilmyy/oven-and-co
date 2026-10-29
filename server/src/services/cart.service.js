@@ -26,6 +26,8 @@ const {
   getLatestSelectableDate,
   isWithinDateRange,
 } = require('./readyDate.service');
+// BR-03 dipakai bersama checkout/pesanan
+const { getCombinedReadyDate } = require('./checkoutRules.service');
 
 /** Alasan baris tidak bisa dipesan (dipakai frontend bila perlu pesan yang lebih jelas) */
 const UNAVAILABLE_REASON = Object.freeze({
@@ -280,11 +282,6 @@ function findStockIssues(lines) {
   return [...totals.values()]
     .filter((entry) => entry.quantity > entry.remaining)
     .map(({ product_id, remaining }) => ({ product_id, remaining }));
-}
-
-/** BR-03: pesanan campuran siap pada tanggal item dengan persiapan terlama */
-function getCombinedReadyDate(dateKeys) {
-  return dateKeys.reduce((latest, date) => (date > latest ? date : latest), dateKeys[0] ?? null);
 }
 
 /**

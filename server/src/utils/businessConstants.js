@@ -7,13 +7,85 @@ const AVAILABILITY_TYPE = Object.freeze({
   CUSTOM: 'custom',
 });
 
+// SPEC §4 · enum OrderStatus (client constants/orderStatus.js)
 const ORDER_STATUS = Object.freeze({
+  MENUNGGU_PEMBAYARAN: 'menunggu_pembayaran',
+  DIKONFIRMASI: 'dikonfirmasi',
+  SEDANG_DISIAPKAN: 'sedang_disiapkan',
+  SIAP_DIAMBIL: 'siap_diambil',
+  DALAM_PENGIRIMAN: 'dalam_pengiriman',
+  SELESAI: 'selesai',
   DIBATALKAN: 'dibatalkan',
 });
 
+// orders.payment_status
 const PAYMENT_STATUS = Object.freeze({
+  UNPAID: 'unpaid',
   PAID: 'paid',
+  REFUNDED: 'refunded',
 });
+
+// payments.status
+const PAYMENT_TRANSACTION_STATUS = Object.freeze({
+  PENDING: 'pending',
+  PAID: 'paid',
+  EXPIRED: 'expired',
+  FAILED: 'failed',
+  REFUNDED: 'refunded',
+});
+
+const PAYMENT_OPTION = Object.freeze({
+  ONLINE: 'online',
+  PAY_AT_STORE: 'pay_at_store',
+});
+
+const FULFILLMENT_TYPE = Object.freeze({
+  PICKUP: 'pickup',
+  DELIVERY: 'delivery',
+});
+
+// payment_methods.method_group & kode metode Bayar di Toko (client constants/checkout.js)
+const PAYMENT_GROUP = Object.freeze({ QRIS: 'qris', EWALLET: 'ewallet', VA: 'va', STORE: 'store' });
+const PAY_AT_STORE_METHOD = 'pay_at_store';
+
+// Simulasi payment gateway (SPEC §10): prefiks payments.payment_code per kelompok (client PAYMENT_CODE_PREFIX)
+const PAYMENT_CODE_PREFIX = Object.freeze({
+  [PAYMENT_GROUP.QRIS]: 'QRIS-SIM-',
+  [PAYMENT_GROUP.EWALLET]: 'EW',
+  [PAYMENT_GROUP.VA]: '8808',
+});
+const PAYMENT_CODE_DIGITS = Object.freeze({ [PAYMENT_GROUP.EWALLET]: 8, [PAYMENT_GROUP.VA]: 10 });
+const GATEWAY_REF_PREFIX = 'SIM-';
+
+// orders.pickup_code VARCHAR(10): "PK" + 4 digit (sama dengan mock)
+const PICKUP_CODE_PREFIX = 'PK';
+const PICKUP_CODE_DIGITS = 4;
+
+// Nomor pesanan OVC-YYMMDD-NNN (AGENTS.md §5)
+const ORDER_NUMBER_PREFIX = 'OVC';
+
+/**
+ * Asumsi prototype — slot ambil/antar 2 jam di dalam jam operasional (client constants/checkout.js TIME_SLOTS).
+ * Disaring lagi dengan operating_hours per hari.
+ */
+const TIME_SLOTS = Object.freeze([
+  { start: '07:00', end: '09:00' },
+  { start: '09:00', end: '11:00' },
+  { start: '11:00', end: '13:00' },
+  { start: '13:00', end: '15:00' },
+  { start: '15:00', end: '17:00' },
+  { start: '17:00', end: '19:00' },
+].map((slot) => Object.freeze(slot)));
+
+// Rentang tanggal checkout (hari, termasuk hari ini) — client constants/checkout.js CHECKOUT_DATE_WINDOW_DAYS
+const CHECKOUT_DATE_WINDOW_DAYS = 14;
+
+// TF-10: jam operasional contoh bila tabel operating_hours kosong (client constants/storeConfig.js)
+const OPERATING_HOURS_DEFAULT = Object.freeze({ open_time: '07:00', close_time: '20:00' });
+
+// Teks validation rule Pembayaran & Voucher (SPEC §6)
+const PAY_AT_STORE_DISABLED_TEXT = 'Tidak tersedia untuk pre-order dan delivery';
+const VOUCHER_INVALID_TEXT = 'Voucher tidak berlaku untuk pesanan ini';
 
 const ROLES = Object.freeze({
   CUSTOMER: 'customer',
@@ -58,6 +130,22 @@ module.exports = {
   AVAILABILITY_TYPE,
   ORDER_STATUS,
   PAYMENT_STATUS,
+  PAYMENT_TRANSACTION_STATUS,
+  PAYMENT_OPTION,
+  FULFILLMENT_TYPE,
+  PAYMENT_GROUP,
+  PAY_AT_STORE_METHOD,
+  PAYMENT_CODE_PREFIX,
+  PAYMENT_CODE_DIGITS,
+  GATEWAY_REF_PREFIX,
+  PICKUP_CODE_PREFIX,
+  PICKUP_CODE_DIGITS,
+  ORDER_NUMBER_PREFIX,
+  TIME_SLOTS,
+  CHECKOUT_DATE_WINDOW_DAYS,
+  OPERATING_HOURS_DEFAULT,
+  PAY_AT_STORE_DISABLED_TEXT,
+  VOUCHER_INVALID_TEXT,
   ROLES,
   API_ERROR_CODE,
   PREORDER_MIN_LEAD_DAYS,

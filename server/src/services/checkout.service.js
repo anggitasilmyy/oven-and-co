@@ -8,6 +8,12 @@ const {
   dbDateToKey: toDateKey,
   formatTime: toTimeString,
 } = require('../utils/jakartaDate');
+// Jarak, ongkir, dan status voucher dipakai bersama pembuatan pesanan (Phase 2 · Tahap 1)
+const {
+  distanceKm,
+  getDeliveryQuote,
+  isVoucherActiveOn,
+} = require('./checkoutRules.service');
 
 function createError(message, statusCode = 500) {
   const error = new Error(message);
@@ -104,74 +110,6 @@ function mapOperatingHour(row) {
     close_time: toTimeString(row.closeTime),
     is_open: row.isOpen,
   };
-}
-
-function distanceKm(a, b) {
-  if (
-    a.latitude == null ||
-    a.longitude == null ||
-    b.latitude == null ||
-    b.longitude == null
-  ) {
-    return null;
-  }
-
-  const values = [
-    Number(a.latitude),
-    Number(a.longitude),
-    Number(b.latitude),
-    Number(b.longitude),
-  ];
-
-  if (!values.every(Number.isFinite)) return null;
-
-  const rad = (degree) => (degree * Math.PI) / 180;
-
-  const dLat = rad(values[2] - values[0]);
-  const dLng = rad(values[3] - values[1]);
-
-  const h = Math.min(
-    1,
-    Math.max(
-      0,
-      Math.sin(dLat / 2) ** 2 +
-        Math.cos(rad(values[0])) *
-          Math.cos(rad(values[2])) *
-          Math.sin(dLng / 2) ** 2
-    )
-  );
-
-  return Math.round(
-    2 * 6371 * Math.asin(Math.sqrt(h)) * 100
-  ) / 100;
-}
-
-function getDeliveryQuote(distance, settings) {
-  const withinRadius =
-    distance !== null &&
-    settings.delivery_radius_km != null &&
-    distance <= Number(settings.delivery_radius_km);
-
-  const fee = withinRadius
-    ? Math.ceil(distance) * Number(settings.delivery_fee_per_km ?? 0)
-    : 0;
-
-  return {
-    distance,
-    withinRadius,
-    fee,
-  };
-}
-
-function isVoucherActiveOn(voucher, todayKey) {
-  return Boolean(
-    voucher.is_active &&
-      voucher.quota > 0 &&
-      voucher.valid_from &&
-      voucher.valid_to &&
-      voucher.valid_from <= todayKey &&
-      todayKey <= voucher.valid_to
-  );
 }
 
 async function getCheckoutContext(userId) {
