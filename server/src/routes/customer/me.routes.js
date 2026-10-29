@@ -1,8 +1,9 @@
 // routes/customer/me.routes.js
-// FR-25 · UC-17 · C-23 — data milik pelanggan login (/api/me/*). Step 6.3: wishlist, poin, voucher, dan alamat.
+// FR-25 · UC-17 · C-23 — data milik pelanggan login (/api/me/*). Step 6.3: wishlist, poin, voucher, alamat, profil.
 // FR-05 · FR-22 · BR-09 — GET /api/me/points (MemberCard di Beranda, Akun, Voucher & Poin).
 // FR-22 · FR-23 · C-21 — GET /api/me/points/history dan GET /api/me/vouchers (halaman Voucher & Poin).
 // FR-24 · BR-12 · C-22 — /api/me/addresses (Alamat Tersimpan).
+// FR-24 · UC-16 · C-20 — /api/me/profile & /api/me/password (Ubah Profil).
 // Pengguna selalu dari req.user (token), tidak pernah dari body/URL.
 
 const express = require('express');
@@ -12,8 +13,10 @@ const wishlistService = require('../../services/wishlist.service');
 const loyaltyService = require('../../services/loyalty.service');
 const myVoucherService = require('../../services/myVoucher.service');
 const addressService = require('../../services/address.service');
+const profileService = require('../../services/profile.service');
 const { validateProductIdParam } = require('../../validators/wishlist.validator');
 const { validateAddressIdParam, validateAddressBody } = require('../../validators/address.validator');
+const { validateProfileBody, validatePasswordBody } = require('../../validators/profile.validator');
 const { ROLES } = require('../../utils/businessConstants');
 
 const router = express.Router();
@@ -68,6 +71,48 @@ router.get(
     });
   })
 );
+
+// GET /api/me/profile
+// Profil pelanggan login (bentuk sama dengan user sesi hasil login), tanpa kata sandi.
+router.get(
+  '/profile',
+  asyncHandler(async (req, res) => {
+    const profile = await profileService.getMyProfile(req.user.userId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: profile,
+    });
+  })
+);
+
+// PATCH /api/me/profile (dipakai client services/accountService.js) · PUT /api/me/profile (alias)
+// Mengubah nama, email, dan nomor HP; mengembalikan profil terbaru.
+const updateProfile = asyncHandler(async (req, res) => {
+  const input = validateProfileBody(req.body);
+  const profile = await profileService.updateMyProfile(req.user.userId, input);
+
+  return res.status(200).json({
+    status: 'success',
+    data: profile,
+  });
+});
+router.patch('/profile', updateProfile);
+router.put('/profile', updateProfile);
+
+// PATCH /api/me/password (dipakai client services/accountService.js) · PUT /api/me/password (alias)
+// Mengganti kata sandi setelah kata sandi saat ini diverifikasi.
+const changePassword = asyncHandler(async (req, res) => {
+  const input = validatePasswordBody(req.body);
+  const result = await profileService.changeMyPassword(req.user.userId, input);
+
+  return res.status(200).json({
+    status: 'success',
+    data: result,
+  });
+});
+router.patch('/password', changePassword);
+router.put('/password', changePassword);
 
 // GET /api/me/addresses
 // Alamat pelanggan (utama dulu) + jarak & status radius pengiriman, beserta data toko.

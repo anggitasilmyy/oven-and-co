@@ -196,9 +196,12 @@ Catatan khusus:
   termasuk OVC-261012-018), id tetap, `upsert` tanpa menimpa (idempoten). `BigInt`/`Decimal` perlu serializer di 6.2+.
 - 6.3 (sebagian, belum selesai): produk, kategori, opsi custom, simpan desain, `POST /api/cart`, `GET /api/checkout/context`,
   `GET /api/promos/active`, dan akun: wishlist (`/me/wishlist`), poin (`/me/points`, `/me/points/history`),
-  voucher (`/me/vouchers`), alamat (`/me/addresses`). Pesanan, ulasan, metode pembayaran, profil & kata sandi
-  (`/me/profile`, `/me/password`), notifikasi (`/me/notifications`), keranjang persisten & gabung keranjang setelah
-  login masih dikerjakan.
+  voucher (`/me/vouchers`), alamat (`/me/addresses`), profil & kata sandi (`/me/profile`, `/me/password`).
+  Pesanan, ulasan, metode pembayaran, notifikasi (`/me/notifications`), keranjang persisten & gabung keranjang
+  setelah login masih dikerjakan.
+  - Profil (C-20): frontend memakai `PATCH` (PUT juga diterima); respons = `publicUser` (bentuk user sesi login).
+    Aturan nama/email/HP/kata sandi sama dengan registrasi server. Ganti kata sandi wajib kata sandi saat ini;
+    token yang sudah terbit tetap berlaku sampai kedaluwarsa (JWT tanpa pencabutan — tidak ada kolom di SPEC §8).
   - Alamat (C-22): tepat satu alamat utama per pelanggan (alamat pertama otomatis utama; utama dihapus → id terkecil
     yang tersisa). Alamat yang sudah dirujuk pesanan **tidak bisa dihapus** (409) karena FK `orders.address_id` RESTRICT
     (lihat catatan 6.1) — tetap bisa diubah; pesanan memakai `delivery_address_snapshot`.
