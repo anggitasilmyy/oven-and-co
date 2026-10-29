@@ -18,6 +18,23 @@ const ORDER_STATUS = Object.freeze({
   DIBATALKAN: 'dibatalkan',
 });
 
+// SPEC §4 · label status (client constants/orderStatus.js ORDER_STATUS_LABEL) — dipakai stepper tracking C-18
+const ORDER_STATUS_LABEL = Object.freeze({
+  [ORDER_STATUS.MENUNGGU_PEMBAYARAN]: 'Menunggu Pembayaran',
+  [ORDER_STATUS.DIKONFIRMASI]: 'Dikonfirmasi',
+  [ORDER_STATUS.SEDANG_DISIAPKAN]: 'Sedang Disiapkan',
+  [ORDER_STATUS.SIAP_DIAMBIL]: 'Siap Diambil',
+  [ORDER_STATUS.DALAM_PENGIRIMAN]: 'Dalam Pengiriman',
+  [ORDER_STATUS.SELESAI]: 'Selesai',
+  [ORDER_STATUS.DIBATALKAN]: 'Dibatalkan',
+});
+
+// BR-08: pelanggan hanya bisa membatalkan sebelum Sedang Disiapkan (client CANCELLABLE_STATUSES)
+const CANCELLABLE_STATUSES = Object.freeze([ORDER_STATUS.MENUNGGU_PEMBAYARAN, ORDER_STATUS.DIKONFIRMASI]);
+
+// Pesan WhatsApp awal tombol "Hubungi Oven & Co." (client constants/orderHistory.js WHATSAPP_ORDER_MESSAGE)
+const WHATSAPP_ORDER_MESSAGE = (orderNumber) => `Halo Oven & Co., saya ingin bertanya tentang pesanan ${orderNumber}.`;
+
 // orders.payment_status
 const PAYMENT_STATUS = Object.freeze({
   UNPAID: 'unpaid',
@@ -147,6 +164,9 @@ const REVIEW_PREVIEW_LIMIT = 2;
 module.exports = {
   AVAILABILITY_TYPE,
   ORDER_STATUS,
+  ORDER_STATUS_LABEL,
+  CANCELLABLE_STATUSES,
+  WHATSAPP_ORDER_MESSAGE,
   PAYMENT_STATUS,
   PAYMENT_TRANSACTION_STATUS,
   PAYMENT_OPTION,

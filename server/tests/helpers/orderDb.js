@@ -86,6 +86,7 @@ function baseTables(today, plusDays) {
     orderItems: [],
     payments: [],
     statusHistories: [],
+    reviews: [],
   };
 }
 
@@ -133,9 +134,22 @@ function installOrderDb(fakePrisma, dates) {
       }));
     }
     if (include.items) {
-      out.items = state.t.orderItems.filter((i) => i.orderId === row.orderId).map((i) => ({
-        ...i, product: state.t.products.find((p) => p.productId === i.productId),
-      }));
+      out.items = sortBy(state.t.orderItems.filter((i) => i.orderId === row.orderId), include.items.orderBy).map((i) => {
+        const product = state.t.products.find((p) => p.productId === i.productId);
+        return {
+          ...i,
+          product: {
+            ...product,
+            dailyStocks: state.t.dailyStocks.filter((d) => d.productId === i.productId && d.stockDate.getTime() === dates.today.getTime()),
+          },
+          variant: i.variantId ? product.variants.find((v) => v.variantId === i.variantId) ?? null : null,
+          design: i.designId ? state.t.designs.find((d) => d.designId === i.designId) ?? null : null,
+          review: state.t.reviews.find((r) => r.orderItemId === i.orderItemId) ?? null,
+        };
+      });
+    }
+    if (include.statusHistories) {
+      out.statusHistories = sortBy(state.t.statusHistories.filter((h) => h.orderId === row.orderId), include.statusHistories.orderBy);
     }
     return out;
   };
@@ -191,7 +205,11 @@ function installOrderDb(fakePrisma, dates) {
       },
     },
     order: {
-      findMany: async ({ where, select }) => state.t.orders.filter((o) => matchesWhere(o, where)).map((o) => pick(o, select)),
+      findMany: async ({ where, select, include, orderBy }) => {
+        fail('order.findMany');
+        return sortBy(state.t.orders.filter((o) => matchesWhere(o, where)), orderBy)
+          .map((o) => (select ? pick(o, select) : orderView(o, include)));
+      },
       findFirst: async ({ where, include }) => {
         fail('order.findFirst');
         const row = state.t.orders.find((o) => matchesWhere(o, where));

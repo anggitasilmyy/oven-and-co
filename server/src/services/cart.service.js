@@ -319,4 +319,6 @@ async function getCartView(items, { userId = null, now = new Date() } = {}) {
 module.exports = {
   UNAVAILABLE_REASON,
   getCartView,
+  // Ringkasan desain yang sama dipakai item pesanan (/api/orders)
+  buildDesignSummary,
 };

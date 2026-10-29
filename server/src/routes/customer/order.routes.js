@@ -1,12 +1,14 @@
 // routes/customer/order.routes.js
 // FR-12 – FR-16 · BR-04 · C-14 Pembayaran · C-15 Bayar · C-16 Pesanan Berhasil — /api/orders untuk pelanggan login.
-// Kontrak = client services/orderService.js. Pemilik pesanan selalu dari req.user (token), tidak pernah dari body/URL.
+// FR-17 · C-17 Riwayat Pesanan · C-18 Detail & Tracking — GET /api/orders, GET /api/orders/:orderNumber.
+// Kontrak = client services/orderService.js & services/orderHistoryService.js. Pemilik pesanan selalu dari req.user (token), tidak pernah dari body/URL.
 
 const express = require('express');
 const auth = require('../../middlewares/auth');
 const requireRole = require('../../middlewares/requireRole');
 const orderCreateService = require('../../services/orderCreate.service');
 const orderService = require('../../services/order.service');
+const myOrdersService = require('../../services/myOrders.service');
 const { validateOrderBody, validateOrderNumberParam } = require('../../validators/order.validator');
 const { ROLES } = require('../../utils/businessConstants');
 
@@ -20,6 +22,20 @@ function asyncHandler(handler) {
 
 // BR-04: seluruh endpoint pesanan pelanggan wajib login sebagai pelanggan.
 router.use(auth, requireRole(ROLES.CUSTOMER));
+
+// GET /api/orders
+// Semua pesanan pelanggan login, terbaru dulu.
+router.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    const orders = await myOrdersService.getMyOrders(req.user.userId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: orders,
+    });
+  })
+);
 
 // POST /api/orders
 // Membuat pesanan dari keranjang + pilihan checkout; harga & total dihitung ulang di server.
@@ -47,6 +63,21 @@ router.get(
     return res.status(200).json({
       status: 'success',
       data: result,
+    });
+  })
+);
+
+// GET /api/orders/:orderNumber
+// Detail, stepper status, info pickup/delivery, pembayaran (C-18).
+router.get(
+  '/:orderNumber',
+  asyncHandler(async (req, res) => {
+    const orderNumber = validateOrderNumberParam(req.params.orderNumber);
+    const detail = await myOrdersService.getMyOrderDetail(req.user.userId, orderNumber);
+
+    return res.status(200).json({
+      status: 'success',
+      data: detail,
     });
   })
 );
