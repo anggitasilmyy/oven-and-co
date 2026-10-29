@@ -215,6 +215,17 @@ function installOrderDb(fakePrisma, dates) {
         const row = state.t.orders.find((o) => matchesWhere(o, where));
         return row ? orderView(row, include) : null;
       },
+      update: async ({ where, data }) => {
+        fail('order.update');
+        const row = state.t.orders.find((o) => o.orderId === where.orderId);
+        Object.assign(row, data);
+        return { ...row };
+      },
+      updateMany: async ({ where, data }) => {
+        const rows = state.t.orders.filter((o) => matchesWhere(o, where));
+        rows.forEach((o) => Object.assign(o, data));
+        return { count: rows.length };
+      },
       create: async ({ data, select }) => {
         fail('order.create');
         state.hooks.beforeOrderCreate?.(data);
@@ -233,8 +244,31 @@ function installOrderDb(fakePrisma, dates) {
         return pick(row, select);
       },
     },
+    payment: {
+      update: async ({ where, data }) => {
+        fail('payment.update');
+        const row = state.t.payments.find((p) => p.paymentId === where.paymentId);
+        Object.assign(row, data);
+        return { ...row };
+      },
+      updateMany: async ({ where, data }) => {
+        const rows = state.t.payments.filter((p) => matchesWhere(p, where));
+        rows.forEach((p) => Object.assign(p, data));
+        return { count: rows.length };
+      },
+    },
+    orderStatusHistory: {
+      create: async ({ data }) => {
+        const row = { historyId: id('history'), note: null, ...data };
+        state.t.statusHistories.push(row);
+        return row;
+      },
+    },
     $queryRaw: async (strings, ...values) => {
-      state.locks.push({ sql: strings.join('?'), values });
+      const sql = strings.join('?');
+      state.locks.push({ sql, values });
+      // Request lain yang memegang kunci selesai lebih dulu (dijalankan saat "menunggu" kunci baris pesanan)
+      if (/FROM orders WHERE order_id = \? FOR UPDATE/.test(sql)) state.hooks.whileWaitingOrderLock?.();
       return [];
     },
     $executeRaw: async (strings, ...values) => {

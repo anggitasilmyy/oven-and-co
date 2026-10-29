@@ -1,6 +1,7 @@
 // routes/customer/order.routes.js
 // FR-12 – FR-16 · BR-04 · C-14 Pembayaran · C-15 Bayar · C-16 Pesanan Berhasil — /api/orders untuk pelanggan login.
 // FR-17 · C-17 Riwayat Pesanan · C-18 Detail & Tracking — GET /api/orders, GET /api/orders/:orderNumber.
+// FR-15 · BR-05 — PATCH /api/orders/:orderNumber/payment (ganti metode).
 // Kontrak = client services/orderService.js & services/orderHistoryService.js. Pemilik pesanan selalu dari req.user (token), tidak pernah dari body/URL.
 
 const express = require('express');
@@ -9,7 +10,10 @@ const requireRole = require('../../middlewares/requireRole');
 const orderCreateService = require('../../services/orderCreate.service');
 const orderService = require('../../services/order.service');
 const myOrdersService = require('../../services/myOrders.service');
-const { validateOrderBody, validateOrderNumberParam } = require('../../validators/order.validator');
+const paymentService = require('../../services/payment.service');
+const {
+  validateOrderBody, validateOrderNumberParam, validateChangeMethodBody,
+} = require('../../validators/order.validator');
 const { ROLES } = require('../../utils/businessConstants');
 
 const router = express.Router();
@@ -59,6 +63,22 @@ router.get(
   asyncHandler(async (req, res) => {
     const orderNumber = validateOrderNumberParam(req.params.orderNumber);
     const result = await orderService.getOrderPayment(req.user.userId, orderNumber);
+
+    return res.status(200).json({
+      status: 'success',
+      data: result,
+    });
+  })
+);
+
+// PATCH /api/orders/:orderNumber/payment
+// Ganti metode pembayaran selama Menunggu Pembayaran; Bayar di Toko → Dikonfirmasi.
+router.patch(
+  '/:orderNumber/payment',
+  asyncHandler(async (req, res) => {
+    const orderNumber = validateOrderNumberParam(req.params.orderNumber);
+    const methodCode = validateChangeMethodBody(req.body);
+    const result = await paymentService.changePaymentMethod(req.user.userId, orderNumber, methodCode);
 
     return res.status(200).json({
       status: 'success',

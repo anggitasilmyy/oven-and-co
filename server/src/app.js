@@ -12,6 +12,7 @@ const checkoutRoutes = require('./routes/customer/checkout.routes');
 const meRoutes = require('./routes/customer/me.routes');
 const promoRoutes = require('./routes/customer/promo.routes');
 const orderRoutes = require('./routes/customer/order.routes');
+const paymentRoutes = require('./routes/customer/payment.routes');
 const adminOrderRoutes = require('./routes/admin/order.routes');
 const paymentMethodRoutes = require('./routes/admin/paymentMethod.routes');
 
@@ -69,6 +70,7 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/promos', promoRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Admin API
 app.use('/api/admin/orders', adminOrderRoutes);

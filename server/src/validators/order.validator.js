@@ -118,7 +118,23 @@ function validateOrderNumberParam(value) {
   return value;
 }
 
+const changeMethodSchema = z.object(
+  {
+    method_code: z
+      .string({ error: 'Pilih metode pembayaran.' })
+      .min(1, { error: 'Pilih metode pembayaran.' })
+      .max(METHOD_CODE_MAX_LENGTH, { error: 'Pilih metode pembayaran.' }),
+  },
+  { error: BODY_INVALID_TEXT }
+);
+
+/** Body PATCH /api/orders/:orderNumber/payment (client changePaymentMethod) */
+function validateChangeMethodBody(body) {
+  return parseOrThrow(changeMethodSchema, body ?? {}).method_code;
+}
+
 module.exports = {
   validateOrderBody,
   validateOrderNumberParam,
+  validateChangeMethodBody,
 };
