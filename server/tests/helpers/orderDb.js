@@ -179,6 +179,11 @@ function installOrderDb(fakePrisma, dates) {
     orderItem: { count: async ({ where }) => state.t.orderItems.filter((i) => matchesWhere(i, where)).length },
     voucher: {
       findUnique: async ({ where }) => state.t.vouchers.find((v) => v.code === where.code) ?? null,
+      update: async ({ where, data }) => {
+        const row = state.t.vouchers.find((v) => v.voucherId === where.voucherId);
+        row.quota += data.quota.increment;
+        return { ...row };
+      },
       updateMany: async ({ where, data }) => {
         const rows = state.t.vouchers.filter((v) => matchesWhere(v, where));
         rows.forEach((v) => { v.quota -= data.quota.decrement; });
@@ -275,6 +280,13 @@ function installOrderDb(fakePrisma, dates) {
       const sql = strings.join('?');
       state.raw.push({ sql, values });
       state.hooks.beforeStockUpdate?.();
+      // Pengembalian stok saat batal: GREATEST(qty_sold - qty, 0)
+      if (/UPDATE daily_stocks SET qty_sold = GREATEST\(qty_sold - \?, 0\)\s+WHERE product_id = \? AND stock_date = \?$/.test(sql)) {
+        const [quantity, productId, stockDate] = values;
+        const rows = state.t.dailyStocks.filter((d) => d.productId === productId && d.stockDate.getTime() === stockDate.getTime());
+        rows.forEach((d) => { d.qtySold = Math.max(d.qtySold - quantity, 0); });
+        return rows.length;
+      }
       if (!/UPDATE daily_stocks SET qty_sold = qty_sold \+ \?\s+WHERE product_id = \? AND stock_date = \? AND qty_planned - qty_sold >= \?/.test(sql)) {
         throw new Error(`orderDb: SQL tidak dikenal: ${sql}`);
       }

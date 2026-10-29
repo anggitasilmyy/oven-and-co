@@ -133,8 +133,36 @@ function validateChangeMethodBody(body) {
   return parseOrThrow(changeMethodSchema, body ?? {}).method_code;
 }
 
+// FR-20 · orders.cancel_reason VARCHAR(255) (client constants/orderHistory.js CANCEL_REASON_MAX_LENGTH)
+const CANCEL_REASON_MAX_LENGTH = 255;
+
+const cancelSchema = z.object(
+  {
+    reason: z.preprocess(
+      (value) => (typeof value === 'string' ? value.trim() : value),
+      z
+        .string({ error: 'Tulis alasan pembatalan' })
+        .min(1, { error: 'Tulis alasan pembatalan' })
+        .max(CANCEL_REASON_MAX_LENGTH, { error: `Alasan maksimal ${CANCEL_REASON_MAX_LENGTH} karakter` })
+    ),
+  },
+  { error: BODY_INVALID_TEXT }
+);
+
+/** Body PATCH /api/orders/:orderNumber/cancel (client cancelMyOrder) → alasan yang sudah di-trim */
+function validateCancelBody(body) {
+  return parseOrThrow(cancelSchema, body ?? {}).reason;
+}
+
+/** Body POST /api/orders/:orderNumber/reorder: { items } = isi keranjang saat ini (bentuk POST /api/cart) */
+function validateReorderBody(body) {
+  return validateCartBody({ items: body?.items ?? [] });
+}
+
 module.exports = {
   validateOrderBody,
   validateOrderNumberParam,
   validateChangeMethodBody,
+  validateCancelBody,
+  validateReorderBody,
 };

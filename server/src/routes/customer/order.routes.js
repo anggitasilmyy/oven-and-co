@@ -2,6 +2,7 @@
 // FR-12 – FR-16 · BR-04 · C-14 Pembayaran · C-15 Bayar · C-16 Pesanan Berhasil — /api/orders untuk pelanggan login.
 // FR-17 · C-17 Riwayat Pesanan · C-18 Detail & Tracking — GET /api/orders, GET /api/orders/:orderNumber.
 // FR-15 · BR-05 — PATCH /api/orders/:orderNumber/payment (ganti metode).
+// FR-19 · FR-20 · BR-08 — PATCH /api/orders/:orderNumber/cancel, POST /api/orders/:orderNumber/reorder.
 // Kontrak = client services/orderService.js & services/orderHistoryService.js. Pemilik pesanan selalu dari req.user (token), tidak pernah dari body/URL.
 
 const express = require('express');
@@ -11,8 +12,9 @@ const orderCreateService = require('../../services/orderCreate.service');
 const orderService = require('../../services/order.service');
 const myOrdersService = require('../../services/myOrders.service');
 const paymentService = require('../../services/payment.service');
+const orderActionsService = require('../../services/orderActions.service');
 const {
-  validateOrderBody, validateOrderNumberParam, validateChangeMethodBody,
+  validateOrderBody, validateOrderNumberParam, validateChangeMethodBody, validateCancelBody, validateReorderBody,
 } = require('../../validators/order.validator');
 const { ROLES } = require('../../utils/businessConstants');
 
@@ -83,6 +85,38 @@ router.patch(
     return res.status(200).json({
       status: 'success',
       data: result,
+    });
+  })
+);
+
+// PATCH /api/orders/:orderNumber/cancel
+// Pelanggan membatalkan sebelum Sedang Disiapkan (BR-08).
+router.patch(
+  '/:orderNumber/cancel',
+  asyncHandler(async (req, res) => {
+    const orderNumber = validateOrderNumberParam(req.params.orderNumber);
+    const reason = validateCancelBody(req.body);
+    const result = await orderActionsService.cancelMyOrder(req.user.userId, orderNumber, reason);
+
+    return res.status(200).json({
+      status: 'success',
+      data: result,
+    });
+  })
+);
+
+// POST /api/orders/:orderNumber/reorder
+// Rencana "Pesan Lagi": item yang bisa disalin ke keranjang (tidak membuat pesanan).
+router.post(
+  '/:orderNumber/reorder',
+  asyncHandler(async (req, res) => {
+    const orderNumber = validateOrderNumberParam(req.params.orderNumber);
+    const cartItems = validateReorderBody(req.body);
+    const plan = await orderActionsService.getReorderPlan(req.user.userId, orderNumber, cartItems);
+
+    return res.status(200).json({
+      status: 'success',
+      data: plan,
     });
   })
 );

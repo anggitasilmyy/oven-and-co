@@ -22,7 +22,7 @@ async function findMyOrder(client, userId, orderNumber) {
     where: { orderNumber, userId: BigInt(userId) },
     include: {
       payments: { orderBy: { paymentId: 'desc' }, take: 1, include: { method: true } },
-      items: { select: { quantity: true, product: { select: { availabilityType: true } } } },
+      items: { select: { productId: true, quantity: true, product: { select: { availabilityType: true } } } },
     },
   });
 

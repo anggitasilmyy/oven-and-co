@@ -145,6 +145,7 @@ async function getMyOrderDetail(userId, orderNumber, now = new Date()) {
 
 module.exports = {
   toItemLine,
+  findMyOrderDetailRow,
   getMyOrders,
   getMyOrderDetail,
 };

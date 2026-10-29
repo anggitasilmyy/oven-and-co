@@ -196,9 +196,18 @@ Catatan khusus:
   termasuk OVC-261012-018), id tetap, `upsert` tanpa menimpa (idempoten). `BigInt`/`Decimal` perlu serializer di 6.2+.
 - 6.3 (sebagian, belum selesai): produk, kategori, opsi custom, simpan desain, `POST /api/cart`, `GET /api/checkout/context`,
   `GET /api/promos/active`, dan akun: wishlist (`/me/wishlist`), poin (`/me/points`, `/me/points/history`),
-  voucher (`/me/vouchers`), alamat (`/me/addresses`), profil & kata sandi (`/me/profile`, `/me/password`).
-  Pesanan, ulasan, metode pembayaran, notifikasi (`/me/notifications`), keranjang persisten & gabung keranjang
-  setelah login masih dikerjakan.
+  voucher (`/me/vouchers`), alamat (`/me/addresses`), profil & kata sandi (`/me/profile`, `/me/password`),
+  pesanan (`POST/GET /orders`, `GET /orders/:no`, `GET|PATCH /orders/:no/payment`, `PATCH /orders/:no/cancel`,
+  `POST /orders/:no/reorder`), simulasi bayar (`POST /payments/:no/simulate-paid`, ditolak di production) dan
+  `GET /payment-methods` (Staf/Owner, filter AD-03). Ulasan, notifikasi (`/me/notifications`), keranjang persisten
+  & gabung keranjang setelah login masih dikerjakan.
+  - Pesanan: harga/diskon/ongkir/total dihitung ulang di server. Efek saat DIBUAT (TF-12, sama dengan mock): stok
+    ready hari ini, klaim voucher + kuota −1, poin `redeem`, riwayat status; dikembalikan saat batal (poin `refund`,
+    lunas → `refunded`, pembayaran belum lunas → `failed`). Satu transaksi; baris pengguna/desain/pesanan dikunci
+    `FOR UPDATE`, stok & kuota memakai UPDATE bersyarat. **Belum diuji di MySQL sungguhan.**
+  - Belum ada job `autoCancelOrders` (6.5): pembayaran yang lewat `expired_at` ditolak (simulasi & ganti metode)
+    tetapi pesanan tetap Menunggu Pembayaran sampai job dibuat. Ganti ke Bayar di Toko mempertahankan `expired_at`
+    awal — job BR-07 perlu memakai jam tutup tanggal siap. Notifikasi status (SPEC §4) belum ditulis (6.5).
   - Profil (C-20): frontend memakai `PATCH` (PUT juga diterima); respons = `publicUser` (bentuk user sesi login).
     Aturan nama/email/HP/kata sandi sama dengan registrasi server. Ganti kata sandi wajib kata sandi saat ini;
     token yang sudah terbit tetap berlaku sampai kedaluwarsa (JWT tanpa pencabutan — tidak ada kolom di SPEC §8).
