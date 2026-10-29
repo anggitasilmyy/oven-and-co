@@ -91,6 +91,21 @@ const ROLES = Object.freeze({
   CUSTOMER: 'customer',
 });
 
+// enum PointTransactionType (point_transactions.type)
+const POINT_TX_TYPE = Object.freeze({
+  EARN: 'earn',
+  REDEEM: 'redeem',
+  REVIEW_BONUS: 'review_bonus',
+  REFUND: 'refund',
+});
+
+// BR-09 · TF-11: level member dari poin tahun kalender berjalan (client constants/storeConfig.js MEMBER_LEVEL)
+const MEMBER_LEVEL = Object.freeze({
+  SILVER: Object.freeze({ key: 'silver', label: 'Silver Member', badge: 'silver' }),
+  GOLD: Object.freeze({ key: 'gold', label: 'Gold Member', badge: 'gold' }),
+  PLATINUM: Object.freeze({ key: 'platinum', label: 'Platinum Member', badge: 'platinum' }),
+});
+
 // Kode error di body respons (sama dengan client constants/apiErrors.js)
 const API_ERROR_CODE = Object.freeze({
   // 401: token yang dikirim tidak berlaku (kedaluwarsa/rusak/akun nonaktif) → frontend menghapus sesi
@@ -147,6 +162,8 @@ module.exports = {
   PAY_AT_STORE_DISABLED_TEXT,
   VOUCHER_INVALID_TEXT,
   ROLES,
+  POINT_TX_TYPE,
+  MEMBER_LEVEL,
   API_ERROR_CODE,
   PREORDER_MIN_LEAD_DAYS,
   CUSTOM_CAKE_MIN_LEAD_DAYS,

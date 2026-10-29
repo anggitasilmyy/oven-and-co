@@ -1,11 +1,13 @@
 // routes/customer/me.routes.js
-// FR-25 · UC-17 · C-23 — data milik pelanggan login (/api/me/*). Step 6.3: baru wishlist.
+// FR-25 · UC-17 · C-23 — data milik pelanggan login (/api/me/*). Step 6.3: wishlist dan ringkasan poin.
+// FR-05 · FR-22 · BR-09 — GET /api/me/points (MemberCard di Beranda, Akun, Voucher & Poin).
 // Pengguna selalu dari req.user (token), tidak pernah dari body/URL.
 
 const express = require('express');
 const auth = require('../../middlewares/auth');
 const requireRole = require('../../middlewares/requireRole');
 const wishlistService = require('../../services/wishlist.service');
+const loyaltyService = require('../../services/loyalty.service');
 const { validateProductIdParam } = require('../../validators/wishlist.validator');
 const { ROLES } = require('../../utils/businessConstants');
 
@@ -19,6 +21,20 @@ function asyncHandler(handler) {
 
 // Seluruh endpoint /api/me hanya untuk pelanggan yang sudah login.
 router.use(auth, requireRole(ROLES.CUSTOMER));
+
+// GET /api/me/points
+// Ringkasan poin & level member pelanggan login.
+router.get(
+  '/points',
+  asyncHandler(async (req, res) => {
+    const summary = await loyaltyService.getMyLoyaltySummary(req.user.userId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: summary,
+    });
+  })
+);
 
 // GET /api/me/wishlist
 // Mengambil product_id (string) di wishlist pelanggan.

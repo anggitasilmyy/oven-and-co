@@ -256,7 +256,7 @@ test('GET /wishlist mengembalikan id string yang cocok dengan product_id kartu p
 });
 
 test('endpoint /api/me lain yang belum dibuat tetap 404 untuk pelanggan login', async () => {
-  const res = await fetch(baseUrl.replace('/wishlist', '/points'), {
+  const res = await fetch(baseUrl.replace('/wishlist', '/endpoint-tidak-ada'), {
     headers: { Authorization: `Bearer ${tokenFor('1')}` },
   });
   assert.equal(res.status, 404);
