@@ -7,7 +7,7 @@
 // metode aktif, tanggal siap BR-01–BR-03, slot yang sudah lewat, BR-05, BR-07) diperiksa di service pesanan.
 // Nilai finansial dari klien (price, subtotal, total, diskon, ongkir) dibuang; server menghitung ulang semuanya.
 
-const { CART_MAX_LINES, FULFILLMENT_TYPE, TIME_SLOTS } = require('../utils/businessConstants');
+const { CART_MAX_LINES, FULFILLMENT_TYPE, TIME_SLOTS, ORDER_NUMBER_PREFIX, API_ERROR_CODE } = require('../utils/businessConstants');
 const { isValidDateKey } = require('../utils/jakartaDate');
 const { formatTimeSlot } = require('../services/operatingHours.service');
 const { validateCartBody } = require('./cart.validator');
@@ -107,6 +107,18 @@ function validateOrderBody(body) {
   return { ...order, items };
 }
 
+// OVC-YYMMDD-NNN (urutan bisa > 999); orders.order_number VARCHAR(20)
+const ORDER_NUMBER_PATTERN = new RegExp(`^${ORDER_NUMBER_PREFIX}-\\d{6}-\\d{3,9}$`);
+
+/** :orderNumber tidak berformat → 400 INVALID_ID (frontend memperlakukannya seperti "tidak ditemukan") */
+function validateOrderNumberParam(value) {
+  if (typeof value !== 'string' || !ORDER_NUMBER_PATTERN.test(value)) {
+    throw Object.assign(createError('Nomor pesanan tidak valid.'), { apiCode: API_ERROR_CODE.INVALID_ID });
+  }
+  return value;
+}
+
 module.exports = {
   validateOrderBody,
+  validateOrderNumberParam,
 };

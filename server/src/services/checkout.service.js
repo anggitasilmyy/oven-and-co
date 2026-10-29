@@ -229,4 +229,7 @@ module.exports = {
   // Dipakai juga /api/me/addresses (alamat, jarak & ongkir sama dengan konteks checkout)
   mapStoreSetting,
   mapAddress,
+  // Dipakai juga /api/orders (metode bayar & jam operasional sama dengan konteks checkout)
+  mapPaymentMethod,
+  mapOperatingHour,
 };

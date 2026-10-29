@@ -11,7 +11,9 @@ const cartRoutes = require('./routes/customer/cart.routes');
 const checkoutRoutes = require('./routes/customer/checkout.routes');
 const meRoutes = require('./routes/customer/me.routes');
 const promoRoutes = require('./routes/customer/promo.routes');
+const orderRoutes = require('./routes/customer/order.routes');
 const adminOrderRoutes = require('./routes/admin/order.routes');
+const paymentMethodRoutes = require('./routes/admin/paymentMethod.routes');
 
 const errorHandler = require('./middlewares/errorHandler');
 const { getReferencePhotoDir } = require('./utils/referencePhotoStorage');
@@ -66,9 +68,11 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/me', meRoutes);
 app.use('/api/promos', promoRoutes);
+app.use('/api/orders', orderRoutes);
 
 // Admin API
 app.use('/api/admin/orders', adminOrderRoutes);
+app.use('/api/payment-methods', paymentMethodRoutes);
 
 // 404 handler
 app.use((_req, res) => {
