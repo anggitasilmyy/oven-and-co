@@ -223,4 +223,7 @@ async function getCheckoutContext(userId) {
 
 module.exports = {
   getCheckoutContext,
+  // Dipakai juga GET /api/me/vouchers (bentuk voucher & klaim sama dengan konteks checkout)
+  mapVoucher,
+  mapClaim,
 };

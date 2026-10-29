@@ -106,6 +106,9 @@ const MEMBER_LEVEL = Object.freeze({
   PLATINUM: Object.freeze({ key: 'platinum', label: 'Platinum Member', badge: 'platinum' }),
 });
 
+// FR-23 · C-21: status voucher milik pelanggan (client constants/account.js VOUCHER_STATE)
+const VOUCHER_STATE = Object.freeze({ USABLE: 'usable', USED: 'used', EXPIRED: 'expired' });
+
 // Kode error di body respons (sama dengan client constants/apiErrors.js)
 const API_ERROR_CODE = Object.freeze({
   // 401: token yang dikirim tidak berlaku (kedaluwarsa/rusak/akun nonaktif) → frontend menghapus sesi
@@ -164,6 +167,7 @@ module.exports = {
   ROLES,
   POINT_TX_TYPE,
   MEMBER_LEVEL,
+  VOUCHER_STATE,
   API_ERROR_CODE,
   PREORDER_MIN_LEAD_DAYS,
   CUSTOM_CAKE_MIN_LEAD_DAYS,

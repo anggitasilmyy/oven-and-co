@@ -1,6 +1,7 @@
 // routes/customer/me.routes.js
-// FR-25 · UC-17 · C-23 — data milik pelanggan login (/api/me/*). Step 6.3: wishlist dan ringkasan poin.
+// FR-25 · UC-17 · C-23 — data milik pelanggan login (/api/me/*). Step 6.3: wishlist, poin, dan voucher.
 // FR-05 · FR-22 · BR-09 — GET /api/me/points (MemberCard di Beranda, Akun, Voucher & Poin).
+// FR-22 · FR-23 · C-21 — GET /api/me/points/history dan GET /api/me/vouchers (halaman Voucher & Poin).
 // Pengguna selalu dari req.user (token), tidak pernah dari body/URL.
 
 const express = require('express');
@@ -8,6 +9,7 @@ const auth = require('../../middlewares/auth');
 const requireRole = require('../../middlewares/requireRole');
 const wishlistService = require('../../services/wishlist.service');
 const loyaltyService = require('../../services/loyalty.service');
+const myVoucherService = require('../../services/myVoucher.service');
 const { validateProductIdParam } = require('../../validators/wishlist.validator');
 const { ROLES } = require('../../utils/businessConstants');
 
@@ -32,6 +34,34 @@ router.get(
     return res.status(200).json({
       status: 'success',
       data: summary,
+    });
+  })
+);
+
+// GET /api/me/points/history
+// Riwayat transaksi poin pelanggan login, terbaru dulu.
+router.get(
+  '/points/history',
+  asyncHandler(async (req, res) => {
+    const history = await loyaltyService.getMyPointHistory(req.user.userId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: history,
+    });
+  })
+);
+
+// GET /api/me/vouchers
+// Voucher yang sudah diklaim pelanggan login beserta statusnya.
+router.get(
+  '/vouchers',
+  asyncHandler(async (req, res) => {
+    const vouchers = await myVoucherService.getMyVouchers(req.user.userId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: vouchers,
     });
   })
 );

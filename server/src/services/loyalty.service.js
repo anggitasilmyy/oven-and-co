@@ -70,6 +70,34 @@ async function getMyLoyaltySummary(userId, now = new Date()) {
   };
 }
 
+function toIsoString(value) {
+  return value == null ? null : new Date(value).toISOString();
+}
+
+/**
+ * GET /api/me/points/history — transaksi poin pelanggan login, terbaru dulu, dengan nomor pesanan terkait
+ * (client services/loyaltyService.js getMyPointHistory · C-21 Riwayat Poin). Tanpa transaksi → [].
+ */
+async function getMyPointHistory(userId) {
+  const rows = await prisma.pointTransaction.findMany({
+    where: { userId: BigInt(userId) },
+    orderBy: [{ createdAt: 'desc' }, { pointTxId: 'desc' }],
+    include: { order: { select: { orderNumber: true } } },
+  });
+
+  return rows.map((row) => ({
+    point_tx_id: String(row.pointTxId),
+    user_id: String(row.userId),
+    type: row.type,
+    points: row.points,
+    order_id: row.orderId == null ? null : String(row.orderId),
+    review_id: row.reviewId == null ? null : String(row.reviewId),
+    created_at: toIsoString(row.createdAt),
+    order_number: row.order?.orderNumber ?? null,
+  }));
+}
+
 module.exports = {
   getMyLoyaltySummary,
+  getMyPointHistory,
 };
