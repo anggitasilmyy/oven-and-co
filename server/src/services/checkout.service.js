@@ -226,4 +226,7 @@ module.exports = {
   // Dipakai juga GET /api/me/vouchers (bentuk voucher & klaim sama dengan konteks checkout)
   mapVoucher,
   mapClaim,
+  // Dipakai juga /api/me/addresses (alamat, jarak & ongkir sama dengan konteks checkout)
+  mapStoreSetting,
+  mapAddress,
 };

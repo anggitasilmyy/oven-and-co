@@ -1,7 +1,8 @@
 // routes/customer/me.routes.js
-// FR-25 · UC-17 · C-23 — data milik pelanggan login (/api/me/*). Step 6.3: wishlist, poin, dan voucher.
+// FR-25 · UC-17 · C-23 — data milik pelanggan login (/api/me/*). Step 6.3: wishlist, poin, voucher, dan alamat.
 // FR-05 · FR-22 · BR-09 — GET /api/me/points (MemberCard di Beranda, Akun, Voucher & Poin).
 // FR-22 · FR-23 · C-21 — GET /api/me/points/history dan GET /api/me/vouchers (halaman Voucher & Poin).
+// FR-24 · BR-12 · C-22 — /api/me/addresses (Alamat Tersimpan).
 // Pengguna selalu dari req.user (token), tidak pernah dari body/URL.
 
 const express = require('express');
@@ -10,7 +11,9 @@ const requireRole = require('../../middlewares/requireRole');
 const wishlistService = require('../../services/wishlist.service');
 const loyaltyService = require('../../services/loyalty.service');
 const myVoucherService = require('../../services/myVoucher.service');
+const addressService = require('../../services/address.service');
 const { validateProductIdParam } = require('../../validators/wishlist.validator');
+const { validateAddressIdParam, validateAddressBody } = require('../../validators/address.validator');
 const { ROLES } = require('../../utils/businessConstants');
 
 const router = express.Router();
@@ -62,6 +65,81 @@ router.get(
     return res.status(200).json({
       status: 'success',
       data: vouchers,
+    });
+  })
+);
+
+// GET /api/me/addresses
+// Alamat pelanggan (utama dulu) + jarak & status radius pengiriman, beserta data toko.
+router.get(
+  '/addresses',
+  asyncHandler(async (req, res) => {
+    const result = await addressService.getMyAddresses(req.user.userId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: result,
+    });
+  })
+);
+
+// POST /api/me/addresses
+// Menambah alamat; alamat pertama otomatis menjadi alamat utama.
+router.post(
+  '/addresses',
+  asyncHandler(async (req, res) => {
+    const input = validateAddressBody(req.body);
+    const result = await addressService.createAddress(req.user.userId, input);
+
+    return res.status(201).json({
+      status: 'success',
+      data: result,
+    });
+  })
+);
+
+// PUT /api/me/addresses/:addressId
+// Mengubah alamat milik pelanggan.
+router.put(
+  '/addresses/:addressId',
+  asyncHandler(async (req, res) => {
+    const addressId = validateAddressIdParam(req.params.addressId);
+    const input = validateAddressBody(req.body);
+    const result = await addressService.updateAddress(req.user.userId, addressId, input);
+
+    return res.status(200).json({
+      status: 'success',
+      data: result,
+    });
+  })
+);
+
+// PATCH /api/me/addresses/:addressId/primary
+// Menjadikan alamat sebagai alamat utama.
+router.patch(
+  '/addresses/:addressId/primary',
+  asyncHandler(async (req, res) => {
+    const addressId = validateAddressIdParam(req.params.addressId);
+    const result = await addressService.setPrimaryAddress(req.user.userId, addressId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: result,
+    });
+  })
+);
+
+// DELETE /api/me/addresses/:addressId
+// Menghapus alamat (ditolak bila sudah dipakai pesanan).
+router.delete(
+  '/addresses/:addressId',
+  asyncHandler(async (req, res) => {
+    const addressId = validateAddressIdParam(req.params.addressId);
+    const result = await addressService.deleteAddress(req.user.userId, addressId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: result,
     });
   })
 );

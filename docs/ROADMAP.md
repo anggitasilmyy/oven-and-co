@@ -194,8 +194,14 @@ Catatan khusus:
   rujukan di pesanan lama tidak dikosongkan) kecuali tabel penghubung M:N & `cart_items` (`CASCADE`); tidak ada UNIQUE
   di luar SPEC (mis. `order_items.design_id`). Seed pilihan A: data master SPEC §9/§10 + 9 pesanan contoh (semua status,
   termasuk OVC-261012-018), id tetap, `upsert` tanpa menimpa (idempoten). `BigInt`/`Decimal` perlu serializer di 6.2+.
-- 6.3 (sebagian, belum selesai): produk, kategori, opsi custom, simpan desain, `POST /api/cart`, `GET /api/checkout/context`.
-  Pesanan, ulasan, akun (`/me/*`), keranjang persisten & gabung keranjang setelah login masih dikerjakan.
+- 6.3 (sebagian, belum selesai): produk, kategori, opsi custom, simpan desain, `POST /api/cart`, `GET /api/checkout/context`,
+  `GET /api/promos/active`, dan akun: wishlist (`/me/wishlist`), poin (`/me/points`, `/me/points/history`),
+  voucher (`/me/vouchers`), alamat (`/me/addresses`). Pesanan, ulasan, metode pembayaran, profil & kata sandi
+  (`/me/profile`, `/me/password`), notifikasi (`/me/notifications`), keranjang persisten & gabung keranjang setelah
+  login masih dikerjakan.
+  - Alamat (C-22): tepat satu alamat utama per pelanggan (alamat pertama otomatis utama; utama dihapus → id terkecil
+    yang tersisa). Alamat yang sudah dirujuk pesanan **tidak bisa dihapus** (409) karena FK `orders.address_id` RESTRICT
+    (lihat catatan 6.1) — tetap bisa diubah; pesanan memakai `delivery_address_snapshot`.
   Uji server tanpa MySQL: `cd server && npm test` (Prisma dipalsukan).
   - Aturan eksplisit SPEC yang dipakai: custom cake ≥ H+3 dan pre-order ≥ H-1 dengan batas jam pesan (BR-02),
     catatan item ≤ 255 karakter (SPEC §8), batas jam pre-order 17.00 (SPEC §10, OI-04). "Hari ini" selalu WIB
