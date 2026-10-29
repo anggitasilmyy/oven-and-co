@@ -9,6 +9,7 @@ const customOptionsRoutes = require('./routes/customer/customOptions.routes');
 const customCakeDesignRoutes = require('./routes/customer/customCakeDesign.routes');
 const cartRoutes = require('./routes/customer/cart.routes');
 const checkoutRoutes = require('./routes/customer/checkout.routes');
+const meRoutes = require('./routes/customer/me.routes');
 const adminOrderRoutes = require('./routes/admin/order.routes');
 
 const errorHandler = require('./middlewares/errorHandler');
@@ -62,6 +63,7 @@ app.use('/api/custom-options', customOptionsRoutes);
 app.use('/api/custom-cake-designs', customCakeDesignRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/checkout', checkoutRoutes);
+app.use('/api/me', meRoutes);
 
 // Admin API
 app.use('/api/admin/orders', adminOrderRoutes);
