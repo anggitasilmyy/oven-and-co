@@ -49,6 +49,17 @@ const ADMIN_ORDER_TABS = Object.freeze([
 // Baris per halaman tabel AD-03 (client constants/dashboard.js ADMIN_ORDERS_PAGE_SIZE)
 const ADMIN_ORDERS_PAGE_SIZE = 10;
 
+// AD-05 · FR-29: status yang dihitung sebagai pekerjaan produksi (client constants/adminOrder.js PRODUCTION_STATUSES).
+// Menunggu Pembayaran belum pasti (bisa batal otomatis BR-06) dan Dibatalkan bukan pekerjaan produksi; Selesai tetap
+// tampil sebagai catatan tanggal lampau.
+const PRODUCTION_STATUSES = Object.freeze([
+  ORDER_STATUS.DIKONFIRMASI,
+  ORDER_STATUS.SEDANG_DISIAPKAN,
+  ORDER_STATUS.SIAP_DIAMBIL,
+  ORDER_STATUS.DALAM_PENGIRIMAN,
+  ORDER_STATUS.SELESAI,
+]);
+
 // orders.payment_status
 const PAYMENT_STATUS = Object.freeze({
   UNPAID: 'unpaid',
@@ -183,6 +194,7 @@ module.exports = {
   WHATSAPP_ORDER_MESSAGE,
   ADMIN_ORDER_TABS,
   ADMIN_ORDERS_PAGE_SIZE,
+  PRODUCTION_STATUSES,
   PAYMENT_STATUS,
   PAYMENT_TRANSACTION_STATUS,
   PAYMENT_OPTION,

@@ -223,6 +223,7 @@ Catatan khusus:
   - **Ditunda ke Step 6.4** (hasil audit; frontend AD-04 sudah memanggil, server belum punya rute → 404
     "Endpoint tidak ditemukan"): `PATCH /api/admin/orders/:no/status` (ubah status, mis. Dikonfirmasi → Sedang
     Disiapkan), `POST /api/admin/orders/:no/verify-pickup`, `PATCH /api/admin/orders/:no/mark-paid`.
+    → Selesai di Step 6.4.2 (lihat catatan 6.4).
   - Ulasan (C-10, C-19): hanya item pesanan Selesai milik pelanggan, satu ulasan per item (UNIQUE
     `reviews.order_item_id`; P2002 → 409), rating bulat 1–5, tag dari daftar client (ganda digabung), komentar ≤ kolom
     TEXT; bonus `review_bonus` = `store_settings.review_bonus_points` dengan `review_id`, satu transaksi. Foto: multipart
@@ -301,6 +302,44 @@ Catatan khusus:
   - Untuk Phase berikutnya (gabung keranjang setelah login): `selectClaimableGuestDesignIds()` di
     `server/src/services/designAccess.service.js` memilih desain tamu yang aman diklaim (token valid, belum dipesan);
     penulisan `user_id` dilakukan dengan `updateMany` bersyarat `user_id IS NULL`.
+- 6.4 (berjalan per kelompok): 6.4.1 daftar & detail pesanan admin (PR #17, diselaraskan di 6.3).
+  **Kelompok 1 — 6.4.2 aksi pesanan & 6.4.3 kalender produksi: implementasi selesai & disetujui; verifikasi belum
+  lengkap** — uji lintas aksi admin ↔ pelanggan (ubah status admin bersamaan dengan batal pelanggan) masih GAGAL dan
+  menunggu hotfix konkurensi Step 6.3 (branch `fix/step-6.3-order-concurrency`, lihat temuan di bawah).
+  - Endpoint (Staf & Owner, `auth` + `requireRole`): `PATCH /api/admin/orders/:no/status`
+    (`{from, to, pickup_code?, courier_name?}` → `{order_number, order_status, points_awarded}`),
+    `POST /api/admin/orders/:no/verify-pickup` (`{pickup_code}` → `{valid: true}`, tanpa menulis data),
+    `PATCH /api/admin/orders/:no/mark-paid` (→ `{order_number, payment_status, paid_at}`),
+    `GET /api/admin/calendar?month=YYYY-MM&date=YYYY-MM-DD` (→ `{month_key, today_key, weeks, counts, selected}`).
+    Kontrak & pesan = mock `adminOrderWrites.js` / `productionViews.js`; aturan diport ke
+    `services/adminOrderRules.service.js` dan `services/productionRules.service.js`.
+  - Aturan: status berurutan (pickup → Siap Diambil, delivery → Dalam Pengiriman); Menunggu Pembayaran & status final
+    ditolak; `from` ≠ status terbaru → STALE; kurir wajib ≤ 100 karakter (disimpan di `courier_name` + catatan
+    riwayat); Selesai wajib lunas (Bayar di Toko: tandai lunas dulu) dan pickup wajib kode cocok (dinormalisasi, cek
+    ulang saat simpan); tandai lunas hanya Bayar di Toko belum lunas saat Siap Diambil (`orders.payment_status` +
+    semua baris `payments`: `paid`, `paid_at`, `amount` = total). Setiap ubah status menulis `order_status_histories`
+    (`changed_by` = admin). BR-09: poin `earn` = floor(total / `earn_amount_per_point`) saat Selesai, sekali per
+    pesanan. Kode pickup tidak pernah dikirim (UC-21). HTTP: isian salah 400, status pesanan tidak memungkinkan 409,
+    tidak ada 404, nomor tidak valid 400 `INVALID_ID`. Notifikasi status/poin **tidak** dibuat (Step 6.5).
+  - Konsistensi: satu transaksi; kunci `SELECT … WHERE order_number = ? FOR UPDATE` **harus menjadi pembacaan pertama**
+    transaksi. Di InnoDB REPEATABLE READ snapshot dibuat oleh SELECT biasa pertama; pola "baca → FOR UPDATE → baca ulang"
+    tetap membaca data lama (uji MySQL: 9 dari 10 request Selesai bersamaan lolos sebelum diperbaiki).
+  - Kalender: item pre-order & custom dari pesanan Dikonfirmasi s.d. Selesai, per `orders.ready_date` (BR-03), query
+    dibatasi rentang grid; bulan/tanggal kosong → hari ini (WIB); tanggal di luar bulan → hari ini/tgl 1 (sama dengan
+    mock). Berbeda dari mock: bulan/tanggal tidak sah → 400 (mock menghitung bulan apa pun); tahun dibatasi 1000–9999
+    (rentang kolom DATE MySQL) dan grid Desember 9999 ditolak.
+  - Uji: `server/tests/adminOrderActionRules.test.js`, `adminOrderActionsRoute.test.js`, `adminCalendarRoute.test.js`
+    (Prisma dipalsukan; `tests/helpers/whereMatch.js` + operator `lte`). MySQL 8 sementara (Docker) lewat HTTP: 13
+    skenario (auth/peran, alur pickup Bayar di Toko & delivery online, basi, 10 request bersamaan untuk Selesai,
+    tandai lunas, dan Mulai Disiapkan, rollback dengan trigger gagal, 404/400, detail & daftar 6.4.1, poin `/me/points`,
+    kalender) — **12/13 lulus; 1 gagal** (admin ubah status vs pelanggan batal bersamaan) karena temuan Step 6.3 di
+    bawah. Skenario ini wajib diulang setelah hotfix digabung sebelum Kelompok 1 dinyatakan terverifikasi penuh. Browser mode API (1440 & 390 px): AD-04 ubah status →
+    verifikasi kode → tandai lunas → Selesai (+102 poin) dan AD-05 kalender.
+  - **Temuan Step 6.3 (diperbaiki terpisah di `fix/step-6.3-order-concurrency`, belum digabung):** `cancelMyOrder` (`services/orderActions.service.js`)
+    dan `lockPendingOrder` (`services/payment.service.js`) membaca pesanan sebelum `FOR UPDATE`. Di MySQL 8: 3 batal
+    bersamaan oleh pelanggan → 3 × 200 dan **3 transaksi refund poin** (10/10 putaran); admin "Mulai Disiapkan" +
+    pelanggan batal bersamaan → keduanya 200, pesanan berakhir Dibatalkan dengan riwayat `sedang_disiapkan,dibatalkan`.
+  - Belum diverifikasi: foto referensi custom cake di AD-04 mode API (seed tanpa foto); notifikasi (6.5).
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

@@ -14,6 +14,7 @@ const promoRoutes = require('./routes/customer/promo.routes');
 const orderRoutes = require('./routes/customer/order.routes');
 const paymentRoutes = require('./routes/customer/payment.routes');
 const adminOrderRoutes = require('./routes/admin/order.routes');
+const adminCalendarRoutes = require('./routes/admin/calendar.routes');
 const paymentMethodRoutes = require('./routes/admin/paymentMethod.routes');
 
 const errorHandler = require('./middlewares/errorHandler');
@@ -74,6 +75,7 @@ app.use('/api/payments', paymentRoutes);
 
 // Admin API
 app.use('/api/admin/orders', adminOrderRoutes);
+app.use('/api/admin/calendar', adminCalendarRoutes);
 app.use('/api/payment-methods', paymentMethodRoutes);
 
 // 404 handler

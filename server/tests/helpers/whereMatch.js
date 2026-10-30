@@ -1,7 +1,7 @@
 // tests/helpers/whereMatch.js
 // Penilai klausa `where` Prisma sederhana untuk fake Prisma: agar tes memverifikasi HASIL filter
 // (produk aktif, status bayar, status pesanan, rentang tanggal), bukan hanya bentuk query.
-// Mendukung: nilai langsung, { in }, { not }, { gt, gte, lt }, { contains, startsWith }, { is, some } (relasi), AND/OR. Klausa lain → error
+// Mendukung: nilai langsung, { in }, { not }, { gt, gte, lt, lte }, { contains, startsWith }, { is, some } (relasi), AND/OR. Klausa lain → error
 // supaya tes tidak diam-diam lolos untuk filter yang tidak dipahami.
 
 function compare(value, condition) {
@@ -23,6 +23,8 @@ function compare(value, condition) {
         return value >= expected;
       case 'lt':
         return value < expected;
+      case 'lte':
+        return value <= expected;
       case 'startsWith':
         return String(value).startsWith(String(expected));
       case 'contains':
