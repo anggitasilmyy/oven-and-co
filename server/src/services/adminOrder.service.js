@@ -2,49 +2,17 @@
 // FR-28 · AD-03 Daftar Pesanan & AD-04 detail (Staf/Owner).
 
 const prisma = require('../lib/prisma');
-const { ADMIN_ORDER_TABS, ADMIN_ORDERS_PAGE_SIZE } = require('../utils/businessConstants');
-const { getJakartaDayRange, dbDateToKey } = require('../utils/jakartaDate');
+const { ADMIN_ORDER_TABS, ADMIN_ORDERS_PAGE_SIZE, ORDER_STATUS_LABEL } = require('../utils/businessConstants');
+const { getJakartaDayRange, dbDateToKey, getJakartaDateKey, dateKeyToDbDate } = require('../utils/jakartaDate');
 const { validateAdminOrderQuery } = require('../validators/adminOrder.validator');
+const { mapOrder } = require('./orderView.service');
+const { itemInclude, toItemLine } = require('./myOrders.service');
+const { buildAdminOrderActions } = require('./adminOrderRules.service');
 
 function createError(message, statusCode) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
-}
-
-// Konversi BigInt, Decimal, dan Date agar aman dikirim sebagai JSON.
-function toJsonSafe(value) {
-  if (typeof value === 'bigint') {
-    return value.toString();
-  }
-
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-
-  if (
-    value &&
-    typeof value.toNumber === 'function' &&
-    typeof value.toFixed === 'function'
-  ) {
-    return value.toNumber();
-  }
-
-  if (Array.isArray(value)) {
-    return value.map(toJsonSafe);
-  }
-
-  if (value && typeof value === 'object') {
-    const result = {};
-
-    for (const [key, child] of Object.entries(value)) {
-      result[key] = toJsonSafe(child);
-    }
-
-    return result;
-  }
-
-  return value;
 }
 
 /** "Classic Butter Croissant ×2, +1 lainnya" (sama dengan client mock/orderViews.js summarizeItems) */
@@ -130,111 +98,85 @@ async function getOrders(query = {}) {
   return { rows: orders.map(toAdminOrderRow), tabCounts, totalFiltered, page, totalPages, pageSize };
 }
 
-async function getOrderByNumber(orderNumber) {
-  if (
-    typeof orderNumber !== 'string' ||
-    !orderNumber.trim() ||
-    orderNumber.trim().length > 20
-  ) {
-    throw createError('Nomor pesanan tidak valid.', 400);
-  }
+// Langkah builder custom cake yang punya kelompok opsi (client constants/customCake.js CUSTOM_CAKE_STEPS)
+const CUSTOM_CAKE_OPTION_STEPS = Object.freeze([
+  { label: 'Ukuran', group: 'ukuran' },
+  { label: 'Bentuk', group: 'bentuk' },
+  { label: 'Rasa', group: 'rasa' },
+  { label: 'Krim & Topping', group: 'krim_topping' },
+]);
 
-  const order = await prisma.order.findUnique({
-    where: {
-      orderNumber: orderNumber.trim(),
+/** Spesifikasi custom cake per langkah builder (sama dengan client mock/adminOrderViews.js designSpec) */
+function toDesignSpec(design) {
+  if (!design) return null;
+  const options = (design.options ?? []).map((entry) => entry.option).filter(Boolean);
+  return {
+    options: CUSTOM_CAKE_OPTION_STEPS.map((step) => ({
+      label: step.label,
+      value: options.filter((option) => option.optionGroup === step.group).map((option) => option.name).join(', ') || '-',
+    })),
+    writing_text: design.writingText ?? null,
+    writing_color: design.writingColor ?? null,
+    reference_photo_url: design.referencePhotoUrl ?? null,
+  };
+}
+
+/**
+ * GET /api/admin/orders/:orderNumber — FR-28 · AD-04. Kontrak = client mock/adminOrderViews.js toAdminOrderDetail:
+ * { order, customer, items, payment, status_log, store, actions }.
+ * UC-21: kode pickup TIDAK PERNAH dikirim (Staf maupun Owner) — hanya `has_pickup_code`; staf mencocokkan kode
+ * yang ditunjukkan pelanggan.
+ */
+async function getOrderByNumber(orderNumber, now = new Date()) {
+  const [row, storeRow] = await Promise.all([
+    prisma.order.findUnique({
+      where: { orderNumber },
+      include: {
+        user: { select: { name: true, email: true, phone: true } },
+        items: itemInclude(dateKeyToDbDate(getJakartaDateKey(now))),
+        payments: { orderBy: { paymentId: 'desc' }, take: 1, include: { method: { select: { name: true } } } },
+        statusHistories: {
+          orderBy: [{ changedAt: 'desc' }, { historyId: 'desc' }],
+          include: { changer: { select: { name: true, role: true } } },
+        },
+      },
+    }),
+    prisma.storeSetting.findFirst({
+      orderBy: { settingId: 'asc' },
+      select: { storeName: true, address: true, whatsappNumber: true },
+    }),
+  ]);
+
+  if (!row) throw createError('Pesanan tidak ditemukan.', 404);
+  if (!storeRow) throw createError('Pengaturan toko belum tersedia.', 500);
+
+  const { pickup_code: pickupCode, ...safeOrder } = mapOrder(row);
+  const order = { ...safeOrder, has_pickup_code: Boolean(pickupCode) };
+  const payment = row.payments[0] ?? null;
+
+  return {
+    order,
+    customer: { name: row.user?.name ?? 'Pelanggan', email: row.user?.email ?? null, phone: row.user?.phone ?? null },
+    items: row.items.map((item) => ({ ...toItemLine(item), design_spec: toDesignSpec(item.design) })),
+    payment: {
+      method_name: payment?.method?.name ?? '-',
+      status: payment?.status ?? null,
+      paid_at: payment?.paidAt ? payment.paidAt.toISOString() : null,
+      amount: payment ? Number(payment.amount) : order.total,
     },
-    include: {
-      user: {
-        select: {
-          userId: true,
-          name: true,
-          email: true,
-          phone: true,
-        },
-      },
-      address: {
-        select: {
-          addressId: true,
-          label: true,
-          recipientName: true,
-          recipientPhone: true,
-          fullAddress: true,
-          latitude: true,
-          longitude: true,
-          courierNote: true,
-        },
-      },
-      voucher: {
-        select: {
-          voucherId: true,
-          code: true,
-          title: true,
-          discountType: true,
-          discountValue: true,
-        },
-      },
-      items: {
-        orderBy: { orderItemId: 'asc' },
-        include: {
-          product: {
-            select: {
-              productId: true,
-              name: true,
-              availabilityType: true,
-              leadTimeDays: true,
-            },
-          },
-          variant: {
-            select: {
-              variantId: true,
-              name: true,
-              extraPrice: true,
-            },
-          },
-          design: {
-            select: {
-              designId: true,
-              writingText: true,
-              writingColor: true,
-              referencePhotoUrl: true,
-              readyDate: true,
-              price: true,
-            },
-          },
-        },
-      },
-      payments: {
-        orderBy: { paymentId: 'desc' },
-        include: {
-          method: {
-            select: {
-              methodCode: true,
-              name: true,
-              methodGroup: true,
-            },
-          },
-        },
-      },
-      statusHistories: {
-        orderBy: { changedAt: 'asc' },
-        include: {
-          changer: {
-            select: {
-              userId: true,
-              name: true,
-              role: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!order) {
-    throw createError('Pesanan tidak ditemukan.', 404);
-  }
-
-  return toJsonSafe(order);
+    // Terbaru di atas, dengan nama pengubah — admin, pelanggan, atau sistem
+    status_log: row.statusHistories.map((history) => ({
+      history_id: String(history.historyId),
+      status: history.status,
+      label: ORDER_STATUS_LABEL[history.status],
+      note: history.note ?? null,
+      changed_at: history.changedAt.toISOString(),
+      changed_by_name: history.changer?.name ?? 'Sistem',
+      changed_by_role: history.changer?.role ?? null,
+    })),
+    store: { name: storeRow.storeName, address: storeRow.address ?? null, whatsapp: storeRow.whatsappNumber ?? null },
+    actions: buildAdminOrderActions(order),
+  };
 }
 
 module.exports = {

@@ -39,7 +39,8 @@ export default function DetailPesananAdminPage() {
   const back = <Link to={ADMIN_ROUTES.PESANAN} className={BACK_LINK}><ArrowLeft size={16} aria-hidden="true" /> Daftar Pesanan</Link>;
 
   if (query.error && !data) {
-    const notFound = query.error.message === ADMIN_ORDER_ERROR.NOT_FOUND;
+    // Mode API: HTTP 404 · mode mock: pesan ADMIN_ORDER_ERROR.NOT_FOUND (error mock tidak punya status)
+    const notFound = query.error.status === 404 || query.error.message === ADMIN_ORDER_ERROR.NOT_FOUND;
     return (
       <div className="space-y-4">
         {back}

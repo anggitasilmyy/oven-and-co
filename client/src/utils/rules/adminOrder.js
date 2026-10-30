@@ -112,3 +112,19 @@ export function isAdminOrderListPage(data) {
     Number.isInteger(data.page) && data.page >= 1 && Number.isInteger(data.totalPages) && data.totalPages >= data.page
   );
 }
+
+/**
+ * Step 6.3 · AD-04: respons detail sesuai kontrak getAdminOrderDetail (mock adminOrderViews.toAdminOrderDetail)?
+ * Respons yang tidak sesuai menjadi error (ErrorState + Coba lagi), bukan skeleton yang tidak pernah selesai.
+ * @param {unknown} data
+ */
+export function isAdminOrderDetail(data) {
+  const isObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  return Boolean(
+    isObject(data) &&
+    isObject(data.order) && typeof data.order.order_number === 'string' && typeof data.order.order_status === 'string' &&
+    isObject(data.customer) && isObject(data.payment) && isObject(data.store) && isObject(data.actions) &&
+    Array.isArray(data.items) && data.items.every(isObject) &&
+    Array.isArray(data.status_log) && data.status_log.every(isObject)
+  );
+}

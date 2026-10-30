@@ -144,6 +144,8 @@ async function getMyOrderDetail(userId, orderNumber, now = new Date()) {
 }
 
 module.exports = {
+  // Dipakai juga detail pesanan admin (AD-04)
+  itemInclude,
   toItemLine,
   findMyOrderDetailRow,
   getMyOrders,

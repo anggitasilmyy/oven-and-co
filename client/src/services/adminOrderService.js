@@ -14,7 +14,7 @@ import { ROLES } from '../constants/roles';
 import { ORDER_STATUS_TABS } from '../constants/orderStatus';
 import { ADMIN_ORDERS_PAGE_SIZE } from '../constants/dashboard';
 import { dateKeyOf } from '../utils/date';
-import { isAdminOrderListPage } from '../utils/rules/adminOrder';
+import { isAdminOrderListPage, isAdminOrderDetail } from '../utils/rules/adminOrder';
 import { ADMIN_ORDER_ERROR } from '../constants/adminOrder';
 
 const ADMIN_ROLES = [ROLES.STAF, ROLES.OWNER];
@@ -86,10 +86,13 @@ export function getPaymentMethods() {
 // ── Step 5.6 · FR-28 · FR-29 · AD-04 · AD-05 ─────────────────────────────────
 
 /** AD-04: detail pesanan mana pun (Staf/Owner). Kode pickup tidak ikut dikirim. */
-export function getAdminOrderDetail(orderNumber) {
-  return apiClient(`/admin/orders/${orderNumber}`, {
+export async function getAdminOrderDetail(orderNumber) {
+  const detail = await apiClient(`/admin/orders/${orderNumber}`, {
     mockHandler: () => toAdminOrderDetail(findAdminOrder(orderNumber)),
   });
+  // Step 6.3: respons yang tidak sesuai kontrak → error (ErrorState), bukan skeleton tanpa akhir
+  if (!isAdminOrderDetail(detail)) throw new Error(ADMIN_ORDER_ERROR.DETAIL_INVALID);
+  return detail;
 }
 
 /**
