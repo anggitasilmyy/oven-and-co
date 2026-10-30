@@ -2,6 +2,12 @@
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 
+const { API_ERROR_CODE } = require('../utils/businessConstants');
+
+// Step 6.3: kode untuk frontend — token yang DIKIRIM tidak berlaku lagi (kedaluwarsa/rusak/akun nonaktif),
+// sehingga sesi lokal boleh dihapus. 401 lain (mis. sandi salah saat login) tidak memakai kode ini.
+const SESSION_INVALID = API_ERROR_CODE.SESSION_INVALID;
+
 function auth(req, res, next) {
   const authHeader = req.headers.authorization;
 
@@ -41,6 +47,7 @@ function auth(req, res, next) {
     ) {
       return res.status(401).json({
         status: 'error',
+        code: SESSION_INVALID,
         message: 'Token tidak valid atau kedaluwarsa.',
       });
     }
@@ -56,6 +63,7 @@ function auth(req, res, next) {
   ) {
     return res.status(401).json({
       status: 'error',
+      code: SESSION_INVALID,
       message: 'Token autentikasi tidak valid.',
     });
   }
@@ -76,6 +84,7 @@ function auth(req, res, next) {
       if (!user || !user.isActive) {
         return res.status(401).json({
           status: 'error',
+          code: SESSION_INVALID,
           message: 'Akun tidak ditemukan atau tidak aktif.',
         });
       }

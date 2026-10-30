@@ -386,4 +386,9 @@ module.exports = {
   login,
   requestPasswordReset,
   resetPassword,
+  // Aturan registrasi dipakai juga Ubah Profil & Ubah Kata Sandi (/api/me/profile, /api/me/password)
+  normalizePhone,
+  isValidEmail,
+  validatePassword,
+  publicUser,
 };

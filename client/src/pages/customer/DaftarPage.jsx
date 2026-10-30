@@ -4,6 +4,7 @@
 // FR-01 · UC-01 · Daftar akun pelanggan; setelah berhasil langsung masuk dan gabung keranjang (FR-04)
 // Validation rules SPEC §6: email valid; HP diawali +62; unik; sandi ≥ 8; S&K dicentang
 // Step 2.5 (PR B): split-screen ≥ lg lewat CustomerAuthShell
+// Step 6.2: termsAccepted dikirim ke API (auth.service mewajibkan persetujuan S&K)
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -14,6 +15,7 @@ import { register } from '../../services/authService';
 import useAuthStore from '../../stores/useAuthStore';
 import useCartStore from '../../stores/useCartStore';
 import { CUSTOMER_ROUTES } from '../../constants/routes';
+import { getCartOwnerId } from '../../utils/sessionIdentity';
 import {
   validateName,
   validateEmail,
@@ -21,14 +23,19 @@ import {
   validatePassword,
 } from '../../utils/authValidation';
 
-/** Validasi inline per field saat pengguna mengetik (nama hanya divalidasi saat submit) */
+/** Validasi inline per field saat pengguna mengetik */
 const INLINE_VALIDATORS = {
   email: validateEmail,
   phone: validatePhone,
   password: validatePassword,
 };
 
-const EMPTY_FORM = { name: '', email: '', phone: '', password: '' };
+const EMPTY_FORM = {
+  name: '',
+  email: '',
+  phone: '',
+  password: '',
+};
 
 export default function DaftarPage() {
   const navigate = useNavigate();
@@ -43,9 +50,21 @@ export default function DaftarPage() {
 
   const handleChange = (field) => (e) => {
     const val = e.target.value;
-    setForm((f) => ({ ...f, [field]: val }));
+
+    setForm((f) => ({
+      ...f,
+      [field]: val,
+    }));
+
     const validator = INLINE_VALIDATORS[field];
-    if (validator) setErrors((prev) => ({ ...prev, [field]: validator(val) }));
+
+    if (validator) {
+      setErrors((prev) => ({
+        ...prev,
+        [field]: validator(val),
+      }));
+    }
+
     setSubmitError('');
   };
 
@@ -56,11 +75,13 @@ export default function DaftarPage() {
       phone: validatePhone(form.phone),
       password: validatePassword(form.password),
     };
+
     setErrors(e);
+
     return Object.values(e).every((v) => !v);
   };
 
-  // Tombol Daftar nonaktif sampai semua field valid & S&K dicentang (SPEC §6)
+  // Tombol Daftar aktif hanya jika semua field valid dan S&K disetujui.
   const canSubmit =
     !validateName(form.name) &&
     !validateEmail(form.email) &&
@@ -70,23 +91,39 @@ export default function DaftarPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate() || !agreeTerms) return;
+
+    if (!validate() || !agreeTerms) {
+      return;
+    }
+
     setLoading(true);
     setSubmitError('');
+
     try {
       const { user, token } = await register({
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
         phone: form.phone.trim(),
         password: form.password,
+
+        // Perbaikan: kirim status persetujuan ke backend.
+        termsAccepted: agreeTerms,
       });
-      // FR-01: setelah daftar langsung masuk
+
+      // FR-01: setelah daftar berhasil, pengguna langsung masuk.
       setAuth(user, token);
-      // FR-04: gabung keranjang tamu
-      mergeGuestCart(user.user_id);
-      navigate(CUSTOMER_ROUTES.BERANDA, { replace: true });
+
+      // FR-04: gabungkan keranjang tamu dengan akun pelanggan.
+      // Step 6.3: id pemilik keranjang dari helper bersama (mock user_id / API userId)
+      mergeGuestCart(getCartOwnerId(user));
+
+      navigate(CUSTOMER_ROUTES.BERANDA, {
+        replace: true,
+      });
     } catch (err) {
-      setSubmitError(err.message);
+      setSubmitError(
+        err.message || 'Pendaftaran gagal. Silakan coba kembali.'
+      );
     } finally {
       setLoading(false);
     }
@@ -104,7 +141,10 @@ export default function DaftarPage() {
         form={form}
         errors={errors}
         agreeTerms={agreeTerms}
-        onAgreeTermsChange={setAgreeTerms}
+        onAgreeTermsChange={(checked) => {
+          setAgreeTerms(checked);
+          setSubmitError('');
+        }}
         onFieldChange={handleChange}
         onSubmit={handleSubmit}
         submitError={submitError}
@@ -114,7 +154,10 @@ export default function DaftarPage() {
 
       <p className="text-center text-sm text-cocoa/60 mt-6">
         Sudah punya akun?{' '}
-        <Link to={CUSTOMER_ROUTES.MASUK} className="text-primary font-semibold hover:underline">
+        <Link
+          to={CUSTOMER_ROUTES.MASUK}
+          className="text-primary font-semibold hover:underline"
+        >
           Masuk
         </Link>
       </p>

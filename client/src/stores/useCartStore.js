@@ -6,11 +6,17 @@
 //   - Tamu   : localStorage key "ovenco_mock_cart_guest"
 //   - Login  : localStorage key "ovenco_mock_cart_{userId}"
 // Saat login, keranjang tamu digabung ke keranjang akun (FR-04).
+// Review c53a11c (M2): tab lain bisa menulis key keranjang yang sama. Setiap perubahan membaca isi TERBARU dari
+// localStorage (bukan salinan memori) sebelum menulis, dan keranjang aktif dimuat ulang saat event `storage` untuk
+// key-nya tiba (services/sessionSync) — item dari tab lain tidak tertimpa data lama.
 
 import { create } from 'zustand';
 // Step 5.1 (review PR #5): identitas item (termasuk tanggal pre-order & catatan) dan id unik
 // diatur fungsi murni di utils/rules/cart.js — dipakai addItem dan mergeGuestCart.
-import { mergeCartItems, normalizeCartItems } from '../utils/rules/cart';
+import {
+  mergeCartItems, normalizeCartItems, wouldExceedLineLimit, hasUnstableCartIds, subtractOrderedItems,
+} from '../utils/rules/cart';
+import { isValidUserId, getCartOwnerId } from '../utils/sessionIdentity';
 
 /** Key localStorage keranjang tamu */
 const GUEST_CART_KEY = 'ovenco_mock_cart_guest';
@@ -24,13 +30,26 @@ const userCartKey = (userId) => `ovenco_mock_cart_${userId}`;
  * @returns {Array}
  */
 function readCart(key) {
+  let parsed;
   try {
     const raw = localStorage.getItem(key);
-    // Keranjang lama dilengkapi field default & id unik (kompatibilitas)
-    return raw ? normalizeCartItems(JSON.parse(raw)) : [];
+    if (!raw) return [];
+    parsed = JSON.parse(raw);
   } catch {
     return [];
   }
+  // Keranjang lama dilengkapi field default & id unik (kompatibilitas)
+  const items = normalizeCartItems(parsed);
+  // Review 776c824 (M-1): id baru untuk item lama/ganda disimpan SEKALI sehingga pembacaan berikutnya (dan operasi
+  // hapus/ubah jumlah yang membaca ulang) memakai id yang sama. Keranjang yang sudah valid tidak ditulis ulang.
+  if (hasUnstableCartIds(parsed)) {
+    try {
+      writeCart(key, items);
+    } catch {
+      // Penyimpanan penuh/diblokir: isi tetap dipakai di memori
+    }
+  }
+  return items;
 }
 
 /**
@@ -53,20 +72,28 @@ const useCartStore = create((set, get) => ({
 
   /**
    * Tambah item ke keranjang.
-   * @param {{product_id, variant_id?, design_id?, quantity, note?, preferred_date?}} item
+   * @param {{product_id, variant_id?, design_id?, design_token?, quantity, note?, preferred_date?}} item
+   * @returns {boolean} false bila ditolak karena keranjang sudah berisi CART_MAX_LINES item berbeda (Step 6.3)
    */
   addItem: (item) => {
-    const { items, _storageKey } = get();
+    const { _storageKey } = get();
+    const items = readCart(_storageKey);
+    const entry = {
+      product_id: item.product_id,
+      variant_id: item.variant_id ?? null,
+      design_id: item.design_id ?? null,
+      preferred_date: item.preferred_date ?? null,
+      note: item.note ?? '',
+    };
+    if (wouldExceedLineLimit(items, entry)) return false;
     // Item dengan produk, varian, desain, tanggal pre-order, dan catatan yang sama dijumlahkan;
     // selain itu menjadi item baru dengan cart_item_id unik.
     const next = mergeCartItems(items, [
       {
-        product_id: item.product_id,
-        variant_id: item.variant_id ?? null,
-        design_id: item.design_id ?? null,
+        ...entry,
+        // Step 6.3: bukti akses desain custom cake tamu (dari POST /custom-cake-designs)
+        design_token: item.design_token ?? null,
         quantity: item.quantity ?? 1,
-        note: item.note ?? '',
-        preferred_date: item.preferred_date ?? null,
         // Snapshot harga & nama untuk tampilan keranjang (diisi caller)
         name: item.name ?? '',
         price: item.price ?? 0,
@@ -75,6 +102,7 @@ const useCartStore = create((set, get) => ({
     ]);
     writeCart(_storageKey, next);
     set({ items: next });
+    return true;
   },
 
   /**
@@ -83,7 +111,8 @@ const useCartStore = create((set, get) => ({
    * @param {number} quantity
    */
   updateQuantity: (cart_item_id, quantity) => {
-    const { items, _storageKey } = get();
+    const { _storageKey } = get();
+    const items = readCart(_storageKey);
     const next =
       quantity <= 0
         ? items.filter((i) => i.cart_item_id !== cart_item_id)
@@ -96,11 +125,57 @@ const useCartStore = create((set, get) => ({
    * Hapus satu item dari keranjang.
    * @param {number} cart_item_id
    */
-  removeItem: (cart_item_id) => {
-    const { items, _storageKey } = get();
-    const next = items.filter((i) => i.cart_item_id !== cart_item_id);
+  removeItem: (cart_item_id) => get().removeItems([cart_item_id]),
+
+  /**
+   * Review c53a11c (M2): hapus beberapa baris dari keranjang aktif (isi terbaru localStorage). Untuk item yang baru
+   * dipesan pakai removeOrderedItems (berdasarkan jumlah).
+   * @param {number[]} cartItemIds
+   */
+  removeItems: (cartItemIds) => {
+    const { _storageKey } = get();
+    const ids = new Set(cartItemIds);
+    const next = readCart(_storageKey).filter((i) => !ids.has(i.cart_item_id));
     writeCart(_storageKey, next);
     set({ items: next });
+  },
+
+  /**
+   * Review 776c824 (M-2): pesanan berhasil → kurangi keranjang aktif sebanyak jumlah yang dipesan (snapshot yang
+   * dikirim ke server). Jumlah yang bertambah selama checkout dan item lain tetap ada.
+   * @param {Array<{cart_item_id: number, quantity: number}>} orderedLines
+   */
+  removeOrderedItems: (orderedLines) => {
+    const { _storageKey } = get();
+    const next = subtractOrderedItems(readCart(_storageKey), orderedLines);
+    writeCart(_storageKey, next);
+    set({ items: next });
+  },
+
+  /**
+   * Review c53a11c (M1) · 776c824 (M-2): kurangi jumlah yang dipesan dari keranjang MILIK pelanggan tertentu (pemilik
+   * pesanan yang sudah dibuat saat akun aktif berganti) tanpa mengganti atau mengubah keranjang aktif akun lain.
+   * @param {string|null} ownerId — null/tidak sah → tidak melakukan apa pun (tidak menyentuh keranjang tamu)
+   * @param {Array<{cart_item_id: number, quantity: number}>} orderedLines
+   */
+  removeOrderedItemsFromOwnerCart: (ownerId, orderedLines) => {
+    if (!isValidUserId(ownerId)) return;
+    const key = userCartKey(ownerId);
+    if (key === get()._storageKey) {
+      get().removeOrderedItems(orderedLines);
+      return;
+    }
+    writeCart(key, subtractOrderedItems(readCart(key), orderedLines));
+  },
+
+  /**
+   * Review c53a11c (M2): muat ulang keranjang AKTIF dari localStorage (ditulis tab lain). Hanya key aktif yang dibaca,
+   * jadi keranjang akun lain tidak pernah menggantikannya. Tidak menulis apa pun → tidak memicu event/loop.
+   */
+  reloadActiveCart: () => {
+    const { items, _storageKey } = get();
+    const fresh = readCart(_storageKey);
+    if (JSON.stringify(fresh) !== JSON.stringify(items)) set({ items: fresh });
   },
 
   /** Kosongkan keranjang (setelah checkout berhasil). */
@@ -116,6 +191,9 @@ const useCartStore = create((set, get) => ({
    * @param {number} userId
    */
   mergeGuestCart: (userId) => {
+    // Step 6.3: id tidak sah (mis. undefined dari bentuk user API) → tidak pernah digabung ke key bersama
+    // "ovenco_mock_cart_undefined"; keranjang tamu tetap utuh
+    if (!isValidUserId(userId)) return;
     const guestItems = readCart(GUEST_CART_KEY);
     const key = userCartKey(userId);
     const userItems = readCart(key);
@@ -139,9 +217,45 @@ const useCartStore = create((set, get) => ({
    * @param {number} userId
    */
   loadUserCart: (userId) => {
+    // Step 6.3: id tidak sah → keranjang tamu (bukan key bersama untuk semua akun)
+    if (!isValidUserId(userId)) {
+      get().resetToGuest();
+      return;
+    }
     const key = userCartKey(userId);
     const items = readCart(key);
     set({ items, _storageKey: key });
+  },
+
+  /**
+   * Step 6.3 (temuan H1 & M-A): tambahkan item ke keranjang MILIK pemilik tertentu tanpa mengganti keranjang aktif
+   * (keranjang aktif bila pemiliknya sama). Dipakai saat menyimpan desain custom cake, termasuk bila identitas berganti
+   * selama request berjalan (services/customCakeCartService menentukan pemilik yang sah).
+   * Idempoten untuk desain: desain yang sudah ada di keranjang tujuan tidak ditambahkan lagi (tanpa baris/jumlah ganda).
+   * @param {string|null} ownerId — id pelanggan pemilik keranjang; null/tidak sah = keranjang tamu
+   * @returns {boolean} false bila ditolak batas baris keranjang
+   */
+  addItemToOwnerCart: (ownerId, item) => {
+    const key = isValidUserId(ownerId) ? userCartKey(ownerId) : GUEST_CART_KEY;
+    const isActive = key === get()._storageKey;
+    const items = readCart(key);
+    const designId = item.design_id == null ? null : String(item.design_id);
+    if (designId !== null && items.some((i) => i.design_id != null && String(i.design_id) === designId)) return true;
+    if (isActive) return get().addItem(item);
+    if (wouldExceedLineLimit(items, item)) return false;
+    writeCart(key, mergeCartItems(items, [item]));
+    return true;
+  },
+
+  /**
+   * Step 6.3: keranjang aktif mengikuti identitas sesi (dipakai login admin, pemulihan saat load, sinkron antar-tab).
+   * Pelanggan → keranjang akunnya; staf/owner/tamu → keranjang tamu. Keranjang akun lain tidak pernah dihapus.
+   * @param {object|null} user — objek user useAuthStore (bentuk mock `user_id` atau API `userId`)
+   */
+  loadCartForUser: (user) => {
+    const ownerId = getCartOwnerId(user);
+    if (ownerId) get().loadUserCart(ownerId);
+    else get().resetToGuest();
   },
 
   /** Jumlah total item (untuk badge keranjang) */
@@ -150,5 +264,9 @@ const useCartStore = create((set, get) => ({
   /** Total harga keranjang */
   totalPrice: () => get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
 }));
+
+// Step 6.3: dipakai mockHandler services/cartService.js — di mode mock "keranjang akun tersimpan" adalah key
+// localStorage pelanggan yang sama dengan store ini (store sendiri belum memanggil API; disambungkan di Step 6.6)
+export { userCartKey, readCart as readStoredCart, writeCart as writeStoredCart };
 
 export default useCartStore;

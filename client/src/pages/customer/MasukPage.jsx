@@ -19,6 +19,7 @@ import { login, loginWithGoogle } from '../../services/authService';
 import useAuthStore from '../../stores/useAuthStore';
 import useCartStore from '../../stores/useCartStore';
 import { ROLE_LANDING, ROLES } from '../../constants/roles';
+import { getCartOwnerId } from '../../utils/sessionIdentity';
 import { CUSTOMER_ROUTES } from '../../constants/routes';
 
 export default function MasukPage() {
@@ -57,7 +58,8 @@ export default function MasukPage() {
     try {
       const { user, token } = await loginFn();
       setAuth(user, token);
-      mergeGuestCart(user.user_id);
+      // Step 6.3: id pemilik keranjang dari helper bersama (mock user_id / API userId)
+      mergeGuestCart(getCartOwnerId(user));
       redirectAfterLogin(user);
     } catch (err) {
       // Pesan error persis sesuai SPEC §6

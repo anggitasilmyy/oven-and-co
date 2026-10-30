@@ -95,7 +95,7 @@ const time = (hhmm) => new Date(`1970-01-01T${hhmm}:00.000Z`);
 
 // store_settings — 1 baris; nilai SPEC §8 & asumsi SPEC §10 (alamat, koordinat, WhatsApp dummy — OI-01)
 const STORE_SETTINGS = {
-  settingId: 1, storeName: 'Oven & Co.', address: 'Jl. Contoh Roti No. 1, Kota Contoh', latitude: -6.2, longitude: 106.8,
+  settingId: 1, storeName: 'Oven & Co.', address: 'Jl. Oven & Co. No. 1, Jakarta', latitude: -6.2, longitude: 106.8,
   whatsappNumber: '+620000000000', preorderCutoffTime: time('17:00'), deliveryRadiusKm: 10, deliveryFeePerKm: 2500,
   paymentTimeoutMinutes: 30, earnAmountPerPoint: 1000, redeemPointsUnit: 100, redeemValue: 5000,
   goldMinPoints: 500, platinumMinPoints: 2000, reviewBonusPoints: 20,

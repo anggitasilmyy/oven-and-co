@@ -4,12 +4,15 @@
 
 import { useState } from 'react';
 import useCartStore from '../stores/useCartStore';
-import { createCustomCakeDesign } from '../services/customCakeService';
+import { saveCustomCakeToCart, getDesignCartNotice } from '../services/customCakeCartService';
+import { createSessionBoundNotifier } from '../services/sessionScope';
+import { isCommittedForOtherSessionError } from '../utils/apiErrors';
 import {
   getSelectedOptions, calculateCustomCakePrice, getCustomCakeStepCompletion, canOpenCustomCakeStep,
   validateCustomCakeDesign,
 } from '../utils/businessRules';
 import { CUSTOM_CAKE_STEPS, CUSTOM_OPTION_GROUPS, WRITING_COLORS } from '../constants/customCake';
+import { CART_MAX_LINES, CART_LINE_LIMIT_MESSAGE } from '../constants/cart';
 
 const emptyDesign = (earliestKey) => ({
   selections: Object.fromEntries(CUSTOM_OPTION_GROUPS.map((g) => [g, null])),
@@ -25,7 +28,6 @@ const emptyDesign = (earliestKey) => ({
  * @param {Function} notify — (type, message) → toast
  */
 export default function useCustomCakeBuilder(builder, notify) {
-  const addItem = useCartStore((s) => s.addItem);
   const [stepIndex, setStepIndex] = useState(0);
   const [design, setDesign] = useState(() => emptyDesign(builder.earliest_ready_date));
   const [submitting, setSubmitting] = useState(false);
@@ -53,23 +55,25 @@ export default function useCustomCakeBuilder(builder, notify) {
       notify('error', error);
       return;
     }
+    // Desain baru selalu menjadi baris baru: cek batas baris sebelum desain disimpan (Step 6.3)
+    if (useCartStore.getState().items.length >= CART_MAX_LINES) {
+      notify('error', CART_LINE_LIMIT_MESSAGE);
+      return;
+    }
     setSubmitting(true);
+    // Step 6.3 (temuan L1): bila identitas berganti, halaman ini dipasang ulang → pesan lewat notifikasi global
+    const report = createSessionBoundNotifier(notify);
     try {
-      const saved = await createCustomCakeDesign(design);
-      addItem({
-        product_id: builder.product.product_id,
-        design_id: saved.design_id,
-        quantity: 1,
-        preferred_date: saved.ready_date,
-        name: builder.product.name,
-        price: saved.price,
-        image_url: builder.product.image_url,
-      });
-      notify('success', 'Ditambahkan ke keranjang');
+      // Step 6.3 (temuan H1, M-A, L2): simpan & masukkan ke keranjang pemilik yang sah
+      const result = await saveCustomCakeToCart(design, builder.product);
+      const { type, message, replacesSessionNotice } = getDesignCartNotice(result);
+      report(type, message, { replacesSessionNotice });
+      if (!result.added) return;
       setDesign(emptyDesign(builder.earliest_ready_date));
       setStepIndex(0);
     } catch (e) {
-      notify('error', e.message || 'Desain gagal disimpan');
+      // M1: desain sudah tersimpan untuk akun sebelumnya → informasi, bukan kegagalan
+      report(isCommittedForOtherSessionError(e) ? 'info' : 'error', e.message || 'Desain gagal disimpan');
     } finally {
       setSubmitting(false);
     }

@@ -194,6 +194,113 @@ Catatan khusus:
   rujukan di pesanan lama tidak dikosongkan) kecuali tabel penghubung M:N & `cart_items` (`CASCADE`); tidak ada UNIQUE
   di luar SPEC (mis. `order_items.design_id`). Seed pilihan A: data master SPEC §9/§10 + 9 pesanan contoh (semua status,
   termasuk OVC-261012-018), id tetap, `upsert` tanpa menimpa (idempoten). `BigInt`/`Decimal` perlu serializer di 6.2+.
+- 6.3 (sebagian, belum selesai): produk, kategori, opsi custom, simpan desain, `POST /api/cart`, `GET /api/checkout/context`,
+  `GET /api/promos/active`, dan akun: wishlist (`/me/wishlist`), poin (`/me/points`, `/me/points/history`),
+  voucher (`/me/vouchers`), alamat (`/me/addresses`), profil & kata sandi (`/me/profile`, `/me/password`),
+  pesanan (`POST/GET /orders`, `GET /orders/:no`, `GET|PATCH /orders/:no/payment`, `PATCH /orders/:no/cancel`,
+  `POST /orders/:no/reorder`), simulasi bayar (`POST /payments/:no/simulate-paid`, ditolak di production) dan
+  `GET /payment-methods` (Staf/Owner, filter AD-03), ulasan (`GET|POST /orders/:no/reviews`,
+  `GET /products/:id/reviews`), notifikasi (`GET /me/notifications`, `GET /me/notifications/unread-count`,
+  `PATCH /me/notifications/:id/read`), keranjang akun tersimpan (`GET|PUT /cart/items`, `POST /cart/merge`).
+  Penyambungan `useCartStore` ke API keranjang server menyusul di 6.6.
+  - Keranjang akun (C-12, FR-04, BR-04): hanya pelanggan login (tamu 401, staf/owner 403), disimpan di
+    `carts.user_id` + `cart_items`; keranjang tamu tetap di localStorage (`carts.session_token` tidak dipakai).
+    `PUT` mengganti seluruh isi; `merge` menggabung item tamu dengan aturan identitas yang sama dengan client
+    (`savedCartRules.service.js` ↔ `utils/rules/cart.js`). Satu transaksi; baris `users` dikunci `FOR UPDATE`.
+    Harga tidak disimpan — tampilan & harga tetap dari `POST /api/cart` (kontrak tidak berubah).
+    Baris dilewati (dikembalikan di `skipped`): produk tidak ada, varian bukan milik produk, desain bukan milik
+    pelanggan setelah klaim. Produk/varian nonaktif, desain kedaluwarsa, jumlah > 99, > 50 baris tetap disimpan dan
+    ditandai `POST /api/cart`. Ditolak 400: > 100 baris setelah digabung, jumlah > batas INT kolom.
+    Desain tamu diklaim hanya bila `design_token` sah, belum pernah dipesan, dan `user_id` masih NULL
+    (`selectClaimableGuestDesignIds()` + kunci desain + `updateMany` bersyarat). Mode mock: keranjang akun = key
+    localStorage pelanggan, tanpa cek token (sama dengan catatan desain di bawah).
+    Catatan untuk 6.6: `cart_item_id` dibuat ulang setiap simpan (hapus + buat), jadi store perlu memakai id dari
+    respons terakhir. Diuji di MySQL 8 sementara (21 skenario, termasuk merge & klaim bersamaan) dan browser mode mock.
+  - Notifikasi (C-24): hanya baca & tandai dibaca milik pelanggan login (staf/owner 403); milik pelanggan lain → 404
+    (sama dengan tidak ada); tandai dibaca idempoten; respons `{ items, unread, today_key }` sesuai
+    `client/src/services/notificationService.js`. Pembuatan notifikasi saat status berubah tetap Step 6.5.
+    Diuji di MySQL 8 (container sementara, migrasi + seed) dan browser mode API.
+  - **Ditunda ke Step 6.4** (hasil audit; frontend AD-04 sudah memanggil, server belum punya rute → 404
+    "Endpoint tidak ditemukan"): `PATCH /api/admin/orders/:no/status` (ubah status, mis. Dikonfirmasi → Sedang
+    Disiapkan), `POST /api/admin/orders/:no/verify-pickup`, `PATCH /api/admin/orders/:no/mark-paid`.
+  - Ulasan (C-10, C-19): hanya item pesanan Selesai milik pelanggan, satu ulasan per item (UNIQUE
+    `reviews.order_item_id`; P2002 → 409), rating bulat 1–5, tag dari daftar client (ganda digabung), komentar ≤ kolom
+    TEXT; bonus `review_bonus` = `store_settings.review_bonus_points` dengan `review_id`, satu transaksi. Foto: multipart
+    `photos` (maks. 3) + JSON `review`, aturan sama dengan foto custom cake (JPG/PNG/WebP dari isi file, 5 MB, nama acak,
+    `utils/photoStorage.js`), disimpan di `uploads/reviews/` dan disajikan `/uploads/reviews/…`; data URL di JSON ditolak.
+    File ditulis di luar transaksi dan dihapus bila penyimpanan gagal. Diuji di MySQL 8 sementara lewat HTTP
+    (49 skenario: validasi isian & file, ulasan ganda & bersamaan, gagal tulis disk, tanpa file yatim) dan browser
+    mode API (form C-19 + 1 foto → multipart 201). Pesanan Selesai disiapkan langsung di DB karena ubah status admin
+    baru ada di 6.4.
+  - Pesanan: harga/diskon/ongkir/total dihitung ulang di server. Efek saat DIBUAT (TF-12, sama dengan mock): stok
+    ready hari ini, klaim voucher + kuota −1, poin `redeem`, riwayat status; dikembalikan saat batal (poin `refund`,
+    lunas → `refunded`, pembayaran belum lunas → `failed`). Satu transaksi; baris pengguna/desain/pesanan dikunci
+    `FOR UPDATE`, stok & kuota memakai UPDATE bersyarat. Diuji di MySQL 8 sementara lewat HTTP (56 skenario: validasi,
+    stok termasuk 3 pesanan bersamaan, total + ongkir + voucher + poin, Bayar di Toko, kepemilikan, desain sekali
+    pakai, batal mengembalikan stok/voucher/poin) dan browser mode API (Keranjang → Checkout → QRIS → Bayar).
+    Klaim voucher pelanggan (`user_vouchers`) belum punya endpoint maupun pemanggil di frontend; uji memakai data DB.
+  - Belum ada job `autoCancelOrders` (6.5): pembayaran yang lewat `expired_at` ditolak (simulasi & ganti metode)
+    tetapi pesanan tetap Menunggu Pembayaran sampai job dibuat. Ganti ke Bayar di Toko mempertahankan `expired_at`
+    awal — job BR-07 perlu memakai jam tutup tanggal siap. Notifikasi status (SPEC §4) belum ditulis (6.5).
+  - Profil (C-20): frontend memakai `PATCH` (PUT juga diterima); respons = `publicUser` (bentuk user sesi login).
+    Aturan nama/email/HP/kata sandi sama dengan registrasi server. Ganti kata sandi wajib kata sandi saat ini;
+    token yang sudah terbit tetap berlaku sampai kedaluwarsa (JWT tanpa pencabutan — tidak ada kolom di SPEC §8).
+  - Alamat (C-22): tepat satu alamat utama per pelanggan (alamat pertama otomatis utama; utama dihapus → id terkecil
+    yang tersisa). Alamat yang sudah dirujuk pesanan **tidak bisa dihapus** (409) karena FK `orders.address_id` RESTRICT
+    (lihat catatan 6.1) — tetap bisa diubah; pesanan memakai `delivery_address_snapshot`.
+  Uji server tanpa MySQL: `cd server && npm test` (Prisma dipalsukan).
+  - Aturan eksplisit SPEC yang dipakai: custom cake ≥ H+3 dan pre-order ≥ H-1 dengan batas jam pesan (BR-02),
+    catatan item ≤ 255 karakter (SPEC §8), batas jam pre-order 17.00 (SPEC §10, OI-04). "Hari ini" selalu WIB
+    (Asia/Jakarta) di server (`server/src/utils/jakartaDate.js`).
+  - **Asumsi prototype (bukan persyaratan dokumen)**, nilainya sama di client & server:
+
+    | Batas | Nilai | Client | Server |
+    |---|---|---|---|
+    | Tanggal pre-order paling lambat | hari ini + 13 (jendela 14 hari) | `constants/productDetail.js` `PREORDER_DATE_WINDOW_DAYS` | `utils/businessConstants.js` — di luar jendela: `date_out_of_range` |
+    | Tanggal custom cake paling lambat | hari ini + 29 (jendela 30 hari) | `constants/customCake.js` `CUSTOM_CAKE_DATE_WINDOW_DAYS` | ditolak 400 saat desain disimpan |
+    | Jumlah per baris keranjang | 99 unit | `constants/cart.js` `CART_LINE_MAX_QUANTITY` | baris ditandai `quantity_exceeds_limit` (tidak dipotong, request tidak gagal) |
+    | Baris keranjang | 50 item berbeda | `constants/cart.js` `CART_MAX_LINES` (tambah item ditolak dengan pesan) | `exceeds_line_limit: true`, checkout diblokir; request > 100 item ditolak 400 |
+
+  - Desain custom cake: desain milik pelanggan hanya untuk pemiliknya; desain tamu (`user_id` kosong) hanya dengan
+    `design_token` HMAC-SHA256 yang dikembalikan `POST /api/custom-cake-designs` (tanpa kolom baru; kunci
+    `DESIGN_TOKEN_SECRET` atau turunan `JWT_SECRET`). Kebijakan sekali pakai: desain yang pernah masuk pesanan tidak
+    bisa dipakai lagi, termasuk bila pesanan dibatalkan. Desain dengan tanggal siap < H+3 ditolak (`design_expired`).
+  - Satu `design_id` hanya boleh ada di **satu baris** keranjang/pesanan; jumlah > 1 pada baris itu boleh (kue identik).
+    Baris kedua dengan desain yang sama (mis. catatan berbeda) ditandai `design_duplicate_line` dan tidak masuk subtotal;
+    frontend menggabungkan item berdesain sama ke satu baris. Pembuatan pesanan nanti WAJIB memakai
+    `findDuplicateDesignLines()` (`server/src/services/designAccess.service.js`) selain cek token & sekali pakai.
+  - Foto referensi custom cake: `POST /api/custom-cake-designs` menerima multipart (`referencePhoto` + JSON `design`);
+    JPG/PNG/WebP maks. 5 MB, tipe dicek dari isi file, nama file acak, disimpan lokal di `server/uploads/custom-cakes/`
+    (atau `UPLOAD_DIR`) dan disajikan di `/uploads/custom-cakes/…` (URL relatif terhadap server API). File adalah
+    satu-satunya sumber foto: field JSON `referencePhoto` (URL/path/data URL) ditolak 400. File ditulis di luar
+    transaksi Prisma dan dihapus bila validasi data server/penyimpanan gagal. Frontend menampilkan path unggahan lewat
+    `toUploadUrl()` (`services/apiClient.js`, origin dari `VITE_API_URL`; API relatif `/api` → path tetap relatif).
+    Validasi body cart & custom cake memakai zod (`server/src/validators/`).
+  - Pembatas laju pembuatan desain, **in-memory per proses** (hilang saat restart, tidak dibagi antar-instance,
+    tanpa `trust proxy` sehingga pengguna di balik NAT berbagi kuota) — asumsi prototype, bukan solusi produksi:
+    pembatas awal sebelum autentikasi 120 request/IP/15 menit (melindungi verifikasi JWT & query users; request
+    401/403 ikut dihitung di sini), lalu pembatas utama 20 desain/IP/15 menit setelah autentikasi & cek peran
+    (401/403 tidak menghabiskan kuota ini).
+  - Validitas desain berbeda dari validitas jumlah: baris pertama dengan desain sah tetap "pemilik" desain walau
+    jumlahnya > 99 (`quantity_exceeds_limit`); baris berikutnya dengan desain yang sama tetap `design_duplicate_line`.
+  - Mode mock memeriksa kepemilikan, sekali pakai, dan kedaluwarsa desain dengan urutan yang sama dengan server
+    (`utils/rules/cart.js` `checkCartDesign`), tetapi **tidak** memeriksa `design_token` (data mock hanya di perangkat
+    ini, tanpa kunci server); token hanya ditegakkan di mode API.
+  - Keterbatasan yang belum ditangani: bila proses server berhenti mendadak setelah foto ditulis tetapi sebelum
+    transaksi selesai (atau penghapusan file gagal dan hanya dicatat di log), file yatim bisa tertinggal di
+    `uploads/custom-cakes/` tanpa baris database. Perlu job pembersihan berkala (file tanpa referensi & berumur > N jam).
+  - **Ditunda ke Step 6.4:** API pesanan admin (`GET /api/admin/orders/:orderNumber`) harus mengembalikan
+    `design_spec` termasuk `reference_photo_url` sesuai kontrak frontend AD-04 (`components/admin/AdminOrderItems.jsx`,
+    sudah memakai `toUploadUrl()`), lalu tampilan foto diuji di mode API. Saat ini foto referensi pada pesanan admin
+    **belum** berfungsi end-to-end di mode API (hanya mode mock).
+  - Ditunda (tanpa bukti dampak nyata): race kecil Best Sellers bila produk dinonaktifkan di antara dua query, dan
+    pemecahan `cart.service.js` (> ±150 baris).
+  - Sesi kedaluwarsa: 401 dengan `code: SESSION_INVALID` menghapus sesi lokal dan menampilkan notifikasi global
+    (`SessionExpiredNotice`); endpoint tamu (keranjang, desain) diulang maksimal sekali tanpa token. 403 dan 401
+    login gagal tidak menghapus sesi. Id produk tidak valid → 400 `code: INVALID_ID` (ditampilkan "tidak ditemukan").
+  - Untuk Phase berikutnya (gabung keranjang setelah login): `selectClaimableGuestDesignIds()` di
+    `server/src/services/designAccess.service.js` memilih desain tamu yang aman diklaim (token valid, belum dipesan);
+    penulisan `user_id` dilakukan dengan `updateMany` bersyarat `user_id IS NULL`.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.
