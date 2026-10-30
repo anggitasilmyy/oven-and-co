@@ -12,7 +12,7 @@ const {
 } = require('../utils/businessConstants');
 const { getJakartaDateKey, dateKeyToDbDate } = require('../utils/jakartaDate');
 const { canCancelOrder } = require('./orderTracking.service');
-const { findMyOrder } = require('./order.service');
+const { lockMyOrder } = require('./order.service');
 const { toItemLine, findMyOrderDetailRow } = require('./myOrders.service');
 
 const MESSAGES = Object.freeze({
@@ -51,15 +51,15 @@ async function returnReadyStock(tx, order) {
 
 /**
  * PATCH /api/orders/:orderNumber/cancel — BR-08: hanya sebelum Sedang Disiapkan.
- * Pesanan dikunci lalu dibaca ulang: klik ganda / tab lain tidak mengembalikan stok, voucher, atau poin dua kali.
+ * Pesanan dikunci lalu dibaca: klik ganda / tab lain / admin yang bersamaan diproses berurutan, sehingga stok,
+ * voucher, atau poin tidak dikembalikan dua kali dan status yang sudah diubah admin tidak ditimpa.
  */
 async function cancelMyOrder(userId, orderNumber, reason, now = new Date()) {
   const owner = BigInt(userId);
 
   return prisma.$transaction(async (tx) => {
-    const owned = await findMyOrder(tx, userId, orderNumber);
-    await tx.$queryRaw`SELECT order_id FROM orders WHERE order_id = ${owned.orderId} FOR UPDATE`;
-    const order = await findMyOrder(tx, userId, orderNumber);
+    // Kunci = pembacaan pertama transaksi (lihat lockMyOrder)
+    const order = await lockMyOrder(tx, userId, orderNumber);
 
     if (order.orderStatus === ORDER_STATUS.DIBATALKAN) throw httpError(409, MESSAGES.ALREADY_CANCELLED);
     if (!canCancelOrder({ order_status: order.orderStatus })) throw httpError(409, MESSAGES.NOT_CANCELLABLE);

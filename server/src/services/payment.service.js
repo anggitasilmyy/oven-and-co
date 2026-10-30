@@ -12,7 +12,7 @@ const {
 const { isPayAtStoreAllowed, resolvePaymentMethod, PAYMENT_METHOD_ERROR } = require('./checkoutRules.service');
 const { paymentCodeFor, gatewayRefFor } = require('./orderRules.service');
 const { mapPaymentMethod } = require('./checkout.service');
-const { findMyOrder } = require('./order.service');
+const { lockMyOrder } = require('./order.service');
 
 const MESSAGES = Object.freeze({
   DEV_ONLY: 'Simulasi hanya tersedia di mode development',
@@ -26,13 +26,11 @@ function httpError(statusCode, message) {
 }
 
 /**
- * Kunci baris pesanan lalu baca ulang di dalam transaksi: dua request (klik ganda, tab lain, simulasi + ganti metode)
- * diproses berurutan dan yang kedua melihat status terbaru.
+ * Kunci baris pesanan (pembacaan pertama transaksi) lalu baca: dua request (klik ganda, tab lain, simulasi + ganti
+ * metode, pembatalan) diproses berurutan dan yang kedua melihat status terbaru.
  */
 async function lockPendingOrder(tx, userId, orderNumber, now) {
-  const owned = await findMyOrder(tx, userId, orderNumber);
-  await tx.$queryRaw`SELECT order_id FROM orders WHERE order_id = ${owned.orderId} FOR UPDATE`;
-  const order = await findMyOrder(tx, userId, orderNumber);
+  const order = await lockMyOrder(tx, userId, orderNumber);
   const payment = order.payments[0] ?? null;
 
   if (
