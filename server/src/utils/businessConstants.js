@@ -35,6 +35,20 @@ const CANCELLABLE_STATUSES = Object.freeze([ORDER_STATUS.MENUNGGU_PEMBAYARAN, OR
 // Pesan WhatsApp awal tombol "Hubungi Oven & Co." (client constants/orderHistory.js WHATSAPP_ORDER_MESSAGE)
 const WHATSAPP_ORDER_MESSAGE = (orderNumber) => `Halo Oven & Co., saya ingin bertanya tentang pesanan ${orderNumber}.`;
 
+// AD-03 · tab status Daftar Pesanan admin (client constants/orderStatus.js ORDER_STATUS_TABS); statuses kosong = semua
+const ADMIN_ORDER_TABS = Object.freeze([
+  { key: 'semua', statuses: [] },
+  { key: ORDER_STATUS.MENUNGGU_PEMBAYARAN, statuses: [ORDER_STATUS.MENUNGGU_PEMBAYARAN] },
+  { key: ORDER_STATUS.DIKONFIRMASI, statuses: [ORDER_STATUS.DIKONFIRMASI] },
+  { key: ORDER_STATUS.SEDANG_DISIAPKAN, statuses: [ORDER_STATUS.SEDANG_DISIAPKAN] },
+  { key: 'siap', statuses: [ORDER_STATUS.SIAP_DIAMBIL, ORDER_STATUS.DALAM_PENGIRIMAN] },
+  { key: ORDER_STATUS.SELESAI, statuses: [ORDER_STATUS.SELESAI] },
+  { key: ORDER_STATUS.DIBATALKAN, statuses: [ORDER_STATUS.DIBATALKAN] },
+].map((tab) => Object.freeze(tab)));
+
+// Baris per halaman tabel AD-03 (client constants/dashboard.js ADMIN_ORDERS_PAGE_SIZE)
+const ADMIN_ORDERS_PAGE_SIZE = 10;
+
 // orders.payment_status
 const PAYMENT_STATUS = Object.freeze({
   UNPAID: 'unpaid',
@@ -167,6 +181,8 @@ module.exports = {
   ORDER_STATUS_LABEL,
   CANCELLABLE_STATUSES,
   WHATSAPP_ORDER_MESSAGE,
+  ADMIN_ORDER_TABS,
+  ADMIN_ORDERS_PAGE_SIZE,
   PAYMENT_STATUS,
   PAYMENT_TRANSACTION_STATUS,
   PAYMENT_OPTION,

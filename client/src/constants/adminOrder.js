@@ -48,6 +48,8 @@ export const STATUS_NOTE = {
 /** Pesan validasi ubah status & tandai lunas (dipakai service, ditampilkan apa adanya di UI) */
 export const ADMIN_ORDER_ERROR = {
   NOT_FOUND: 'Pesanan tidak ditemukan',
+  // Step 6.3: respons GET /api/admin/orders tidak sesuai kontrak { rows, tabCounts, totalFiltered, page, totalPages, pageSize }
+  LIST_INVALID: 'Format data daftar pesanan dari server tidak sesuai. Coba lagi atau hubungi admin sistem.',
   FINAL: (label) => `Pesanan sudah ${label} sehingga statusnya tidak bisa diubah lagi`,
   WAITING_PAYMENT: 'Pesanan masih menunggu pembayaran pelanggan. Status berubah otomatis setelah lunas.',
   STALE: (label) => `Status pesanan sudah berubah menjadi ${label}. Data dimuat ulang.`,

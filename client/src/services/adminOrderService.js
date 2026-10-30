@@ -14,6 +14,8 @@ import { ROLES } from '../constants/roles';
 import { ORDER_STATUS_TABS } from '../constants/orderStatus';
 import { ADMIN_ORDERS_PAGE_SIZE } from '../constants/dashboard';
 import { dateKeyOf } from '../utils/date';
+import { isAdminOrderListPage } from '../utils/rules/adminOrder';
+import { ADMIN_ORDER_ERROR } from '../constants/adminOrder';
 
 const ADMIN_ROLES = [ROLES.STAF, ROLES.OWNER];
 
@@ -33,12 +35,18 @@ function toQuery(params) {
   return q.toString();
 }
 
+/** Step 6.3: respons yang tidak sesuai kontrak → error (halaman menampilkan ErrorState, tidak crash) */
+function assertAdminOrderListPage(data) {
+  if (!isAdminOrderListPage(data)) throw new Error(ADMIN_ORDER_ERROR.LIST_INVALID);
+  return data;
+}
+
 /**
  * @param {{tab?, search?, dateFrom?, dateTo?, fulfillment?, methodCode?, page?}} params
  * @returns {Promise<{rows, tabCounts, totalFiltered, page, totalPages, pageSize}>}
  */
-export function getAdminOrders(params = {}) {
-  return apiClient(`/admin/orders?${toQuery(params)}`, {
+export async function getAdminOrders(params = {}) {
+  return assertAdminOrderListPage(await apiClient(`/admin/orders?${toQuery(params)}`, {
     mockHandler: () => {
       requireMockRole(...ADMIN_ROLES);
       const filtered = getAdminOrderRows().filter((row) => matchesFilters(row, params));
@@ -62,7 +70,7 @@ export function getAdminOrders(params = {}) {
         pageSize,
       };
     },
-  });
+  }));
 }
 
 /** Metode pembayaran aktif untuk filter */

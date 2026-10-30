@@ -95,3 +95,20 @@ export function checkMarkPaidAtStore(order) {
 export function shouldAwardCompletionPoints(order, pointTransactions) {
   return !pointTransactions.some((tx) => tx.type === 'earn' && tx.order_id === order.order_id);
 }
+
+/**
+ * Step 6.3 · AD-03: respons daftar pesanan sesuai kontrak getAdminOrders (adminOrderService)?
+ * Dipakai service agar respons yang tidak sesuai menjadi error (ErrorState + Coba lagi), bukan halaman crash.
+ * @param {unknown} data
+ */
+export function isAdminOrderListPage(data) {
+  const isCount = (n) => Number.isInteger(n) && n >= 0;
+  return Boolean(
+    data && typeof data === 'object' &&
+    Array.isArray(data.rows) &&
+    data.rows.every((row) => row && typeof row === 'object' && typeof row.order_number === 'string') &&
+    data.tabCounts && typeof data.tabCounts === 'object' && Object.values(data.tabCounts).every(isCount) &&
+    isCount(data.totalFiltered) && isCount(data.pageSize) && data.pageSize > 0 &&
+    Number.isInteger(data.page) && data.page >= 1 && Number.isInteger(data.totalPages) && data.totalPages >= data.page
+  );
+}
