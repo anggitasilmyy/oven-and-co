@@ -228,11 +228,17 @@ Catatan khusus:
     TEXT; bonus `review_bonus` = `store_settings.review_bonus_points` dengan `review_id`, satu transaksi. Foto: multipart
     `photos` (maks. 3) + JSON `review`, aturan sama dengan foto custom cake (JPG/PNG/WebP dari isi file, 5 MB, nama acak,
     `utils/photoStorage.js`), disimpan di `uploads/reviews/` dan disajikan `/uploads/reviews/…`; data URL di JSON ditolak.
-    File ditulis di luar transaksi dan dihapus bila penyimpanan gagal. **Belum diuji di MySQL & browser.**
+    File ditulis di luar transaksi dan dihapus bila penyimpanan gagal. Diuji di MySQL 8 sementara lewat HTTP
+    (49 skenario: validasi isian & file, ulasan ganda & bersamaan, gagal tulis disk, tanpa file yatim) dan browser
+    mode API (form C-19 + 1 foto → multipart 201). Pesanan Selesai disiapkan langsung di DB karena ubah status admin
+    baru ada di 6.4.
   - Pesanan: harga/diskon/ongkir/total dihitung ulang di server. Efek saat DIBUAT (TF-12, sama dengan mock): stok
     ready hari ini, klaim voucher + kuota −1, poin `redeem`, riwayat status; dikembalikan saat batal (poin `refund`,
     lunas → `refunded`, pembayaran belum lunas → `failed`). Satu transaksi; baris pengguna/desain/pesanan dikunci
-    `FOR UPDATE`, stok & kuota memakai UPDATE bersyarat. **Belum diuji di MySQL sungguhan.**
+    `FOR UPDATE`, stok & kuota memakai UPDATE bersyarat. Diuji di MySQL 8 sementara lewat HTTP (56 skenario: validasi,
+    stok termasuk 3 pesanan bersamaan, total + ongkir + voucher + poin, Bayar di Toko, kepemilikan, desain sekali
+    pakai, batal mengembalikan stok/voucher/poin) dan browser mode API (Keranjang → Checkout → QRIS → Bayar).
+    Klaim voucher pelanggan (`user_vouchers`) belum punya endpoint maupun pemanggil di frontend; uji memakai data DB.
   - Belum ada job `autoCancelOrders` (6.5): pembayaran yang lewat `expired_at` ditolak (simulasi & ganti metode)
     tetapi pesanan tetap Menunggu Pembayaran sampai job dibuat. Ganti ke Bayar di Toko mempertahankan `expired_at`
     awal — job BR-07 perlu memakai jam tutup tanggal siap. Notifikasi status (SPEC §4) belum ditulis (6.5).
