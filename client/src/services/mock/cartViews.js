@@ -4,8 +4,11 @@
 
 import { getTables } from './db';
 import { getMockTodayKey, getMockCurrentTime } from './mockClock';
-import { getRemainingStock, getCartItemReadyDate } from '../../utils/businessRules';
+import {
+  getRemainingStock, getCartItemReadyDate, findDuplicateDesignLines, checkCartDesign, getEarliestReadyDate,
+} from '../../utils/businessRules';
 import { AVAILABILITY_TYPE } from '../../constants/product';
+import { CART_LINE_MAX_QUANTITY, CART_UNAVAILABLE_REASON } from '../../constants/cart';
 
 export const CART_VIEW_TABLES = [
   'products', 'product_images', 'product_variants', 'daily_stocks', 'store_settings',
@@ -28,17 +31,44 @@ function designSummary(design, tables) {
  * @param {Array} items — item useCartStore
  * @returns {Array} baris siap tampil; `available: false` bila produk/varian/desain tidak bisa dipesan lagi
  */
-export function buildCartLines(items, tables = getTables(...CART_VIEW_TABLES)) {
+/**
+ * Step 6.3 (re-review #4): pemeriksaan desain sama urutannya dengan server (lihat utils/rules/cart.js checkCartDesign).
+ * @param {{checkDesignUsage?: boolean, userId?: number|string|null}} [options]
+ *   checkDesignUsage: tolak desain yang sudah dipesan / tanggal siapnya < H+3 (keranjang & pembuatan pesanan);
+ *   tidak dipakai untuk tampilan pesanan lama. userId: kepemilikan desain diperiksa bila diisi.
+ *   Bila checkDesignUsage, `tables` harus memuat order_items.
+ */
+export function buildCartLines(items, tables = getTables(...CART_VIEW_TABLES), options = {}) {
   const todayKey = getMockTodayKey();
   const now = getMockCurrentTime();
-  return items.map((item) => {
+  const designCtx = { userId: options.userId, orderedDesignIds: null, earliestCustomDate: null };
+  if (options.checkDesignUsage) {
+    designCtx.orderedDesignIds = new Set((tables.order_items ?? []).map((i) => i.design_id).filter((id) => id != null));
+  }
+  const checked = items.map((item) => {
     const product = tables.products.find((p) => p.product_id === item.product_id);
     const variant = item.variant_id ? tables.product_variants.find((v) => v.variant_id === item.variant_id) : null;
     const design = item.design_id ? tables.custom_cake_designs.find((d) => d.design_id === item.design_id) : null;
+    if (!product?.is_active) return { product, variant, design, reason: CART_UNAVAILABLE_REASON.PRODUCT_UNAVAILABLE, designValid: false };
+    const ctx = options.checkDesignUsage
+      ? { ...designCtx, earliestCustomDate: getEarliestReadyDate(product, now, tables.store_settings) }
+      : designCtx;
+    const designCheck = checkCartDesign(item, product, design, ctx);
+    // Step 6.3: alasan sama dengan API (constants/cart.js); jumlah > batas ditandai, tidak dipotong
+    const reason =
+      (item.variant_id && !variant?.is_active ? CART_UNAVAILABLE_REASON.VARIANT_UNAVAILABLE : null) ??
+      designCheck.reason ??
+      (item.quantity > CART_LINE_MAX_QUANTITY ? CART_UNAVAILABLE_REASON.QUANTITY_EXCEEDS_LIMIT : null);
+    return { product, variant, design: designCheck.designValid ? design : null, reason, designValid: designCheck.designValid };
+  });
+  // Satu design_id hanya satu baris; hanya desain sah yang dihitung (sama dengan server designAccess.service.js)
+  const duplicateDesignLines = findDuplicateDesignLines(items, (_item, index) => checked[index].designValid);
+  return items.map((item, index) => {
+    const { product, variant, design } = checked[index];
     const isCustom = product?.availability_type === AVAILABILITY_TYPE.CUSTOM;
-    const available = Boolean(
-      product?.is_active && (!item.variant_id || variant?.is_active) && (!isCustom || design)
-    );
+    const unavailableReason =
+      checked[index].reason ?? (duplicateDesignLines.has(index) ? CART_UNAVAILABLE_REASON.DESIGN_DUPLICATE_LINE : null);
+    const available = unavailableReason === null;
     const unitPrice = isCustom ? design?.price ?? item.price : (product?.price ?? item.price) + (variant?.extra_price ?? 0);
     const stock = tables.daily_stocks.find((s) => s.product_id === item.product_id && s.stock_date === todayKey);
     const image = tables.product_images
@@ -61,6 +91,7 @@ export function buildCartLines(items, tables = getTables(...CART_VIEW_TABLES)) {
       remaining_today: product?.availability_type === AVAILABILITY_TYPE.READY ? getRemainingStock(stock) : null,
       ready_date: product ? getCartItemReadyDate(item, product, now, tables.store_settings) : todayKey,
       available,
+      unavailable_reason: unavailableReason,
     };
   });
 }

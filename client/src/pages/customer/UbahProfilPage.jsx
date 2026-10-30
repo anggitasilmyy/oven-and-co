@@ -13,16 +13,18 @@ import ChangePasswordForm from '../../components/customer/ChangePasswordForm';
 import useAuthStore from '../../stores/useAuthStore';
 import useServiceQuery from '../../hooks/useServiceQuery';
 import { getMyProfile, updateMyProfile, changeMyPassword } from '../../services/accountService';
+import { SESSION_CHANGED_MESSAGE } from '../../constants/apiErrors';
 
 export default function UbahProfilPage() {
-  const token = useAuthStore((s) => s.token);
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const updateCurrentUser = useAuthStore((s) => s.updateCurrentUser);
   const profile = useServiceQuery(() => getMyProfile(), []);
   const { toast, showToast, hideToast } = useToast();
 
   const saveProfile = async (values) => {
     const updated = await updateMyProfile(values);
-    setAuth(updated, token);
+    // Step 6.3 (temuan #5): hanya data profil yang diperbarui, untuk pengguna & sesi yang SAMA; token yang aktif
+    // tidak diganti token lama. Bila sesi sudah berganti saat menyimpan, jangan terapkan & beri tahu pengguna.
+    if (!updateCurrentUser(updated)) throw new Error(SESSION_CHANGED_MESSAGE);
     profile.reload();
     showToast('success', 'Profil berhasil diperbarui.');
   };

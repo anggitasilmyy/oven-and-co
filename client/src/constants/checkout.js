@@ -62,3 +62,10 @@ export const PAYMENT_CODE_PREFIX = { [PAYMENT_GROUP.QRIS]: 'QRIS-SIM-', [PAYMENT
 
 /** Alasan pembatalan otomatis (BR-06) */
 export const PAYMENT_TIMEOUT_CANCEL_REASON = 'Tidak dibayar dalam 30 menit (BR-06)';
+
+/**
+ * Review c53a11c (M1): pesanan berhasil dibuat, tetapi halaman pembayaran sempat dipasang ulang (akun keluar lalu
+ * masuk lagi sebagai pemilik yang sama) sehingga tidak bisa langsung diarahkan ke halaman berikutnya.
+ */
+export const orderPlacedNotice = (orderNumber) =>
+  `Pesanan ${orderNumber} berhasil dibuat. Lihat dan lanjutkan pembayarannya di menu Pesanan.`;

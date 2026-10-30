@@ -6,6 +6,9 @@
 // Step 5.5: pencatatan lewat recordOrderStatus (orderEffects.js) sehingga juga memicu notifikasi (FR-18).
 
 import { apiClient } from './apiClient';
+import useCartStore from '../stores/useCartStore';
+import { getCartOwnerId } from '../utils/sessionIdentity';
+import { toOrderedLines } from '../utils/rules/cart';
 import { updateTable } from './mock/db';
 import { getMockCurrentTime } from './mock/mockClock';
 import { requireMockRole } from './mock/mockSession';
@@ -34,13 +37,23 @@ function toPaymentView({ order, payment, items, t }) {
 
 /**
  * Buat pesanan dari keranjang + pilihan checkout + metode bayar.
+ * Review c53a11c (M1): bila pesanan SUDAH dibuat tetapi akun aktif berganti saat request berjalan, jumlah yang dipesan
+ * dikurangi dari keranjang PEMILIK pesanan (bukan keranjang akun aktif; 776c824 M-2) dan apiClient melempar
+ * CLIENT_SESSION_CHANGED_COMMITTED. Server belum punya kunci idempotensi pembuatan pesanan: POST ini tidak pernah
+ * dikirim ulang otomatis.
+ * @param {{items: Array<{cart_item_id: number, quantity: number}>}} input
  * @returns {Promise<{order_number, payment_option}>}
  */
 export function createOrder(input) {
+  // Snapshot jumlah yang dikirim ke server — hanya jumlah ini yang dikurangi dari keranjang pemilik
+  const orderedLines = toOrderedLines(input.items);
   return apiClient('/orders', {
     method: 'POST',
     body: input,
     mockHandler: () => createMockOrder(requireMockRole(ROLES.CUSTOMER), input),
+    reconcileOwner: (_order, ownerUser) => {
+      useCartStore.getState().removeOrderedItemsFromOwnerCart(getCartOwnerId(ownerUser), orderedLines);
+    },
   });
 }
 

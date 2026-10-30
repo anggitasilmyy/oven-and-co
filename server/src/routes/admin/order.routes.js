@@ -4,6 +4,7 @@ const express = require('express');
 const auth = require('../../middlewares/auth');
 const requireRole = require('../../middlewares/requireRole');
 const adminOrderService = require('../../services/adminOrder.service');
+const { validateOrderNumberParam } = require('../../validators/order.validator');
 
 const router = express.Router();
 
@@ -30,16 +31,17 @@ router.get(
 );
 
 // GET /api/admin/orders/:orderNumber
+// Detail AD-04 (tanpa kode pickup — UC-21).
 router.get(
   '/:orderNumber',
   asyncHandler(async (req, res) => {
-    const order = await adminOrderService.getOrderByNumber(
-      req.params.orderNumber
-    );
+    const orderNumber = validateOrderNumberParam(req.params.orderNumber);
+    const detail = await adminOrderService.getOrderByNumber(orderNumber);
 
+    // Kontrak AD-04: data = { order, customer, items, payment, status_log, store, actions }
     return res.status(200).json({
       status: 'success',
-      data: { order },
+      data: detail,
     });
   })
 );

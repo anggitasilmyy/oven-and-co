@@ -3,6 +3,7 @@
 // Data sebelumnya tetap ditampilkan saat memuat ulang (mis. ganti filter) agar tidak berkedip.
 
 import { useCallback, useEffect, useState } from 'react';
+import { isSessionError } from '../utils/apiErrors';
 
 /**
  * @param {Function} fetcher — fungsi async dari services/
@@ -18,7 +19,8 @@ export default function useServiceQuery(fetcher, deps = []) {
     let active = true;
     fetcher().then(
       (data) => active && setResult({ key: requestKey, data, error: null }),
-      (error) => active && setResult((prev) => ({ key: requestKey, data: prev.data, error }))
+      // Step 6.3 (temuan #4): error sesi (berakhir/berganti) → data lama milik sesi sebelumnya dibuang
+      (error) => active && setResult((prev) => ({ key: requestKey, data: isSessionError(error) ? null : prev.data, error }))
     );
     return () => {
       active = false;

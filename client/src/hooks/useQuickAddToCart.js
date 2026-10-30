@@ -4,6 +4,7 @@
 
 import useCartStore from '../stores/useCartStore';
 import { useToast } from '../components/ui/Toast';
+import { CART_LINE_LIMIT_MESSAGE } from '../constants/cart';
 
 export default function useQuickAddToCart() {
   const addItem = useCartStore((s) => s.addItem);
@@ -23,13 +24,17 @@ export default function useQuickAddToCart() {
       );
       return;
     }
-    addItem({
+    const added = addItem({
       product_id: product.product_id,
       quantity: 1,
       name: product.name,
       price: product.price,
       image_url: product.image_url,
     });
+    if (!added) {
+      showToast('error', CART_LINE_LIMIT_MESSAGE);
+      return;
+    }
     showToast('success', `${product.name} ditambahkan ke keranjang.`);
   };
 

@@ -2,7 +2,8 @@
 // Step 5.1 · FR-09 · C-10 — ringkasan rating & daftar ulasan produk (tanpa ulasan is_hidden)
 // Step 5.4 · FR-21 · BR-11 · C-19 — form ulasan per item pesanan Selesai & kirim ulasan (+20 poin)
 
-import { apiClient } from './apiClient';
+import { apiClient, USE_MOCK } from './apiClient';
+import { dataUrlToBlob } from '../utils/image';
 import { getTables } from './mock/db';
 import { getProductReviewViews } from './mock/reviewViews';
 import { findMyOrder } from './mock/myOrders';
@@ -55,6 +56,27 @@ export function getOrderReviewForm(orderNumber) {
 }
 
 /**
+ * Mode API (Step 6.3): foto (data URL hasil kompresi di ReviewPhotosField) dikirim sebagai file multipart `photos`
+ * (maks. 3), isian lainnya sebagai string JSON `review` — pola sama dengan foto referensi custom cake.
+ * Tanpa foto tetap JSON biasa. Data URL tidak pernah dikirim ke server.
+ */
+const PHOTO_EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+
+function toReviewRequestBody(input) {
+  const { photos = [], ...fields } = input;
+  if (photos.length === 0) return { ...fields, photos: [] };
+  const form = new FormData();
+  form.append('review', JSON.stringify(fields));
+  photos.forEach((dataUrl, i) => {
+    const photo = dataUrlToBlob(dataUrl);
+    const extension = PHOTO_EXTENSIONS[photo?.type];
+    if (!extension) throw new Error('Foto ulasan tidak bisa dibaca. Pilih ulang foto.');
+    form.append('photos', photo, `ulasan-${i + 1}.${extension}`);
+  });
+  return form;
+}
+
+/**
  * FR-21 · BR-11: kirim ulasan satu item (rating 1–5, tag, komentar, maks. 3 foto) → +20 poin.
  * @param {string} orderNumber
  * @param {{order_item_id, rating, tags, comment, photos}} input
@@ -63,7 +85,7 @@ export function getOrderReviewForm(orderNumber) {
 export function submitReview(orderNumber, input) {
   return apiClient(`/orders/${orderNumber}/reviews`, {
     method: 'POST',
-    body: input,
+    body: USE_MOCK ? input : toReviewRequestBody(input),
     mockHandler: () => createMockReview(findMyOrder(orderNumber, ...MY_ORDER_VIEW_TABLES), input),
   });
 }

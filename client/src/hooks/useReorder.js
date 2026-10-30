@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import useCartStore from '../stores/useCartStore';
 import { getReorderPlan } from '../services/orderHistoryService';
 import { CUSTOMER_ROUTES } from '../constants/routes';
+import { CART_MAX_LINES } from '../constants/cart';
 
 /** "Croissant (stok hari ini habis), Custom Cake (custom cake perlu didesain ulang)" */
 const describeSkipped = (skipped) => skipped.map((s) => `${s.name} (${s.reason})`).join(', ');
@@ -29,9 +30,13 @@ export default function useReorder(notify) {
         notify('error', `Tidak ada item yang bisa dipesan lagi: ${describeSkipped(plan.skipped)}.`);
         return;
       }
-      plan.items.forEach((item) => addItem(item));
-      const notice = plan.skipped.length
-        ? `Sebagian item tidak ditambahkan: ${describeSkipped(plan.skipped)}.`
+      // Step 6.3: item yang ditolak karena batas baris keranjang ikut diberitahukan (tidak hilang diam-diam)
+      const skipped = [...plan.skipped];
+      plan.items.forEach((item) => {
+        if (!addItem(item)) skipped.push({ name: item.name, reason: `keranjang maks. ${CART_MAX_LINES} item berbeda` });
+      });
+      const notice = skipped.length
+        ? `Sebagian item tidak ditambahkan: ${describeSkipped(skipped)}.`
         : `Item dari pesanan ${orderNumber} ditambahkan ke keranjang.`;
       navigate(CUSTOMER_ROUTES.KERANJANG, { state: { reorderNotice: notice } });
     } catch (e) {
