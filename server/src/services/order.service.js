@@ -64,9 +64,23 @@ async function getActivePaymentMethods() {
   return rows.map(mapPaymentMethod);
 }
 
+/**
+ * Kunci baris pesanan lalu baca pesanan milik pelanggan di dalam transaksi `tx`.
+ * Kunci WAJIB menjadi pembacaan pertama transaksi: di InnoDB REPEATABLE READ snapshot dibuat oleh SELECT biasa
+ * pertama, sehingga pola "baca → FOR UPDATE → baca ulang" tetap membaca status lama (uji MySQL 8: 3 batal bersamaan
+ * → 3 refund poin). Dengan urutan ini request kedua menunggu kunci lalu melihat status yang sudah di-commit.
+ * Pesanan orang lain/tidak ada → 404 (sama dengan findMyOrder).
+ */
+async function lockMyOrder(tx, userId, orderNumber) {
+  const locked = await tx.$queryRaw`SELECT order_id FROM orders WHERE order_number = ${orderNumber} FOR UPDATE`;
+  if (locked.length === 0) throw httpError(404, NOT_FOUND_MESSAGE);
+  return findMyOrder(tx, userId, orderNumber);
+}
+
 module.exports = {
   NOT_FOUND_MESSAGE,
   findMyOrder,
+  lockMyOrder,
   getOrderPayment,
   getActivePaymentMethods,
 };

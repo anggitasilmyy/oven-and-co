@@ -3,6 +3,7 @@
 // - `where` dinilai dengan whereMatch agar tes memeriksa hasil filter, bukan bentuk query.
 // - $executeRaw meniru UPDATE stok bersyarat (qty_planned - qty_sold >= qty) dan mengembalikan jumlah baris.
 // - $transaction mengembalikan seluruh tabel bila callback gagal (meniru rollback); kunci FOR UPDATE dicatat.
+// - `ops` mencatat urutan tx:begin / lock:<tabel> / order.findFirst untuk memeriksa bahwa kunci = pembacaan pertama.
 // Tidak membuktikan perilaku locking/transaksi/foreign key MySQL yang sebenarnya.
 
 const { matchesWhere } = require('./whereMatch');
@@ -118,7 +119,7 @@ const clone = (tables) => {
  */
 function installOrderDb(fakePrisma, dates) {
   const state = {
-    t: baseTables(dates.today, dates.plusDays), locks: [], raw: [], failOn: null, hooks: {}, committedElsewhere: [], reviewsCommittedElsewhere: [],
+    t: baseTables(dates.today, dates.plusDays), locks: [], raw: [], ops: [], failOn: null, hooks: {}, committedElsewhere: [], reviewsCommittedElsewhere: [],
   };
   let nextId = { order: 100n, item: 1000n, payment: 500n, history: 700n, point: 900n, review: 300n, photo: 400n };
   const id = (key) => (nextId[key] += 1n);
@@ -223,6 +224,7 @@ function installOrderDb(fakePrisma, dates) {
       },
       findFirst: async ({ where, include, select }) => {
         fail('order.findFirst');
+        state.ops.push('order.findFirst');
         const row = state.t.orders.find((o) => matchesWhere(o, where));
         if (!row) return null;
         if (!select) return orderView(row, include);
@@ -328,8 +330,14 @@ function installOrderDb(fakePrisma, dates) {
     $queryRaw: async (strings, ...values) => {
       const sql = strings.join('?');
       state.locks.push({ sql, values });
-      // Request lain yang memegang kunci selesai lebih dulu (dijalankan saat "menunggu" kunci baris pesanan)
-      if (/FROM orders WHERE order_id = \? FOR UPDATE/.test(sql)) state.hooks.whileWaitingOrderLock?.();
+      state.ops.push(/FOR UPDATE/.test(sql) ? `lock:${sql.match(/FROM (\w+)/)[1]}` : 'queryRaw');
+      // Kunci baris pesanan (order.service lockMyOrder): request lain yang memegang kunci selesai lebih dulu
+      // (dijalankan saat "menunggu" kunci), lalu baris yang ada dikembalikan seperti SELECT … FOR UPDATE
+      if (/FROM orders WHERE order_number = \? FOR UPDATE/.test(sql)) {
+        state.hooks.whileWaitingOrderLock?.();
+        const row = state.t.orders.find((o) => o.orderNumber === values[0]);
+        return row ? [{ order_id: row.orderId }] : [];
+      }
       return [];
     },
     $executeRaw: async (strings, ...values) => {
@@ -353,6 +361,7 @@ function installOrderDb(fakePrisma, dates) {
       return 1;
     },
     $transaction: async (callback) => {
+      state.ops.push('tx:begin');
       const snapshot = clone(state.t);
       try {
         return await callback(fakePrisma);
