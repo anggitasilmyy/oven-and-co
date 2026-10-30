@@ -1,8 +1,10 @@
 // components/customer/ReviewCard.jsx
 // Step 5.1 · FR-09 · C-09/C-10 — kartu ulasan: avatar, nama, tanggal, bintang, varian, teks, foto, balasan toko
+// Step 6.3: foto unggahan server (/uploads/reviews/…) dimuat lewat toUploadUrl (data URL mode mock tidak berubah)
 
 import StarRating from '../ui/StarRating';
 import { formatDate } from '../../utils/format';
+import { toUploadUrl } from '../../services/apiClient';
 
 const initials = (name) => name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
@@ -37,7 +39,7 @@ export default function ReviewCard({ review, compact = false }) {
         <ul className="flex gap-2" aria-label="Foto ulasan">
           {review.photos.map((src, i) => (
             <li key={`${src}-${i}`}>
-              <img src={src} alt={`Foto ulasan ${i + 1} dari ${review.reviewer_name}`} loading="lazy"
+              <img src={toUploadUrl(src)} alt={`Foto ulasan ${i + 1} dari ${review.reviewer_name}`} loading="lazy"
                    className="w-16 h-16 md:w-20 md:h-20 rounded-btn object-cover bg-beige" />
             </li>
           ))}

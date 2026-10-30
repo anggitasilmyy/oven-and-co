@@ -199,8 +199,15 @@ Catatan khusus:
   voucher (`/me/vouchers`), alamat (`/me/addresses`), profil & kata sandi (`/me/profile`, `/me/password`),
   pesanan (`POST/GET /orders`, `GET /orders/:no`, `GET|PATCH /orders/:no/payment`, `PATCH /orders/:no/cancel`,
   `POST /orders/:no/reorder`), simulasi bayar (`POST /payments/:no/simulate-paid`, ditolak di production) dan
-  `GET /payment-methods` (Staf/Owner, filter AD-03). Ulasan, notifikasi (`/me/notifications`), keranjang persisten
-  & gabung keranjang setelah login masih dikerjakan.
+  `GET /payment-methods` (Staf/Owner, filter AD-03), ulasan (`GET|POST /orders/:no/reviews`,
+  `GET /products/:id/reviews`). Notifikasi (`/me/notifications`), keranjang persisten & gabung keranjang setelah
+  login masih dikerjakan.
+  - Ulasan (C-10, C-19): hanya item pesanan Selesai milik pelanggan, satu ulasan per item (UNIQUE
+    `reviews.order_item_id`; P2002 → 409), rating bulat 1–5, tag dari daftar client (ganda digabung), komentar ≤ kolom
+    TEXT; bonus `review_bonus` = `store_settings.review_bonus_points` dengan `review_id`, satu transaksi. Foto: multipart
+    `photos` (maks. 3) + JSON `review`, aturan sama dengan foto custom cake (JPG/PNG/WebP dari isi file, 5 MB, nama acak,
+    `utils/photoStorage.js`), disimpan di `uploads/reviews/` dan disajikan `/uploads/reviews/…`; data URL di JSON ditolak.
+    File ditulis di luar transaksi dan dihapus bila penyimpanan gagal. **Belum diuji di MySQL & browser.**
   - Pesanan: harga/diskon/ongkir/total dihitung ulang di server. Efek saat DIBUAT (TF-12, sama dengan mock): stok
     ready hari ini, klaim voucher + kuota −1, poin `redeem`, riwayat status; dikembalikan saat batal (poin `refund`,
     lunas → `refunded`, pembayaran belum lunas → `failed`). Satu transaksi; baris pengguna/desain/pesanan dikunci

@@ -1,9 +1,11 @@
 
 // routes/customer/product.routes.js
 // FR-05 · FR-06 · FR-07 · FR-08 · C-05 – C-09 — katalog, pencarian, detail produk, Fresh from Oven, Best Sellers
+// FR-09 · C-10 — GET /api/products/:id/reviews (ulasan produk, publik)
 
 const express = require('express');
 const productService = require('../../services/product.service');
+const reviewService = require('../../services/review.service');
 
 const router = express.Router();
 
@@ -72,6 +74,20 @@ router.get(
     return res.status(200).json({
       status: 'success',
       data: product,
+    });
+  })
+);
+
+// GET /api/products/:id/reviews
+// Ulasan tampil (tidak disembunyikan) + ringkasan rating; produk tidak ada/nonaktif → data null.
+router.get(
+  '/:id/reviews',
+  asyncHandler(async (req, res) => {
+    const result = await reviewService.getProductReviews(req.params.id);
+
+    return res.status(200).json({
+      status: 'success',
+      data: result,
     });
   })
 );

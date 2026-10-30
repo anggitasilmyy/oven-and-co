@@ -21,8 +21,8 @@ function baseTables(today, plusDays) {
 
   return {
     users: {
-      1: { userId: 1n, role: 'customer', isActive: true },
-      2: { userId: 2n, role: 'customer', isActive: true },
+      1: { userId: 1n, role: 'customer', isActive: true, name: 'Anisa Pelanggan' },
+      2: { userId: 2n, role: 'customer', isActive: true, name: 'Budi' },
       3: { userId: 3n, role: 'staf', isActive: true },
       4: { userId: 4n, role: 'owner', isActive: true },
       5: { userId: 5n, role: 'customer', isActive: false },
@@ -87,6 +87,7 @@ function baseTables(today, plusDays) {
     payments: [],
     statusHistories: [],
     reviews: [],
+    reviewPhotos: [],
   };
 }
 
@@ -117,9 +118,9 @@ const clone = (tables) => {
  */
 function installOrderDb(fakePrisma, dates) {
   const state = {
-    t: baseTables(dates.today, dates.plusDays), locks: [], raw: [], failOn: null, hooks: {}, committedElsewhere: [],
+    t: baseTables(dates.today, dates.plusDays), locks: [], raw: [], failOn: null, hooks: {}, committedElsewhere: [], reviewsCommittedElsewhere: [],
   };
-  let nextId = { order: 100n, item: 1000n, payment: 500n, history: 700n, point: 900n };
+  let nextId = { order: 100n, item: 1000n, payment: 500n, history: 700n, point: 900n, review: 300n, photo: 400n };
   const id = (key) => (nextId[key] += 1n);
   const fail = (op) => {
     if (state.failOn === op) throw Object.assign(new Error('Can\'t reach database server'), { code: 'P1001' });
@@ -170,6 +171,11 @@ function installOrderDb(fakePrisma, dates) {
           dailyStocks: state.t.dailyStocks.filter((s) => s.productId === p.productId && s.stockDate.getTime() === dates.today.getTime()),
         }));
       },
+      findFirst: async ({ where, select }) => {
+        fail('product.findFirst');
+        const row = state.t.products.find((p) => matchesWhere(p, where));
+        return row ? pick(row, select) : null;
+      },
     },
     customCakeDesign: {
       findMany: async ({ where }) => state.t.designs.filter((d) => matchesWhere(d, where)).map((d) => ({
@@ -215,10 +221,19 @@ function installOrderDb(fakePrisma, dates) {
         return sortBy(state.t.orders.filter((o) => matchesWhere(o, where)), orderBy)
           .map((o) => (select ? pick(o, select) : orderView(o, include)));
       },
-      findFirst: async ({ where, include }) => {
+      findFirst: async ({ where, include, select }) => {
         fail('order.findFirst');
         const row = state.t.orders.find((o) => matchesWhere(o, where));
-        return row ? orderView(row, include) : null;
+        if (!row) return null;
+        if (!select) return orderView(row, include);
+        const out = pick(row, Object.fromEntries(Object.keys(select).filter((k) => k !== 'items').map((k) => [k, true])));
+        if (select.items) {
+          out.items = state.t.orderItems.filter((i) => i.orderId === row.orderId).map((i) => ({
+            orderItemId: i.orderItemId,
+            review: state.t.reviews.find((r) => r.orderItemId === i.orderItemId) ? { reviewId: 1n } : null,
+          }));
+        }
+        return out;
       },
       update: async ({ where, data }) => {
         fail('order.update');
@@ -260,6 +275,47 @@ function installOrderDb(fakePrisma, dates) {
         const rows = state.t.payments.filter((p) => matchesWhere(p, where));
         rows.forEach((p) => Object.assign(p, data));
         return { count: rows.length };
+      },
+    },
+    review: {
+      create: async ({ data, select }) => {
+        fail('review.create');
+        state.hooks.beforeReviewCreate?.(data);
+        // UNIQUE(order_item_id) seperti migrasi reviews_order_item_id_key
+        if (state.t.reviews.some((r) => r.orderItemId === data.orderItemId)) {
+          throw Object.assign(new Error('Unique constraint failed on reviews_order_item_id_key'), { code: 'P2002' });
+        }
+        const row = { reviewId: id('review'), adminReply: null, ...data };
+        state.t.reviews.push(row);
+        return pick(row, select);
+      },
+      findMany: async ({ where, orderBy }) => {
+        fail('review.findMany');
+        const { orderItem, ...rest } = where;
+        const productId = orderItem.is.productId;
+        const itemIds = new Set(state.t.orderItems
+          .filter((i) => (productId.in ? productId.in.includes(i.productId) : i.productId === productId))
+          .map((i) => i.orderItemId));
+        return sortBy(state.t.reviews.filter((r) => itemIds.has(r.orderItemId) && matchesWhere(r, rest)), orderBy).map((r) => {
+          const item = state.t.orderItems.find((i) => i.orderItemId === r.orderItemId);
+          const product = state.t.products.find((p) => p.productId === item.productId);
+          return {
+            ...r,
+            user: { name: state.t.users[String(r.userId)]?.name },
+            photos: state.t.reviewPhotos.filter((ph) => ph.reviewId === r.reviewId).map((ph) => ({ photoUrl: ph.photoUrl })),
+            orderItem: {
+              productId: item.productId,
+              variant: item.variantId ? { name: product.variants.find((v) => v.variantId === item.variantId)?.name } : null,
+            },
+          };
+        });
+      },
+    },
+    reviewPhoto: {
+      createMany: async ({ data }) => {
+        fail('reviewPhoto.createMany');
+        data.forEach((row) => state.t.reviewPhotos.push({ photoId: id('photo'), ...row }));
+        return { count: data.length };
       },
     },
     orderStatusHistory: {
@@ -304,6 +360,7 @@ function installOrderDb(fakePrisma, dates) {
         state.t = snapshot;
         // Baris yang di-commit transaksi LAIN (pesanan bersamaan) tidak ikut dibatalkan
         state.t.orders.push(...state.committedElsewhere.splice(0));
+        state.t.reviews.push(...state.reviewsCommittedElsewhere.splice(0));
         throw error;
       }
     },

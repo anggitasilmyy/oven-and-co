@@ -18,6 +18,7 @@ const paymentMethodRoutes = require('./routes/admin/paymentMethod.routes');
 
 const errorHandler = require('./middlewares/errorHandler');
 const { getReferencePhotoDir } = require('./utils/referencePhotoStorage');
+const { getReviewPhotoDir } = require('./utils/reviewPhotoStorage');
 
 const app = express();
 
@@ -32,20 +33,19 @@ app.use(
   })
 );
 
-// Foto referensi custom cake (Step 6.3). Hanya file di folder upload; tanpa listing direktori,
-// dotfile ditolak, dan tipe konten tidak boleh ditebak ulang oleh browser.
-app.use(
-  '/uploads/custom-cakes',
-  express.static(getReferencePhotoDir(), {
-    index: false,
-    dotfiles: 'deny',
-    redirect: false,
-    setHeaders: (res) => {
-      res.set('X-Content-Type-Options', 'nosniff');
-      res.set('Content-Security-Policy', "default-src 'none'");
-    },
-  })
-);
+// Foto unggahan (Step 6.3): referensi custom cake & foto ulasan. Hanya file di folder upload; tanpa listing
+// direktori, dotfile ditolak, dan tipe konten tidak boleh ditebak ulang oleh browser.
+const uploadStaticOptions = {
+  index: false,
+  dotfiles: 'deny',
+  redirect: false,
+  setHeaders: (res) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Content-Security-Policy', "default-src 'none'");
+  },
+};
+app.use('/uploads/custom-cakes', express.static(getReferencePhotoDir(), uploadStaticOptions));
+app.use('/uploads/reviews', express.static(getReviewPhotoDir(), uploadStaticOptions));
 
 // Health check
 app.get('/api/health', (_req, res) => {

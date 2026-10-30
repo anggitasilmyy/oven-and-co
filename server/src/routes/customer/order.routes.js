@@ -3,6 +3,7 @@
 // FR-17 · C-17 Riwayat Pesanan · C-18 Detail & Tracking — GET /api/orders, GET /api/orders/:orderNumber.
 // FR-15 · BR-05 — PATCH /api/orders/:orderNumber/payment (ganti metode).
 // FR-19 · FR-20 · BR-08 — PATCH /api/orders/:orderNumber/cancel, POST /api/orders/:orderNumber/reorder.
+// FR-21 · BR-11 · C-19 — GET & POST /api/orders/:orderNumber/reviews (form & kirim ulasan, foto multipart).
 // Kontrak = client services/orderService.js & services/orderHistoryService.js. Pemilik pesanan selalu dari req.user (token), tidak pernah dari body/URL.
 
 const express = require('express');
@@ -13,6 +14,10 @@ const orderService = require('../../services/order.service');
 const myOrdersService = require('../../services/myOrders.service');
 const paymentService = require('../../services/payment.service');
 const orderActionsService = require('../../services/orderActions.service');
+const reviewService = require('../../services/review.service');
+const reviewPhotoUpload = require('../../middlewares/reviewPhotoUpload');
+const { parseMultipartReview, validateReviewBody } = require('../../validators/review.validator');
+const { validateReviewPhoto } = require('../../utils/reviewPhotoStorage');
 const {
   validateOrderBody, validateOrderNumberParam, validateChangeMethodBody, validateCancelBody, validateReorderBody,
 } = require('../../validators/order.validator');
@@ -117,6 +122,41 @@ router.post(
     return res.status(200).json({
       status: 'success',
       data: plan,
+    });
+  })
+);
+
+// GET /api/orders/:orderNumber/reviews
+// Item pesanan beserta status sudah/belum diulas dan bonus poin ulasan (C-19).
+router.get(
+  '/:orderNumber/reviews',
+  asyncHandler(async (req, res) => {
+    const orderNumber = validateOrderNumberParam(req.params.orderNumber);
+    const form = await reviewService.getOrderReviewForm(req.user.userId, orderNumber);
+
+    return res.status(200).json({
+      status: 'success',
+      data: form,
+    });
+  })
+);
+
+// POST /api/orders/:orderNumber/reviews
+// Kirim ulasan satu item. Multipart: JSON `review` + file `photos` (maks. 3); tanpa foto boleh JSON biasa.
+router.post(
+  '/:orderNumber/reviews',
+  reviewPhotoUpload,
+  asyncHandler(async (req, res) => {
+    const orderNumber = validateOrderNumberParam(req.params.orderNumber);
+    const isMultipart = req.is('multipart/form-data');
+    const input = validateReviewBody(isMultipart ? parseMultipartReview(req.body) : req.body);
+    // Semua file divalidasi (isi, tipe, ukuran) sebelum ada yang ditulis ke disk
+    const photos = isMultipart ? (req.files ?? []).map(validateReviewPhoto) : [];
+    const result = await reviewService.createReview(req.user.userId, orderNumber, input, photos);
+
+    return res.status(201).json({
+      status: 'success',
+      data: result,
     });
   })
 );
