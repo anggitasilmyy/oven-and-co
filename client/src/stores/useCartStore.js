@@ -265,4 +265,8 @@ const useCartStore = create((set, get) => ({
   totalPrice: () => get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
 }));
 
+// Step 6.3: dipakai mockHandler services/cartService.js — di mode mock "keranjang akun tersimpan" adalah key
+// localStorage pelanggan yang sama dengan store ini (store sendiri belum memanggil API; disambungkan di Step 6.6)
+export { userCartKey, readCart as readStoredCart, writeCart as writeStoredCart };
+
 export default useCartStore;

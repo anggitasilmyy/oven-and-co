@@ -1,12 +1,17 @@
 // services/cartService.js
 // Step 5.3 · FR-11 · FR-04 · C-12 Keranjang — tampilan keranjang dengan harga, stok, dan tanggal siap terbaru.
 // Isi keranjang tetap disimpan useCartStore (tamu & pelanggan); service ini hanya memperkaya datanya.
+// Step 6.3 · FR-04 · BR-04: keranjang AKUN tersimpan di server (GET/PUT /api/cart/items, POST /api/cart/merge).
+// Keranjang tamu tetap di localStorage. useCartStore BELUM memanggil fungsi ini (disambungkan di Step 6.6).
 
 import { apiClient } from './apiClient';
 import { getMockTodayKey } from './mock/mockClock';
 import { buildCartLines, CART_VIEW_TABLES } from './mock/cartViews';
 import { getTables } from './mock/db';
 import useAuthStore from '../stores/useAuthStore';
+import { userCartKey, readStoredCart, writeStoredCart } from '../stores/useCartStore';
+import { requireMockRole } from './mock/mockSession';
+import { mergeCartItems } from '../utils/rules/cart';
 import { ROLES } from '../constants/roles';
 import { findStockIssues, getCombinedReadyDate, exceedsLineLimit } from '../utils/businessRules';
 import { CART_MAX_LINES } from '../constants/cart';
@@ -40,6 +45,60 @@ export function getCartView(items) {
         line_limit: CART_MAX_LINES,
         exceeds_line_limit: exceedsLineLimit(items),
       };
+    },
+  });
+}
+
+// ── Step 6.3 · keranjang akun tersimpan (pelanggan login) ───────────────────
+
+/** Mode mock: keranjang akun = key localStorage pelanggan login (sama dengan useCartStore) */
+function mockAccountCartKey() {
+  const user = requireMockRole(ROLES.CUSTOMER);
+  return userCartKey(user.user_id);
+}
+
+/**
+ * Isi keranjang akun yang tersimpan (tanpa harga — harga terbaru dari getCartView).
+ * @returns {Promise<{items: Array}>}
+ */
+export function getSavedCart() {
+  return apiClient('/cart/items', {
+    mockHandler: () => ({ items: readStoredCart(mockAccountCartKey()) }),
+  });
+}
+
+/**
+ * Ganti seluruh isi keranjang akun. Server mengembalikan baris yang tidak bisa disimpan di `skipped`
+ * (produk/varian tidak ada, desain bukan milik pelanggan).
+ * @param {Array} items — item useCartStore
+ * @returns {Promise<{items: Array, skipped: Array}>}
+ */
+export function saveCart(items) {
+  return apiClient('/cart/items', {
+    method: 'PUT',
+    body: { items },
+    mockHandler: () => {
+      const key = mockAccountCartKey();
+      writeStoredCart(key, mergeCartItems([], items));
+      return { items: readStoredCart(key), skipped: [] };
+    },
+  });
+}
+
+/**
+ * FR-04: gabungkan keranjang tamu ke keranjang akun saat login. design_token item tamu dipakai server untuk
+ * mengklaim desain custom cake tamu (mode mock tidak memeriksa token — lihat ROADMAP 6.3).
+ * @param {Array} guestItems — item keranjang tamu (localStorage)
+ * @returns {Promise<{items: Array, skipped: Array}>}
+ */
+export function mergeGuestCartToAccount(guestItems) {
+  return apiClient('/cart/merge', {
+    method: 'POST',
+    body: { items: guestItems },
+    mockHandler: () => {
+      const key = mockAccountCartKey();
+      writeStoredCart(key, mergeCartItems(readStoredCart(key), guestItems));
+      return { items: readStoredCart(key), skipped: [] };
     },
   });
 }

@@ -201,7 +201,21 @@ Catatan khusus:
   `POST /orders/:no/reorder`), simulasi bayar (`POST /payments/:no/simulate-paid`, ditolak di production) dan
   `GET /payment-methods` (Staf/Owner, filter AD-03), ulasan (`GET|POST /orders/:no/reviews`,
   `GET /products/:id/reviews`), notifikasi (`GET /me/notifications`, `GET /me/notifications/unread-count`,
-  `PATCH /me/notifications/:id/read`). Keranjang persisten & gabung keranjang setelah login masih dikerjakan.
+  `PATCH /me/notifications/:id/read`), keranjang akun tersimpan (`GET|PUT /cart/items`, `POST /cart/merge`).
+  Penyambungan `useCartStore` ke API keranjang server menyusul di 6.6.
+  - Keranjang akun (C-12, FR-04, BR-04): hanya pelanggan login (tamu 401, staf/owner 403), disimpan di
+    `carts.user_id` + `cart_items`; keranjang tamu tetap di localStorage (`carts.session_token` tidak dipakai).
+    `PUT` mengganti seluruh isi; `merge` menggabung item tamu dengan aturan identitas yang sama dengan client
+    (`savedCartRules.service.js` ↔ `utils/rules/cart.js`). Satu transaksi; baris `users` dikunci `FOR UPDATE`.
+    Harga tidak disimpan — tampilan & harga tetap dari `POST /api/cart` (kontrak tidak berubah).
+    Baris dilewati (dikembalikan di `skipped`): produk tidak ada, varian bukan milik produk, desain bukan milik
+    pelanggan setelah klaim. Produk/varian nonaktif, desain kedaluwarsa, jumlah > 99, > 50 baris tetap disimpan dan
+    ditandai `POST /api/cart`. Ditolak 400: > 100 baris setelah digabung, jumlah > batas INT kolom.
+    Desain tamu diklaim hanya bila `design_token` sah, belum pernah dipesan, dan `user_id` masih NULL
+    (`selectClaimableGuestDesignIds()` + kunci desain + `updateMany` bersyarat). Mode mock: keranjang akun = key
+    localStorage pelanggan, tanpa cek token (sama dengan catatan desain di bawah).
+    Catatan untuk 6.6: `cart_item_id` dibuat ulang setiap simpan (hapus + buat), jadi store perlu memakai id dari
+    respons terakhir. Diuji di MySQL 8 sementara (21 skenario, termasuk merge & klaim bersamaan) dan browser mode mock.
   - Notifikasi (C-24): hanya baca & tandai dibaca milik pelanggan login (staf/owner 403); milik pelanggan lain → 404
     (sama dengan tidak ada); tandai dibaca idempoten; respons `{ items, unread, today_key }` sesuai
     `client/src/services/notificationService.js`. Pembuatan notifikasi saat status berubah tetap Step 6.5.
