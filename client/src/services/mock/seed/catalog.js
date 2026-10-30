@@ -138,7 +138,7 @@ export function buildVouchers(todayKey) {
 export const STORE_SETTINGS = {
   setting_id: 1,
   ...STORE_SETTINGS_DEFAULT,
-  address: 'Jl. Contoh Roti No. 1, Kota Contoh', // data contoh
+  address: 'Jl. Oven & Co. No. 1, Jakarta', // data contoh
   latitude: -6.2,
   longitude: 106.8,
   whatsapp_number: '+620000000000', // data contoh
