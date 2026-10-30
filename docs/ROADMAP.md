@@ -200,8 +200,15 @@ Catatan khusus:
   pesanan (`POST/GET /orders`, `GET /orders/:no`, `GET|PATCH /orders/:no/payment`, `PATCH /orders/:no/cancel`,
   `POST /orders/:no/reorder`), simulasi bayar (`POST /payments/:no/simulate-paid`, ditolak di production) dan
   `GET /payment-methods` (Staf/Owner, filter AD-03), ulasan (`GET|POST /orders/:no/reviews`,
-  `GET /products/:id/reviews`). Notifikasi (`/me/notifications`), keranjang persisten & gabung keranjang setelah
-  login masih dikerjakan.
+  `GET /products/:id/reviews`), notifikasi (`GET /me/notifications`, `GET /me/notifications/unread-count`,
+  `PATCH /me/notifications/:id/read`). Keranjang persisten & gabung keranjang setelah login masih dikerjakan.
+  - Notifikasi (C-24): hanya baca & tandai dibaca milik pelanggan login (staf/owner 403); milik pelanggan lain → 404
+    (sama dengan tidak ada); tandai dibaca idempoten; respons `{ items, unread, today_key }` sesuai
+    `client/src/services/notificationService.js`. Pembuatan notifikasi saat status berubah tetap Step 6.5.
+    Diuji di MySQL 8 (container sementara, migrasi + seed) dan browser mode API.
+  - **Ditunda ke Step 6.4** (hasil audit; frontend AD-04 sudah memanggil, server belum punya rute → 404
+    "Endpoint tidak ditemukan"): `PATCH /api/admin/orders/:no/status` (ubah status, mis. Dikonfirmasi → Sedang
+    Disiapkan), `POST /api/admin/orders/:no/verify-pickup`, `PATCH /api/admin/orders/:no/mark-paid`.
   - Ulasan (C-10, C-19): hanya item pesanan Selesai milik pelanggan, satu ulasan per item (UNIQUE
     `reviews.order_item_id`; P2002 → 409), rating bulat 1–5, tag dari daftar client (ganda digabung), komentar ≤ kolom
     TEXT; bonus `review_bonus` = `store_settings.review_bonus_points` dengan `review_id`, satu transaksi. Foto: multipart

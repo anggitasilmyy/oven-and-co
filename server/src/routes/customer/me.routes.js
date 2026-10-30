@@ -4,6 +4,7 @@
 // FR-22 · FR-23 · C-21 — GET /api/me/points/history dan GET /api/me/vouchers (halaman Voucher & Poin).
 // FR-24 · BR-12 · C-22 — /api/me/addresses (Alamat Tersimpan).
 // FR-24 · UC-16 · C-20 — /api/me/profile & /api/me/password (Ubah Profil).
+// FR-18 · UC-18 · C-24 — /api/me/notifications (Notifikasi; baca & tandai dibaca).
 // Pengguna selalu dari req.user (token), tidak pernah dari body/URL.
 
 const express = require('express');
@@ -14,9 +15,11 @@ const loyaltyService = require('../../services/loyalty.service');
 const myVoucherService = require('../../services/myVoucher.service');
 const addressService = require('../../services/address.service');
 const profileService = require('../../services/profile.service');
+const notificationService = require('../../services/notification.service');
 const { validateProductIdParam } = require('../../validators/wishlist.validator');
 const { validateAddressIdParam, validateAddressBody } = require('../../validators/address.validator');
 const { validateProfileBody, validatePasswordBody } = require('../../validators/profile.validator');
+const { validateNotificationIdParam } = require('../../validators/notification.validator');
 const { ROLES } = require('../../utils/businessConstants');
 
 const router = express.Router();
@@ -239,6 +242,49 @@ router.delete(
   asyncHandler(async (req, res) => {
     const productId = validateProductIdParam(req.params.productId);
     const result = await wishlistService.removeFromWishlist(req.user.userId, productId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: result,
+    });
+  })
+);
+
+// GET /api/me/notifications
+// Notifikasi pelanggan login, terbaru dulu, beserta jumlah belum dibaca dan today_key (WIB).
+router.get(
+  '/notifications',
+  asyncHandler(async (req, res) => {
+    const result = await notificationService.getMyNotifications(req.user.userId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: result,
+    });
+  })
+);
+
+// GET /api/me/notifications/unread-count
+// Jumlah notifikasi belum dibaca (angka).
+router.get(
+  '/notifications/unread-count',
+  asyncHandler(async (req, res) => {
+    const count = await notificationService.getUnreadCount(req.user.userId);
+
+    return res.status(200).json({
+      status: 'success',
+      data: count,
+    });
+  })
+);
+
+// PATCH /api/me/notifications/:notificationId/read
+// Menandai satu notifikasi milik pelanggan login sebagai dibaca (idempoten).
+router.patch(
+  '/notifications/:notificationId/read',
+  asyncHandler(async (req, res) => {
+    const notificationId = validateNotificationIdParam(req.params.notificationId);
+    const result = await notificationService.markAsRead(req.user.userId, notificationId);
 
     return res.status(200).json({
       status: 'success',
