@@ -90,7 +90,7 @@ test('simulasi lunas: pembayaran paid + paid_at, pesanan paid & Dikonfirmasi, ri
   assert.equal(orderRow(number).paymentStatus, 'paid');
   assert.equal(orderRow(number).orderStatus, 'dikonfirmasi');
   assert.deepEqual(historyOf(number).map((h) => [h.status, h.changedBy]), [['menunggu_pembayaran', 1n], ['dikonfirmasi', null]]);
-  assert.ok(db.locks.some((l) => /FROM orders WHERE order_id = \? FOR UPDATE/.test(l.sql)));
+  assert.ok(db.locks.some((l) => /FROM orders WHERE order_number = \? FOR UPDATE/.test(l.sql) && l.values[0] === number));
 });
 
 test('simulasi berulang tidak membuat pembayaran ganda; request kedua yang menunggu kunci melihat status terbaru', async () => {
@@ -214,4 +214,25 @@ test('error database → 500 dan perubahan dibatalkan', async (t) => {
   db.failOn = 'payment.update';
   assert.equal((await changeMethod(number, 'pay_at_store')).status, 500);
   assert.equal(snapshot(), before);
+});
+
+test('hotfix 6.3: kunci baris pesanan adalah pembacaan PERTAMA transaksi simulasi lunas, ganti metode, dan batal', async () => {
+  // InnoDB REPEATABLE READ: SELECT biasa sebelum FOR UPDATE membuat pembacaan setelah kunci tetap melihat data lama
+  const firstOpsAfterBegin = () => {
+    const begin = db.ops.lastIndexOf('tx:begin');
+    return db.ops.slice(begin + 1, begin + 3);
+  };
+  const check = async (label, run) => {
+    const number = await place();
+    await run(number);
+    assert.deepEqual(firstOpsAfterBegin(), ['lock:orders', 'order.findFirst'], label);
+    assert.deepEqual(db.locks[db.locks.length - 1].values, [number], label);
+  };
+  await check('ganti metode', (number) => changeMethod(number, 'bca_va'));
+  await check('simulasi lunas', (number) => simulate(number));
+  await check('batal', (number) => call('PATCH', `/orders/${number}/cancel`, tokenFor('1'), { reason: 'Uji kunci' }));
+  // Pesanan orang lain / tidak ada: kunci dulu lalu 404 (tidak membocorkan keberadaan pesanan)
+  const other = await place('2', { address_id: null });
+  assert.equal((await call('PATCH', `/orders/${other}/cancel`, tokenFor('1'), { reason: 'x' })).status, 404);
+  assert.equal((await call('PATCH', '/orders/OVC-991231-999/cancel', tokenFor('1'), { reason: 'x' })).status, 404);
 });
