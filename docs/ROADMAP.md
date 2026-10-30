@@ -303,9 +303,8 @@ Catatan khusus:
     `server/src/services/designAccess.service.js` memilih desain tamu yang aman diklaim (token valid, belum dipesan);
     penulisan `user_id` dilakukan dengan `updateMany` bersyarat `user_id IS NULL`.
 - 6.4 (berjalan per kelompok): 6.4.1 daftar & detail pesanan admin (PR #17, diselaraskan di 6.3).
-  **Kelompok 1 — 6.4.2 aksi pesanan & 6.4.3 kalender produksi: implementasi selesai & disetujui; verifikasi belum
-  lengkap** — uji lintas aksi admin ↔ pelanggan (ubah status admin bersamaan dengan batal pelanggan) masih GAGAL dan
-  menunggu hotfix konkurensi Step 6.3 (branch `fix/step-6.3-order-concurrency`, lihat temuan di bawah).
+  **Kelompok 1 — 6.4.2 aksi pesanan & 6.4.3 kalender produksi: selesai & terverifikasi** (commit `83e82ec`; branch
+  disinkronkan dengan `main` setelah hotfix konkurensi Step 6.3 PR #19 digabung).
   - Endpoint (Staf & Owner, `auth` + `requireRole`): `PATCH /api/admin/orders/:no/status`
     (`{from, to, pickup_code?, courier_name?}` → `{order_number, order_status, points_awarded}`),
     `POST /api/admin/orders/:no/verify-pickup` (`{pickup_code}` → `{valid: true}`, tanpa menulis data),
@@ -332,13 +331,18 @@ Catatan khusus:
     (Prisma dipalsukan; `tests/helpers/whereMatch.js` + operator `lte`). MySQL 8 sementara (Docker) lewat HTTP: 13
     skenario (auth/peran, alur pickup Bayar di Toko & delivery online, basi, 10 request bersamaan untuk Selesai,
     tandai lunas, dan Mulai Disiapkan, rollback dengan trigger gagal, 404/400, detail & daftar 6.4.1, poin `/me/points`,
-    kalender) — **12/13 lulus; 1 gagal** (admin ubah status vs pelanggan batal bersamaan) karena temuan Step 6.3 di
-    bawah. Skenario ini wajib diulang setelah hotfix digabung sebelum Kelompok 1 dinyatakan terverifikasi penuh. Browser mode API (1440 & 390 px): AD-04 ubah status →
-    verifikasi kode → tandai lunas → Selesai (+102 poin) dan AD-05 kalender.
-  - **Temuan Step 6.3 (diperbaiki terpisah di `fix/step-6.3-order-concurrency`, belum digabung):** `cancelMyOrder` (`services/orderActions.service.js`)
-    dan `lockPendingOrder` (`services/payment.service.js`) membaca pesanan sebelum `FOR UPDATE`. Di MySQL 8: 3 batal
-    bersamaan oleh pelanggan → 3 × 200 dan **3 transaksi refund poin** (10/10 putaran); admin "Mulai Disiapkan" +
-    pelanggan batal bersamaan → keduanya 200, pesanan berakhir Dibatalkan dengan riwayat `sedang_disiapkan,dibatalkan`.
+    kalender). Sebelum hotfix: 12/13 (admin ubah status vs pelanggan batal gagal, lihat temuan di bawah). **Setelah
+    sinkronisasi dengan `main` (hotfix PR #19): 13/13 lulus.** Uji konkurensi ulang 30 putaran per skenario di branch
+    yang sama: admin "Mulai Disiapkan" vs pelanggan batal (urutan kirim bergantian) → selalu tepat satu 200, kedua
+    pemenang terjadi (admin 16×, batal 14×), refund poin 0 bila admin menang dan 1 bila batal menang; batal bersamaan,
+    simulasi lunas/ganti metode vs batal, dan rollback — 8/8 skenario lulus. Browser mode API (1440 & 390 px): AD-04
+    ubah status → verifikasi kode → tandai lunas → Selesai (+102 poin) dan AD-05 kalender, tanpa error halaman.
+  - **Temuan Step 6.3 — sudah diperbaiki (PR #19, `fix/step-6.3-order-concurrency`, digabung ke `main`):**
+    `cancelMyOrder` (`services/orderActions.service.js`) dan `lockPendingOrder` (`services/payment.service.js`) membaca
+    pesanan sebelum `FOR UPDATE`. Di MySQL 8: 3 batal bersamaan oleh pelanggan → 3 × 200 dan **3 transaksi refund poin**
+    (10/10 putaran); admin "Mulai Disiapkan" + pelanggan batal bersamaan → keduanya 200, pesanan berakhir Dibatalkan
+    dengan riwayat `sedang_disiapkan,dibatalkan`. Perbaikan: `order.service.js` `lockMyOrder` (kunci = pembacaan
+    pertama transaksi) dipakai keduanya; audit transaksi lain tidak menemukan pola yang sama.
   - Belum diverifikasi: foto referensi custom cake di AD-04 mode API (seed tanpa foto); notifikasi (6.5).
 
 ```
