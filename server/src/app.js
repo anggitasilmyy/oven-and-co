@@ -15,11 +15,14 @@ const orderRoutes = require('./routes/customer/order.routes');
 const paymentRoutes = require('./routes/customer/payment.routes');
 const adminOrderRoutes = require('./routes/admin/order.routes');
 const adminCalendarRoutes = require('./routes/admin/calendar.routes');
+const adminProductRoutes = require('./routes/admin/product.routes');
+const adminCustomOptionRoutes = require('./routes/admin/customOption.routes');
 const paymentMethodRoutes = require('./routes/admin/paymentMethod.routes');
 
 const errorHandler = require('./middlewares/errorHandler');
 const { getReferencePhotoDir } = require('./utils/referencePhotoStorage');
 const { getReviewPhotoDir } = require('./utils/reviewPhotoStorage');
+const { getProductPhotoDir } = require('./utils/productPhotoStorage');
 
 const app = express();
 
@@ -34,7 +37,7 @@ app.use(
   })
 );
 
-// Foto unggahan (Step 6.3): referensi custom cake & foto ulasan. Hanya file di folder upload; tanpa listing
+// Foto unggahan (Step 6.3): referensi custom cake & foto ulasan; Step 6.4: foto produk. Hanya file di folder upload; tanpa listing
 // direktori, dotfile ditolak, dan tipe konten tidak boleh ditebak ulang oleh browser.
 const uploadStaticOptions = {
   index: false,
@@ -47,6 +50,7 @@ const uploadStaticOptions = {
 };
 app.use('/uploads/custom-cakes', express.static(getReferencePhotoDir(), uploadStaticOptions));
 app.use('/uploads/reviews', express.static(getReviewPhotoDir(), uploadStaticOptions));
+app.use('/uploads/products', express.static(getProductPhotoDir(), uploadStaticOptions));
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -76,6 +80,8 @@ app.use('/api/payments', paymentRoutes);
 // Admin API
 app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/calendar', adminCalendarRoutes);
+app.use('/api/admin/products', adminProductRoutes);
+app.use('/api/admin/custom-options', adminCustomOptionRoutes);
 app.use('/api/payment-methods', paymentMethodRoutes);
 
 // 404 handler

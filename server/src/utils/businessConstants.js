@@ -180,6 +180,43 @@ const CART_MAX_LINES = 50;
 // keranjang tamu 50 baris ke keranjang akun 50 baris). Di atas ini request ditolak 400.
 const CART_REQUEST_MAX_ITEMS = CART_MAX_LINES * 2;
 
+// ── Step 6.4 · AD-06 · AD-07 (client constants/adminCatalog.js, constants/product.js) ───────────────────────
+
+// Kategori produk custom cake (client constants/product.js CUSTOM_CAKE_CATEGORY_NAME): diarahkan ke Custom Cake Builder
+const CUSTOM_CAKE_CATEGORY_NAME = 'Custom Cake';
+
+// Panjang maksimum kolom (SPEC §8)
+const CATALOG_FIELD_MAX = Object.freeze({
+  name: 100, // products.name VARCHAR(100)
+  allergens: 255, // products.allergens VARCHAR(255)
+  variantName: 50, // product_variants.name VARCHAR(50)
+  optionName: 50, // custom_options.name VARCHAR(50)
+  optionDescription: 100, // custom_options.description VARCHAR(100)
+});
+
+// Batas angka DECIMAL(12,2) (harga)
+const MAX_PRICE = 9999999999.99;
+
+// Lead time per tipe (SPEC §8: 0 ready, 1 pre-order, 3 custom · BR-02). Maksimum = asumsi prototype client
+// LEAD_TIME_MAX_DAYS: tanggal siap tercepat harus tetap di jendela tanggal Detail Produk & Checkout (14 hari).
+const LEAD_TIME_MAX_DAYS = PREORDER_DATE_WINDOW_DAYS - 2;
+const LEAD_TIME_RULE = Object.freeze({
+  [AVAILABILITY_TYPE.READY]: Object.freeze({ min: 0, max: 0 }),
+  [AVAILABILITY_TYPE.PREORDER]: Object.freeze({ min: PREORDER_MIN_LEAD_DAYS, max: LEAD_TIME_MAX_DAYS }),
+  [AVAILABILITY_TYPE.CUSTOM]: Object.freeze({ min: CUSTOM_CAKE_MIN_LEAD_DAYS, max: LEAD_TIME_MAX_DAYS }),
+});
+
+// Foto produk maks. 5 (FR-30, validation rule Produk)
+const PRODUCT_PHOTO_MAX = 5;
+
+// Label kelompok opsi custom cake (client constants/adminCatalog.js CUSTOM_OPTION_GROUP_LABEL)
+const CUSTOM_OPTION_GROUP_LABEL = Object.freeze({
+  ukuran: 'Ukuran',
+  bentuk: 'Bentuk',
+  rasa: 'Rasa',
+  krim_topping: 'Krim & Topping',
+});
+
 // FR-05: Best Sellers & urutan "Terlaris" memakai penjualan 7 hari (client constants/dashboard.js)
 const SALES_WINDOW_DAYS = 7;
 
@@ -226,4 +263,11 @@ module.exports = {
   CART_REQUEST_MAX_ITEMS,
   SALES_WINDOW_DAYS,
   REVIEW_PREVIEW_LIMIT,
+  CUSTOM_CAKE_CATEGORY_NAME,
+  CATALOG_FIELD_MAX,
+  MAX_PRICE,
+  LEAD_TIME_MAX_DAYS,
+  LEAD_TIME_RULE,
+  PRODUCT_PHOTO_MAX,
+  CUSTOM_OPTION_GROUP_LABEL,
 };
