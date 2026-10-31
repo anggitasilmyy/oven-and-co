@@ -344,8 +344,12 @@ Catatan khusus:
     dengan riwayat `sedang_disiapkan,dibatalkan`. Perbaikan: `order.service.js` `lockMyOrder` (kunci = pembacaan
     pertama transaksi) dipakai keduanya; audit transaksi lain tidak menemukan pola yang sama.
   - Belum diverifikasi: foto referensi custom cake di AD-04 mode API (seed tanpa foto); notifikasi (6.5).
-  **Kelompok 2 — 6.4.4 AD-06 produk & opsi custom cake, 6.4.5 AD-07 stok harian & bahan baku: implementasi & uji
-  selesai, menunggu review (belum di-commit).**
+  **Kelompok 2 — 6.4.4 AD-06 produk & opsi custom cake, 6.4.5 AD-07 stok harian & bahan baku: selesai & terverifikasi**
+  (commit `00be46a` AD-06, `4f51200` AD-07; branch disinkronkan dengan `main` setelah hotfix nomor pesanan PR #20).
+  Verifikasi setelah sinkronisasi: server 377/377, client 142/142, build & lint lulus; MySQL 8 lewat HTTP — AD-07 18/18
+  dengan 8 checkout bersamaan, nomor pesanan 4/8/12 checkout bersamaan × 20 putaran semua 201 tanpa nomor ganda,
+  AD-06 10/10, Kelompok 1 13/13, hotfix #19 8/8 (admin vs batal: admin 17×, batal 13×); tanpa deadlock, tanpa bentrok
+  nomor pesanan, tanpa HTTP 500 di luar skenario rollback yang disengaja.
   - Endpoint (Staf & Owner): `GET|POST /api/admin/products`, `GET|PUT /api/admin/products/:id`,
     `PATCH /api/admin/products/:id/active`, `GET|POST /api/admin/custom-options`, `PUT /api/admin/custom-options/:id`,
     `PATCH /api/admin/custom-options/:id/active`, `GET|PUT /api/admin/stocks/today`, `GET|POST /api/admin/raw-materials`,
@@ -393,10 +397,10 @@ Catatan khusus:
     stok masuk → 9,00 (koreksi dulu) atau 409 + 11,00; form lama (stock tanpa expected) + stok masuk → 200 atau 400,
     stok tidak pernah tertimpa; 10 stok masuk + 3 edit informasi → tepat +5,00. **Step 6.6: form AD-07 mengirim
     `expected_stock` (stok saat form dibuka); edit tanpa koreksi boleh tidak mengirim `stock`.**
-  - **Temuan Step 6.3 — diperbaiki terpisah di `fix/step-6.3-order-number` (PR #20, belum digabung):** ≥ 4 checkout bersamaan oleh pelanggan berbeda pada hari
+  - **Temuan Step 6.3 — sudah diperbaiki (PR #20, `fix/step-6.3-order-number`, digabung ke `main`):** ≥ 4 checkout bersamaan oleh pelanggan berbeda pada hari
     yang sama → sebagian 500 (`orders_order_number_key`, P2002): semua request menghitung nomor urut yang sama dan retry
     (3×) juga serempak. MySQL 8, 10 putaran: 2–3 bersamaan selalu 201; 4 → 1 × 500; 8 → 5 × 500. Uji AD-07 memakai
-    3 checkout bersamaan karena ini. Perbaikan: penomoran diserialkan dengan kunci baris `store_settings` di checkout
+    3 checkout bersamaan sebelum hotfix digabung (setelah sinkronisasi diuji ulang dengan 8). Perbaikan: penomoran diserialkan dengan kunci baris `store_settings` di checkout
     (setelah kunci pengguna, sebelum desain & stok — urutan sama dengan transaksi admin); 4/8/12 bersamaan × 20 putaran
     → semua 201, nomor unik & berurutan. Diuji bersama Kelompok 2 (worktree sementara): AD-07 dengan 8 checkout 15/15,
     AD-06 10/10, hotfix #19 8/8, Kelompok 1 13/13, tanpa deadlock.
