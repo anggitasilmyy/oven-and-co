@@ -410,6 +410,67 @@ Catatan khusus:
     (setelah kunci pengguna, sebelum desain & stok — urutan sama dengan transaksi admin); 4/8/12 bersamaan × 20 putaran
     → semua 201, nomor unik & berurutan. Diuji bersama Kelompok 2 (worktree sementara): AD-07 dengan 8 checkout 15/15,
     AD-06 10/10, hotfix #19 8/8, Kelompok 1 13/13, tanpa deadlock.
+  **Kelompok 3 (berjalan) — 6.4.6 AD-02 Dashboard: selesai, menunggu review** (branch
+  `feat/step-6.4-admin-api-groups-3-4`, belum di-commit). Urutan berikutnya: 6.4.7 AD-08, 6.4.8 AD-10; Kelompok 4: 6.4.9
+  AD-09 (voucher dengan `expected_quota` + kunci baris + 409), 6.4.10 AD-11.
+  - Endpoint: `GET /api/admin/dashboard` — **hanya Owner** (Staf 403, SPEC §2). Kontrak = mock
+    `services/dashboardService.js`: `{todayKey, kpi{revenueToday, revenueChange, ordersToday, needsProcessing,
+    rating{average,count}}, salesChart, statusCounts, totalOrders, recentOrders, bestSellers, lowStock}`. Tanpa input,
+    jadi tanpa skema zod; "hari ini" = WIB.
+  - Aturan murni `services/salesRules.service.js` (port `utils/rules/sales.js`, dipakai lagi AD-08): penjualan = lunas &
+    tidak dibatalkan per tanggal WIB `created_at`, dijumlah dalam sen; 8 hari diambil (hari pertama hanya pembanding omzet
+    kemarin). Pesanan hari ini = semua status (sama dengan mock). Perlu diproses & donut dari satu `groupBy`. Rating =
+    SUM/COUNT ulasan tidak disembunyikan, 1 desimal. Pesanan terbaru = baris AD-03 (`toAdminOrderRow`).
+  - **Snapshot baca (hasil audit konsistensi):** versi awal menjalankan 7 bagian paralel tanpa transaksi — ±21 statement
+    autocommit di hingga 7 koneksi pool (relasi `include` & produk terlaris = SELECT terpisah), masing-masing dengan read
+    view sendiri, sehingga satu respons bisa berisi angka dari waktu berbeda (mis. "Perlu Diproses" sudah naik, omzet
+    belum). Kini `services/readSnapshot.service.js` `runInReadSnapshot()` = transaksi interaktif Prisma
+    `isolationLevel: RepeatableRead` (maxWait 5 s, timeout 10 s); semua query Dashboard berjalan **berurutan lewat `tx`**,
+    termasuk produk terlaris (`getBestSellers(query, now, db)`, `getSalesTotals(…, db)`, `getProductRatings(…, db)` —
+    parameter `db` opsional, default Prisma global), dengan satu `now`. Consistent read InnoDB: satu read view untuk semua
+    SELECT, tanpa kunci baris (tanpa FOR UPDATE/FOR SHARE), tidak menahan checkout/pembayaran. Bukan READ COMMITTED
+    (read view per statement) dan bukan SERIALIZABLE (SELECT menjadi locking read). Helper dipakai lagi oleh AD-08.
+  - **Keputusan 6.4.6 — produk terlaris** memakai aturan server `GET /api/products/best-sellers` (produk nonaktif
+    dikecualikan, posisinya diisi produk berikutnya). Mock `computeBestSellers` masih ikut menghitung produk nonaktif —
+    disesuaikan/diterima di Step 6.6.
+  - **Keputusan 6.4.6 — stok menipis** = bahan baku `stock ≤ min_stock` (FR-32, sama dengan mock & AD-07). **Berbeda dari
+    traceability BR-018** (PDF: AD-02 ↔ `orders, order_items, reviews, daily_stocks`): `daily_stocks` hanya punya
+    `qty_planned`/`qty_sold` tanpa batas minimum, sehingga "stok menipis" tidak bisa didefinisikan dari tabel itu tanpa
+    menambah kolom (dilarang SPEC §8); FR-27 & UI/UX Spec AD-02 ("peringatan stok menipis", aksi "membuka stok")
+    dipenuhi oleh bahan baku dengan batas minimum.
+  - Perubahan kecil pada fitur selesai (kompatibel, tanpa ubah perilaku): `adminOrder.service.js` mengekspor
+    `ADMIN_ORDER_ROW_INCLUDE` & `toAdminOrderRow` (include diekstrak dari `getOrders`); `product.service.js`
+    `getBestSellers(query, now = new Date(), db = prisma)`, `productView.service.js` `getSalesTotals(start, end, db)` &
+    `getProductRatings(ids, db)` — parameter opsional; pemanggil lain (Beranda, katalog, wishlist, AD-06) tidak berubah.
+  - **Koreksi klaim uji sebelumnya:** "5 checkout + 20 Dashboard bersamaan … tiap snapshot konsisten" tidak membuktikan
+    konsistensi. Pemeriksaannya (`totalOrders = Σ statusCounts`, perlu diproses = dikonfirmasi + disiapkan) berasal dari
+    satu `groupBy` sehingga tidak mungkin gagal, dan checkout belum lunas tidak menyentuh omzet; uji itu hanya
+    membuktikan tanpa error/500/deadlock. Diganti uji konsistensi silang di bawah.
+  - Uji: `server/tests/salesRules.test.js`, `adminDashboardRoute.test.js` (Prisma dipalsukan; `$transaction` palsu
+    mencatat opsi, model Prisma global dipasang sebagai penjaga yang gagal bila dipakai, klien `tx` mendeteksi query
+    tumpang tindih) — server 400/400 (baseline 382 + 18). Sensitivitas: service versi lama → 10 test gagal; varian `tx` +
+    `Promise.all` → hanya test "berurutan" gagal.
+  - MySQL 8 sementara (Docker, InnoDB untuk 30 tabel, default REPEATABLE-READ, migrasi + seed `SEED_ANCHOR_DATE` = hari
+    ini) lewat HTTP:
+    · General log satu request: baru = `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`, `BEGIN`, 21 SELECT di **satu**
+      koneksi, `COMMIT`; lama = SELECT autocommit di 7 koneksi. Keduanya tanpa locking read.
+    · **Konsistensi saat pelunasan bersamaan** (5 putaran × 30 pesanan pre-order identik dilunasi berurutan lewat
+      `simulate-paid`, 8 pekerja Dashboard terus-menerus; invarian per respons dengan k = jumlah lunas dari omzet:
+      dikonfirmasi, menunggu pembayaran, perlu diproses, transaksi grafik hari ini, total/pesanan hari ini, jumlah lunas
+      di Pesanan Terbaru, terjual di Produk Terlaris). **Kontrol negatif (implementasi lama): 158 dari 1.244 respons
+      melanggar** (dikonfirmasi/menunggu/perlu diproses 112, terlaris 97, pesanan terbaru 22). **Implementasi baru: 0 dari
+      715.**
+    · Latensi (bergantian, data sama, 4 vCPU): diam p50 35 ms / p95 46 ms (lama 23/30 — query kini berurutan); 8 request
+      paralel p50 96 / p95 117 ms (lama 87/103). Pool: satu request memakai 1 koneksi selama ±35 ms (lama hingga 7
+      koneksi bersamaan, pool default Prisma = 2 × CPU + 1).
+    · Skenario fungsional 10/10 (setiap angka = SQL independen): auth/peran, data seed, checkout sungguhan, simulasi
+      lunas, batal oleh pelanggan, ulasan disembunyikan, stok bahan = minimum lalu stok masuk AD-07, produk terlaris
+      dinonaktifkan lewat AD-06, batas hari WIB 23.59/00.00, 5 checkout + 20 Dashboard bersamaan (hanya bukti tanpa 500).
+    · Regresi: 22 endpoint (best sellers berbagai `limit` termasuk 400, fresh-today, katalog, detail & ulasan produk,
+      kategori, wishlist, daftar & detail AD-03/AD-04, produk AD-06, kalender) **identik dengan `main`** (server `HEAD`
+      dan versi ini pada data yang sama); best sellers Beranda = Dashboard; 5 baris pertama AD-03 = Pesanan Terbaru.
+  - Browser mode API (1440 & 390 px): login Owner → Dashboard tanpa error halaman/konsol, semua panel terisi; Staf yang
+    membuka `/admin/dashboard` diarahkan ke Pesanan.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

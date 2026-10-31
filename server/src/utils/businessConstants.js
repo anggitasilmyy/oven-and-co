@@ -229,6 +229,11 @@ const SALES_WINDOW_DAYS = 7;
 // FR-09: cuplikan ulasan di Detail Produk (client constants/productDetail.js)
 const REVIEW_PREVIEW_LIMIT = 2;
 
+// Step 6.4 · FR-27 · AD-02 Dashboard (client constants/dashboard.js & constants/orderStatus.js)
+const BEST_SELLER_LIMIT = 5;
+const RECENT_ORDERS_LIMIT = 5;
+const NEEDS_PROCESSING_STATUSES = Object.freeze([ORDER_STATUS.DIKONFIRMASI, ORDER_STATUS.SEDANG_DISIAPKAN]);
+
 module.exports = {
   AVAILABILITY_TYPE,
   ORDER_STATUS,
@@ -269,6 +274,9 @@ module.exports = {
   CART_REQUEST_MAX_ITEMS,
   SALES_WINDOW_DAYS,
   REVIEW_PREVIEW_LIMIT,
+  BEST_SELLER_LIMIT,
+  RECENT_ORDERS_LIMIT,
+  NEEDS_PROCESSING_STATUSES,
   CUSTOM_CAKE_CATEGORY_NAME,
   CATALOG_FIELD_MAX,
   MAX_PRICE,

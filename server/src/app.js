@@ -20,6 +20,7 @@ const adminCustomOptionRoutes = require('./routes/admin/customOption.routes');
 const adminStockRoutes = require('./routes/admin/stock.routes');
 const adminRawMaterialRoutes = require('./routes/admin/rawMaterial.routes');
 const paymentMethodRoutes = require('./routes/admin/paymentMethod.routes');
+const adminDashboardRoutes = require('./routes/admin/dashboard.routes');
 
 const errorHandler = require('./middlewares/errorHandler');
 const { getReferencePhotoDir } = require('./utils/referencePhotoStorage');
@@ -86,6 +87,7 @@ app.use('/api/admin/products', adminProductRoutes);
 app.use('/api/admin/custom-options', adminCustomOptionRoutes);
 app.use('/api/admin/stocks', adminStockRoutes);
 app.use('/api/admin/raw-materials', adminRawMaterialRoutes);
+app.use('/api/admin/dashboard', adminDashboardRoutes);
 app.use('/api/payment-methods', paymentMethodRoutes);
 
 // 404 handler
