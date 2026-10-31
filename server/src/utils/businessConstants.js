@@ -192,10 +192,13 @@ const CATALOG_FIELD_MAX = Object.freeze({
   variantName: 50, // product_variants.name VARCHAR(50)
   optionName: 50, // custom_options.name VARCHAR(50)
   optionDescription: 100, // custom_options.description VARCHAR(100)
+  materialName: 100, // raw_materials.name VARCHAR(100)
+  materialUnit: 20, // raw_materials.unit VARCHAR(20)
 });
 
-// Batas angka DECIMAL(12,2) (harga)
+// Batas angka DECIMAL(12,2) (harga) & DECIMAL(10,2) (stok bahan baku)
 const MAX_PRICE = 9999999999.99;
+const MAX_MATERIAL_QTY = 99999999.99;
 
 // Lead time per tipe (SPEC §8: 0 ready, 1 pre-order, 3 custom · BR-02). Maksimum = asumsi prototype client
 // LEAD_TIME_MAX_DAYS: tanggal siap tercepat harus tetap di jendela tanggal Detail Produk & Checkout (14 hari).
@@ -266,6 +269,7 @@ module.exports = {
   CUSTOM_CAKE_CATEGORY_NAME,
   CATALOG_FIELD_MAX,
   MAX_PRICE,
+  MAX_MATERIAL_QTY,
   LEAD_TIME_MAX_DAYS,
   LEAD_TIME_RULE,
   PRODUCT_PHOTO_MAX,

@@ -58,9 +58,22 @@ const customOptionSchema = z.object(
   { error: BODY_INVALID_TEXT }
 );
 
+const dailyPlansSchema = z.object(
+  { plans: z.array(z.object({ product_id: idLike, qty_planned: numberLike }), { error: BODY_INVALID_TEXT }).optional() },
+  { error: BODY_INVALID_TEXT }
+);
+
+// expected_stock (opsional, PUT): stok yang dilihat admin saat form dibuka — mencegah stok masuk bersamaan tertimpa
+const materialSchema = z.object(
+  { name: text, unit: text, stock: numberLike, min_stock: numberLike, expected_stock: numberLike },
+  { error: BODY_INVALID_TEXT }
+);
+
+const stockInSchema = z.object({ qty: numberLike }, { error: BODY_INVALID_TEXT });
+
 const issueMessage = (issue) => (issue.path.length === 0 ? issue.message : BODY_INVALID_TEXT);
 
-/** :id BIGINT positif (produk) atau INT (opsi) → string; tidak sah → 400 INVALID_ID */
+/** :id BIGINT positif (produk, bahan baku) atau INT (opsi) → string; tidak sah → 400 INVALID_ID */
 function validateIdParam(value, message, { max = 9223372036854775807n } = {}) {
   if (typeof value !== 'string' || !/^[1-9]\d{0,18}$/.test(value) || BigInt(value) > max) {
     throw Object.assign(createError(message), { apiCode: API_ERROR_CODE.INVALID_ID });
@@ -70,6 +83,7 @@ function validateIdParam(value, message, { max = 9223372036854775807n } = {}) {
 
 const validateProductId = (value) => validateIdParam(value, 'ID produk tidak valid.');
 const validateOptionId = (value) => validateIdParam(value, 'ID opsi tidak valid.', { max: BigInt(INT_MAX) });
+const validateMaterialId = (value) => validateIdParam(value, 'ID bahan baku tidak valid.');
 
 /** Field `product` multipart berisi JSON → objek; rusak/hilang → 400 */
 function parseMultipartProduct(body) {
@@ -85,8 +99,12 @@ function parseMultipartProduct(body) {
 module.exports = {
   validateProductId,
   validateOptionId,
+  validateMaterialId,
   parseMultipartProduct,
   validateProductBody: (body) => parseOrThrow(productSchema, body, issueMessage),
   validateActiveBody: (body) => parseOrThrow(activeSchema, body, issueMessage),
   validateCustomOptionBody: (body) => parseOrThrow(customOptionSchema, body, issueMessage),
+  validateDailyPlansBody: (body) => parseOrThrow(dailyPlansSchema, body, issueMessage),
+  validateMaterialBody: (body) => parseOrThrow(materialSchema, body, issueMessage),
+  validateStockInBody: (body) => parseOrThrow(stockInSchema, body, issueMessage),
 };

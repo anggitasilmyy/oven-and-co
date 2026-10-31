@@ -344,6 +344,62 @@ Catatan khusus:
     dengan riwayat `sedang_disiapkan,dibatalkan`. Perbaikan: `order.service.js` `lockMyOrder` (kunci = pembacaan
     pertama transaksi) dipakai keduanya; audit transaksi lain tidak menemukan pola yang sama.
   - Belum diverifikasi: foto referensi custom cake di AD-04 mode API (seed tanpa foto); notifikasi (6.5).
+  **Kelompok 2 — 6.4.4 AD-06 produk & opsi custom cake, 6.4.5 AD-07 stok harian & bahan baku: implementasi & uji
+  selesai, menunggu review (belum di-commit).**
+  - Endpoint (Staf & Owner): `GET|POST /api/admin/products`, `GET|PUT /api/admin/products/:id`,
+    `PATCH /api/admin/products/:id/active`, `GET|POST /api/admin/custom-options`, `PUT /api/admin/custom-options/:id`,
+    `PATCH /api/admin/custom-options/:id/active`, `GET|PUT /api/admin/stocks/today`, `GET|POST /api/admin/raw-materials`,
+    `PUT /api/admin/raw-materials/:id`, `POST /api/admin/raw-materials/:id/stock-in`. POST 201; GET/PUT/PATCH 200; produk/
+    opsi/bahan tidak ada 404 (mock produk mengembalikan `null` — penyesuaian frontend di 6.6); id tidak sah 400 `INVALID_ID`.
+    Kontrak & pesan = mock `adminCatalogViews/Writes.js`, `stockAdmin.js`; aturan diport ke
+    `services/adminCatalogRules.service.js` dan `services/stockRules.service.js`.
+  - `fieldErrors`: 400 validasi form membawa `{ message, fieldErrors }` dengan kunci mock (produk: `name`, `category_id`,
+    `price`, `lead_time_days`, `variants[i]`, `variantsGeneral`, `is_active`, `photos`; stok harian: `product_id`; bahan:
+    `name`, `unit`, `stock`, `min_stock`). `errorHandler` hanya menambahkannya bila error membawanya.
+  - Foto produk: JSON tanpa foto baru, atau multipart (`photos` maks. 5 + JSON `product`). `photos` =
+    `[{ image_id } | { file_index }]`, urutan = `sort_order`; image_id wajib milik produk, tanpa ganda, setiap file
+    dirujuk tepat sekali, total ≤ 5, data URL ditolak; PUT tanpa `photos` → foto lama tetap. Penyimpanan memakai ulang
+    `utils/photoStorage.js` (JPG/PNG/WebP dari isi file, 5 MB, nama acak) di `uploads/products/`, disajikan
+    `/uploads/products/…`; file baru dihapus bila gagal, file unggahan yang dilepas dihapus setelah commit; aset
+    `/images/…` tidak disentuh.
+  - Konkurensi tanpa ubah schema: semua transaksi master data (produk, opsi, bahan, rencana stok) mengunci baris
+    `store_settings` (satu baris, PK) sebagai pembacaan pertama → nama opsi per kelompok & nama bahan unik, satu produk
+    custom aktif, dan ≥ 1 opsi aktif per kelompok tetap benar walau bersamaan (kontrol negatif: tanpa kunci ketiganya gagal
+    di putaran pertama). Rencana stok: baris hari ini dibuat/dikunci `INSERT … ON DUPLICATE KEY UPDATE` + `FOR UPDATE`
+    urut product_id naik (sama dengan checkout), validasi rencana ≥ terjual memakai nilai terkunci. Stok masuk: baris bahan
+    dikunci lalu `stock + qty` dihitung DECIMAL di MySQL. Batas stok masuk dihitung dalam sen (tepat di 99.999.999,99).
+  - Uji: `server/tests/adminCatalogRules.test.js`, `adminProductRoute.test.js`, `adminCustomOptionRoute.test.js`,
+    `stockRules.test.js`, `adminStockRoute.test.js` (Prisma dipalsukan, `tests/helpers/catalogDb.js`) — server 375/375.
+    MySQL 8 sementara lewat HTTP, 30 putaran untuk konkurensi: AD-06 10/10 (auth, data seed, efek ke katalog & builder
+    pelanggan, multipart & file tersaji, validasi, rollback trigger, aktivasi custom bersamaan, nama opsi ganda bersamaan,
+    opsi aktif terakhir bersamaan); AD-07 18/18 dengan checkout sungguhan `POST /api/orders` (baris stok belum ada, admin
+    turunkan rencana vs checkout — admin ditolak 16× / tersimpan 14×, terjual ≤ rencana, tanpa deadlock; dua admin membuat
+    baris yang sama; nama bahan ganda; 10 stok masuk bersamaan tepat +1,00; batas & rollback). Jam server uji digeser ke
+    pukul 09.00 WIB lewat preload khusus uji agar slot pickup hari ini tersedia. Regresi: Kelompok 1 13/13, hotfix 8/8.
+    Browser mode API (1440 & 390 px): AD-06 daftar, ubah harga (PUT JSON), toggle aktif, tab opsi; AD-07 simpan rencana,
+    validasi client rencana < terjual, catat stok masuk — tanpa error halaman.
+  - Keterbatasan (menunggu 6.6): form AD-06 masih mengirim foto baru sebagai data URL (ditolak server) dan `ProductImage`
+    belum memakai `toUploadUrl()`, jadi unggah/tampil foto `/uploads/products/…` di browser belum bisa diuji (file diverifikasi
+    lewat URL server); `apiClient` belum meneruskan `fieldErrors` (halaman hanya menampilkan pesan pertama).
+  - Bahan baku — perlindungan stok masuk (hasil audit): field stok form adalah "Stok saat ini — untuk koreksi hasil
+    hitung stok" (FR-32 "menyimpan stok"), sehingga dengan kontrak awal PUT menulis stok absolut dan stok masuk yang
+    commit setelah form dibuka tertimpa (MySQL: hilang di 29/30 putaran). Aturan final PUT `/api/admin/raw-materials/:id`:
+    · edit informasi (nama, satuan, minimum) — `stock` tidak dikirim, sama dengan `expected_stock`, atau sama dengan stok
+      database → kolom stock TIDAK ditulis (nilai terbaru dipakai);
+    · koreksi stok absolut (`stock` berbeda) → `expected_stock` wajib: tanpa expected → 400, expected ≠ stok database →
+      409, keduanya `fieldErrors.stock`; request tanpa expected tidak pernah mengubah stok secara absolut;
+    · PUT mengunci baris bahan `FOR UPDATE` (setelah kunci master data) sebelum membaca, sama dengan stok masuk.
+    MySQL 30 putaran: edit nama + 5 stok masuk dan edit satuan (tanpa `stock`) + 5 stok masuk → selalu 15,00; koreksi vs
+    stok masuk → 9,00 (koreksi dulu) atau 409 + 11,00; form lama (stock tanpa expected) + stok masuk → 200 atau 400,
+    stok tidak pernah tertimpa; 10 stok masuk + 3 edit informasi → tepat +5,00. **Step 6.6: form AD-07 mengirim
+    `expected_stock` (stok saat form dibuka); edit tanpa koreksi boleh tidak mengirim `stock`.**
+  - **Temuan Step 6.3 — diperbaiki terpisah di `fix/step-6.3-order-number` (PR #20, belum digabung):** ≥ 4 checkout bersamaan oleh pelanggan berbeda pada hari
+    yang sama → sebagian 500 (`orders_order_number_key`, P2002): semua request menghitung nomor urut yang sama dan retry
+    (3×) juga serempak. MySQL 8, 10 putaran: 2–3 bersamaan selalu 201; 4 → 1 × 500; 8 → 5 × 500. Uji AD-07 memakai
+    3 checkout bersamaan karena ini. Perbaikan: penomoran diserialkan dengan kunci baris `store_settings` di checkout
+    (setelah kunci pengguna, sebelum desain & stok — urutan sama dengan transaksi admin); 4/8/12 bersamaan × 20 putaran
+    → semua 201, nomor unik & berurutan. Diuji bersama Kelompok 2 (worktree sementara): AD-07 dengan 8 checkout 15/15,
+    AD-06 10/10, hotfix #19 8/8, Kelompok 1 13/13, tanpa deadlock.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

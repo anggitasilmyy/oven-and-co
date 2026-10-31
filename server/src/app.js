@@ -17,6 +17,8 @@ const adminOrderRoutes = require('./routes/admin/order.routes');
 const adminCalendarRoutes = require('./routes/admin/calendar.routes');
 const adminProductRoutes = require('./routes/admin/product.routes');
 const adminCustomOptionRoutes = require('./routes/admin/customOption.routes');
+const adminStockRoutes = require('./routes/admin/stock.routes');
+const adminRawMaterialRoutes = require('./routes/admin/rawMaterial.routes');
 const paymentMethodRoutes = require('./routes/admin/paymentMethod.routes');
 
 const errorHandler = require('./middlewares/errorHandler');
@@ -82,6 +84,8 @@ app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/calendar', adminCalendarRoutes);
 app.use('/api/admin/products', adminProductRoutes);
 app.use('/api/admin/custom-options', adminCustomOptionRoutes);
+app.use('/api/admin/stocks', adminStockRoutes);
+app.use('/api/admin/raw-materials', adminRawMaterialRoutes);
 app.use('/api/payment-methods', paymentMethodRoutes);
 
 // 404 handler
