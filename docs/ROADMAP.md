@@ -194,7 +194,8 @@ Catatan khusus:
   rujukan di pesanan lama tidak dikosongkan) kecuali tabel penghubung M:N & `cart_items` (`CASCADE`); tidak ada UNIQUE
   di luar SPEC (mis. `order_items.design_id`). Seed pilihan A: data master SPEC §9/§10 + 9 pesanan contoh (semua status,
   termasuk OVC-261012-018), id tetap, `upsert` tanpa menimpa (idempoten). `BigInt`/`Decimal` perlu serializer di 6.2+.
-- 6.3 (sebagian, belum selesai): produk, kategori, opsi custom, simpan desain, `POST /api/cart`, `GET /api/checkout/context`,
+- 6.3: **selesai — masuk `main` lewat PR #18** (hotfix konkurensi lanjutan: PR #19 aksi pesanan, PR #20 nomor
+  pesanan; catatan di bawah adalah isi & hasil uji saat pengerjaan). Cakupan: produk, kategori, opsi custom, simpan desain, `POST /api/cart`, `GET /api/checkout/context`,
   `GET /api/promos/active`, dan akun: wishlist (`/me/wishlist`), poin (`/me/points`, `/me/points/history`),
   voucher (`/me/vouchers`), alamat (`/me/addresses`), profil & kata sandi (`/me/profile`, `/me/password`),
   pesanan (`POST/GET /orders`, `GET /orders/:no`, `GET|PATCH /orders/:no/payment`, `PATCH /orders/:no/cancel`,
@@ -223,6 +224,7 @@ Catatan khusus:
   - **Ditunda ke Step 6.4** (hasil audit; frontend AD-04 sudah memanggil, server belum punya rute → 404
     "Endpoint tidak ditemukan"): `PATCH /api/admin/orders/:no/status` (ubah status, mis. Dikonfirmasi → Sedang
     Disiapkan), `POST /api/admin/orders/:no/verify-pickup`, `PATCH /api/admin/orders/:no/mark-paid`.
+    → Selesai di Step 6.4.2 (lihat catatan 6.4).
   - Ulasan (C-10, C-19): hanya item pesanan Selesai milik pelanggan, satu ulasan per item (UNIQUE
     `reviews.order_item_id`; P2002 → 409), rating bulat 1–5, tag dari daftar client (ganda digabung), komentar ≤ kolom
     TEXT; bonus `review_bonus` = `store_settings.review_bonus_points` dengan `review_id`, satu transaksi. Foto: multipart
@@ -301,6 +303,113 @@ Catatan khusus:
   - Untuk Phase berikutnya (gabung keranjang setelah login): `selectClaimableGuestDesignIds()` di
     `server/src/services/designAccess.service.js` memilih desain tamu yang aman diklaim (token valid, belum dipesan);
     penulisan `user_id` dilakukan dengan `updateMany` bersyarat `user_id IS NULL`.
+- 6.4 (berjalan per kelompok): 6.4.1 daftar & detail pesanan admin (PR #17, diselaraskan di 6.3).
+  **Kelompok 1 — 6.4.2 aksi pesanan & 6.4.3 kalender produksi: selesai & terverifikasi** (commit `83e82ec`; branch
+  disinkronkan dengan `main` setelah hotfix konkurensi Step 6.3 PR #19 digabung).
+  - Endpoint (Staf & Owner, `auth` + `requireRole`): `PATCH /api/admin/orders/:no/status`
+    (`{from, to, pickup_code?, courier_name?}` → `{order_number, order_status, points_awarded}`),
+    `POST /api/admin/orders/:no/verify-pickup` (`{pickup_code}` → `{valid: true}`, tanpa menulis data),
+    `PATCH /api/admin/orders/:no/mark-paid` (→ `{order_number, payment_status, paid_at}`),
+    `GET /api/admin/calendar?month=YYYY-MM&date=YYYY-MM-DD` (→ `{month_key, today_key, weeks, counts, selected}`).
+    Kontrak & pesan = mock `adminOrderWrites.js` / `productionViews.js`; aturan diport ke
+    `services/adminOrderRules.service.js` dan `services/productionRules.service.js`.
+  - Aturan: status berurutan (pickup → Siap Diambil, delivery → Dalam Pengiriman); Menunggu Pembayaran & status final
+    ditolak; `from` ≠ status terbaru → STALE; kurir wajib ≤ 100 karakter (disimpan di `courier_name` + catatan
+    riwayat); Selesai wajib lunas (Bayar di Toko: tandai lunas dulu) dan pickup wajib kode cocok (dinormalisasi, cek
+    ulang saat simpan); tandai lunas hanya Bayar di Toko belum lunas saat Siap Diambil (`orders.payment_status` +
+    semua baris `payments`: `paid`, `paid_at`, `amount` = total). Setiap ubah status menulis `order_status_histories`
+    (`changed_by` = admin). BR-09: poin `earn` = floor(total / `earn_amount_per_point`) saat Selesai, sekali per
+    pesanan. Kode pickup tidak pernah dikirim (UC-21). HTTP: isian salah 400, status pesanan tidak memungkinkan 409,
+    tidak ada 404, nomor tidak valid 400 `INVALID_ID`. Notifikasi status/poin **tidak** dibuat (Step 6.5).
+  - Konsistensi: satu transaksi; kunci `SELECT … WHERE order_number = ? FOR UPDATE` **harus menjadi pembacaan pertama**
+    transaksi. Di InnoDB REPEATABLE READ snapshot dibuat oleh SELECT biasa pertama; pola "baca → FOR UPDATE → baca ulang"
+    tetap membaca data lama (uji MySQL: 9 dari 10 request Selesai bersamaan lolos sebelum diperbaiki).
+  - Kalender: item pre-order & custom dari pesanan Dikonfirmasi s.d. Selesai, per `orders.ready_date` (BR-03), query
+    dibatasi rentang grid; bulan/tanggal kosong → hari ini (WIB); tanggal di luar bulan → hari ini/tgl 1 (sama dengan
+    mock). Berbeda dari mock: bulan/tanggal tidak sah → 400 (mock menghitung bulan apa pun); tahun dibatasi 1000–9999
+    (rentang kolom DATE MySQL) dan grid Desember 9999 ditolak.
+  - Uji: `server/tests/adminOrderActionRules.test.js`, `adminOrderActionsRoute.test.js`, `adminCalendarRoute.test.js`
+    (Prisma dipalsukan; `tests/helpers/whereMatch.js` + operator `lte`). MySQL 8 sementara (Docker) lewat HTTP: 13
+    skenario (auth/peran, alur pickup Bayar di Toko & delivery online, basi, 10 request bersamaan untuk Selesai,
+    tandai lunas, dan Mulai Disiapkan, rollback dengan trigger gagal, 404/400, detail & daftar 6.4.1, poin `/me/points`,
+    kalender). Sebelum hotfix: 12/13 (admin ubah status vs pelanggan batal gagal, lihat temuan di bawah). **Setelah
+    sinkronisasi dengan `main` (hotfix PR #19): 13/13 lulus.** Uji konkurensi ulang 30 putaran per skenario di branch
+    yang sama: admin "Mulai Disiapkan" vs pelanggan batal (urutan kirim bergantian) → selalu tepat satu 200, kedua
+    pemenang terjadi (admin 16×, batal 14×), refund poin 0 bila admin menang dan 1 bila batal menang; batal bersamaan,
+    simulasi lunas/ganti metode vs batal, dan rollback — 8/8 skenario lulus. Browser mode API (1440 & 390 px): AD-04
+    ubah status → verifikasi kode → tandai lunas → Selesai (+102 poin) dan AD-05 kalender, tanpa error halaman.
+  - **Temuan Step 6.3 — sudah diperbaiki (PR #19, `fix/step-6.3-order-concurrency`, digabung ke `main`):**
+    `cancelMyOrder` (`services/orderActions.service.js`) dan `lockPendingOrder` (`services/payment.service.js`) membaca
+    pesanan sebelum `FOR UPDATE`. Di MySQL 8: 3 batal bersamaan oleh pelanggan → 3 × 200 dan **3 transaksi refund poin**
+    (10/10 putaran); admin "Mulai Disiapkan" + pelanggan batal bersamaan → keduanya 200, pesanan berakhir Dibatalkan
+    dengan riwayat `sedang_disiapkan,dibatalkan`. Perbaikan: `order.service.js` `lockMyOrder` (kunci = pembacaan
+    pertama transaksi) dipakai keduanya; audit transaksi lain tidak menemukan pola yang sama.
+  - Belum diverifikasi: foto referensi custom cake di AD-04 mode API (seed tanpa foto); notifikasi (6.5).
+  **Kelompok 2 — 6.4.4 AD-06 produk & opsi custom cake, 6.4.5 AD-07 stok harian & bahan baku: selesai & terverifikasi**
+  (commit `00be46a` AD-06, `4f51200` AD-07; branch disinkronkan dengan `main` setelah hotfix nomor pesanan PR #20).
+  Verifikasi setelah sinkronisasi: server 377/377, client 142/142, build & lint lulus; MySQL 8 lewat HTTP — AD-07 18/18
+  dengan 8 checkout bersamaan, nomor pesanan 4/8/12 checkout bersamaan × 20 putaran semua 201 tanpa nomor ganda,
+  AD-06 10/10, Kelompok 1 13/13, hotfix #19 8/8 (admin vs batal: admin 17×, batal 13×); tanpa deadlock, tanpa bentrok
+  nomor pesanan, tanpa HTTP 500 di luar skenario rollback yang disengaja.
+  - Endpoint (Staf & Owner): `GET|POST /api/admin/products`, `GET|PUT /api/admin/products/:id`,
+    `PATCH /api/admin/products/:id/active`, `GET|POST /api/admin/custom-options`, `PUT /api/admin/custom-options/:id`,
+    `PATCH /api/admin/custom-options/:id/active`, `GET|PUT /api/admin/stocks/today`, `GET|POST /api/admin/raw-materials`,
+    `PUT /api/admin/raw-materials/:id`, `POST /api/admin/raw-materials/:id/stock-in`. POST 201; GET/PUT/PATCH 200; produk/
+    opsi/bahan tidak ada 404 (mock produk mengembalikan `null` — penyesuaian frontend di 6.6); id tidak sah 400 `INVALID_ID`.
+    Kontrak & pesan = mock `adminCatalogViews/Writes.js`, `stockAdmin.js`; aturan diport ke
+    `services/adminCatalogRules.service.js` dan `services/stockRules.service.js`.
+  - `fieldErrors`: 400 validasi form membawa `{ message, fieldErrors }` dengan kunci mock (produk: `name`, `category_id`,
+    `price`, `lead_time_days`, `variants[i]`, `variantsGeneral`, `is_active`, `photos`; stok harian: `product_id`; bahan:
+    `name`, `unit`, `stock`, `min_stock`). `errorHandler` hanya menambahkannya bila error membawanya.
+  - Foto produk: JSON tanpa foto baru, atau multipart (`photos` maks. 5 + JSON `product`). `photos` =
+    `[{ image_id } | { file_index }]`, urutan = `sort_order`; image_id wajib milik produk, tanpa ganda, setiap file
+    dirujuk tepat sekali, total ≤ 5, data URL ditolak; PUT tanpa `photos` → foto lama tetap. Penyimpanan memakai ulang
+    `utils/photoStorage.js` (JPG/PNG/WebP dari isi file, 5 MB, nama acak) di `uploads/products/`, disajikan
+    `/uploads/products/…`; file baru dihapus bila gagal, file unggahan yang dilepas dihapus setelah commit; aset
+    `/images/…` tidak disentuh.
+  - Konkurensi tanpa ubah schema: semua transaksi master data (produk, opsi, bahan, rencana stok) mengunci baris
+    `store_settings` (satu baris, PK) sebagai pembacaan pertama → nama opsi per kelompok & nama bahan unik, satu produk
+    custom aktif, dan ≥ 1 opsi aktif per kelompok tetap benar walau bersamaan (kontrol negatif: tanpa kunci ketiganya gagal
+    di putaran pertama). Rencana stok: baris hari ini dibuat/dikunci `INSERT … ON DUPLICATE KEY UPDATE` + `FOR UPDATE`
+    urut product_id naik (sama dengan checkout), validasi rencana ≥ terjual memakai nilai terkunci. Stok masuk: baris bahan
+    dikunci lalu `stock + qty` dihitung DECIMAL di MySQL. Batas stok masuk dihitung dalam sen (tepat di 99.999.999,99).
+  - Uji: `server/tests/adminCatalogRules.test.js`, `adminProductRoute.test.js`, `adminCustomOptionRoute.test.js`,
+    `stockRules.test.js`, `adminStockRoute.test.js` (Prisma dipalsukan, `tests/helpers/catalogDb.js`) — server 375/375.
+    MySQL 8 sementara lewat HTTP, 30 putaran untuk konkurensi: AD-06 10/10 (auth, data seed, efek ke katalog & builder
+    pelanggan, multipart & file tersaji, validasi, rollback trigger, aktivasi custom bersamaan, nama opsi ganda bersamaan,
+    opsi aktif terakhir bersamaan); AD-07 18/18 dengan checkout sungguhan `POST /api/orders` (baris stok belum ada, admin
+    turunkan rencana vs checkout — admin ditolak 16× / tersimpan 14×, terjual ≤ rencana, tanpa deadlock; dua admin membuat
+    baris yang sama; nama bahan ganda; 10 stok masuk bersamaan tepat +1,00; batas & rollback). Jam server uji digeser ke
+    pukul 09.00 WIB lewat preload khusus uji agar slot pickup hari ini tersedia. Regresi: Kelompok 1 13/13, hotfix 8/8.
+    Browser mode API (1440 & 390 px): AD-06 daftar, ubah harga (PUT JSON), toggle aktif, tab opsi; AD-07 simpan rencana,
+    validasi client rencana < terjual, catat stok masuk — tanpa error halaman.
+  - Perbaikan hasil review akhir (dasar tipe kolom SPEC §8, tambahan server — mock belum memeriksanya): harga produk &
+    harga tambahan varian/opsi maks. 2 angka desimal (DECIMAL(12,2) MySQL membulatkan diam-diam: 0,004 → 0,00 sehingga
+    "harga > 0" bisa dilanggar) → 400 `Maksimal 2 angka desimal`; deskripsi & komposisi produk maks. 65.535 byte UTF-8
+    (kolom TEXT; sebelumnya > batas → 500 "Data too long") → 400 `fieldErrors.description` / `ingredients`. Berlaku
+    untuk JSON & multipart; kosong/null tetap sah.
+  - Keterbatasan (menunggu 6.6): form AD-06 masih mengirim foto baru sebagai data URL (ditolak server) dan `ProductImage`
+    belum memakai `toUploadUrl()`, jadi unggah/tampil foto `/uploads/products/…` di browser belum bisa diuji (file diverifikasi
+    lewat URL server); `apiClient` belum meneruskan `fieldErrors` (halaman hanya menampilkan pesan pertama).
+  - Bahan baku — perlindungan stok masuk (hasil audit): field stok form adalah "Stok saat ini — untuk koreksi hasil
+    hitung stok" (FR-32 "menyimpan stok"), sehingga dengan kontrak awal PUT menulis stok absolut dan stok masuk yang
+    commit setelah form dibuka tertimpa (MySQL: hilang di 29/30 putaran). Aturan final PUT `/api/admin/raw-materials/:id`:
+    · edit informasi (nama, satuan, minimum) — `stock` tidak dikirim, sama dengan `expected_stock`, atau sama dengan stok
+      database → kolom stock TIDAK ditulis (nilai terbaru dipakai);
+    · koreksi stok absolut (`stock` berbeda) → `expected_stock` wajib: tanpa expected → 400, expected ≠ stok database →
+      409, keduanya `fieldErrors.stock`; request tanpa expected tidak pernah mengubah stok secara absolut;
+    · PUT mengunci baris bahan `FOR UPDATE` (setelah kunci master data) sebelum membaca, sama dengan stok masuk.
+    MySQL 30 putaran: edit nama + 5 stok masuk dan edit satuan (tanpa `stock`) + 5 stok masuk → selalu 15,00; koreksi vs
+    stok masuk → 9,00 (koreksi dulu) atau 409 + 11,00; form lama (stock tanpa expected) + stok masuk → 200 atau 400,
+    stok tidak pernah tertimpa; 10 stok masuk + 3 edit informasi → tepat +5,00. **Step 6.6: form AD-07 mengirim
+    `expected_stock` (stok saat form dibuka); edit tanpa koreksi boleh tidak mengirim `stock`.**
+  - **Temuan Step 6.3 — sudah diperbaiki (PR #20, `fix/step-6.3-order-number`, digabung ke `main`):** ≥ 4 checkout bersamaan oleh pelanggan berbeda pada hari
+    yang sama → sebagian 500 (`orders_order_number_key`, P2002): semua request menghitung nomor urut yang sama dan retry
+    (3×) juga serempak. MySQL 8, 10 putaran: 2–3 bersamaan selalu 201; 4 → 1 × 500; 8 → 5 × 500. Uji AD-07 memakai
+    3 checkout bersamaan sebelum hotfix digabung (setelah sinkronisasi diuji ulang dengan 8). Perbaikan: penomoran diserialkan dengan kunci baris `store_settings` di checkout
+    (setelah kunci pengguna, sebelum desain & stok — urutan sama dengan transaksi admin); 4/8/12 bersamaan × 20 putaran
+    → semua 201, nomor unik & berurutan. Diuji bersama Kelompok 2 (worktree sementara): AD-07 dengan 8 checkout 15/15,
+    AD-06 10/10, hotfix #19 8/8, Kelompok 1 13/13, tanpa deadlock.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

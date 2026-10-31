@@ -33,10 +33,16 @@ function errorHandler(err, req, res, next) {
   const code =
     statusCode < 500 && typeof err.apiCode === 'string' ? err.apiCode : undefined;
 
+  // Step 6.4 · form admin (AD-06, AD-07): error validasi per field, kunci sama dengan mock client (`fieldErrors`).
+  // Hanya untuk 4xx dan hanya bila error membawanya — respons endpoint lain tidak berubah.
+  const fieldErrors =
+    statusCode < 500 && err.fieldErrors && typeof err.fieldErrors === 'object' ? err.fieldErrors : undefined;
+
   return res.status(statusCode).json({
     status: 'error',
     ...(code ? { code } : {}),
     message,
+    ...(fieldErrors ? { fieldErrors } : {}),
   });
 }
 
