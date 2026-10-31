@@ -278,8 +278,10 @@ test('custom cake: harga & tanggal dari desain; desain yang terpakai pesanan lai
   const ok = await place({ items: [item({ product_id: '6', design_id: '60', quantity: 1 })], ready_date: dayKey(3) });
   assert.equal(ok.status, 201);
   assert.equal(lastOrder().subtotal, 480000);
-  assert.deepEqual(db.locks.map((l) => l.values[0]), [1n, 60n]);
-  assert.match(db.locks[1].sql, /FROM custom_cake_designs WHERE design_id = \? FOR UPDATE/);
+  // Urutan kunci: pengguna → penomoran pesanan (store_settings) → desain
+  assert.deepEqual(db.locks.map((l) => l.values[0]), [1n, undefined, 60n]);
+  assert.match(db.locks[1].sql, /FROM store_settings ORDER BY setting_id LIMIT 1 FOR UPDATE/);
+  assert.match(db.locks[2].sql, /FROM custom_cake_designs WHERE design_id = \? FOR UPDATE/);
 
   // Desain sekali pakai: setelah dipesan, keranjang menandainya tidak tersedia
   const again = await place({ items: [item({ product_id: '6', design_id: '60', quantity: 1 })], ready_date: dayKey(3) });
@@ -405,4 +407,21 @@ test('GET /orders/:no/payment tidak mengubah status walau batas bayar sudah lewa
   assert.equal(json.data.seconds_left, 0);
   assert.equal(json.data.order.order_status, 'menunggu_pembayaran');
   assert.equal(snapshot(), before);
+});
+
+test('hotfix nomor pesanan: kunci penomoran (store_settings) diambil sebelum nomor terakhir dibaca & stok diambil', async () => {
+  const ok = await place();
+  assert.equal(ok.status, 201);
+  const begin = db.ops.lastIndexOf('tx:begin');
+  const ops = db.ops.slice(begin + 1);
+  // Kunci pengguna lalu penomoran = dua pembacaan pertama transaksi
+  assert.deepEqual(ops.slice(0, 2), ['lock:users', 'lock:store_settings']);
+  const lockAt = ops.indexOf('lock:store_settings');
+  assert.ok(lockAt < ops.indexOf('executeRaw'), JSON.stringify(ops));
+  assert.ok(lockAt < ops.indexOf('order.findMany'), JSON.stringify(ops));
+  // Pesanan berikutnya hari yang sama mendapat nomor urut berikutnya (format tetap OVC-YYMMDD-NNN)
+  const next = await place();
+  const numbers = [ok.json.data.order_number, next.json.data.order_number];
+  assert.match(numbers[0], /^OVC-\d{6}-\d{3}$/);
+  assert.equal(Number(numbers[1].slice(-3)), Number(numbers[0].slice(-3)) + 1);
 });
