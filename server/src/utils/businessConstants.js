@@ -247,6 +247,20 @@ const REPORT_BEST_SELLER_LIMIT = 5;
 const ADMIN_REPLY_MAX = 500;
 const ADMIN_REVIEW_RATING_ALL = 'semua';
 
+// Step 6.4.9 · FR-34 · BR-09 · BR-10 · AD-09 Promo & Loyalty (client constants/adminPromo.js). Batas panjang = SPEC §8
+// (vouchers.code VARCHAR(20), title VARCHAR(100)). Asumsi prototype: kuota 0–100.000, persen 1–100, batas aturan loyalty.
+const DISCOUNT_TYPE = Object.freeze({ PERCENT: 'percent', AMOUNT: 'amount' });
+const VOUCHER_FIELD_MAX = Object.freeze({ code: 20, title: 100 });
+const VOUCHER_CODE_PATTERN = /^[A-Z0-9]+$/;
+const VOUCHER_MAX_QUOTA = 100000;
+const VOUCHER_MAX_PERCENT = 100;
+const ADMIN_VOUCHER_STATUS = Object.freeze({
+  AKTIF: 'aktif', TERJADWAL: 'terjadwal', KUOTA_HABIS: 'kuota_habis', BERAKHIR: 'berakhir', NONAKTIF: 'nonaktif',
+});
+// review_bonus_points tidak diatur di AD-09 (UI/UX Spec AD-09 hanya aturan dapat/tukar poin & ambang level)
+const LOYALTY_FIELDS = Object.freeze(['earn_amount_per_point', 'redeem_points_unit', 'redeem_value', 'gold_min_points', 'platinum_min_points']);
+const LOYALTY_MAX = Object.freeze({ amount: 10000000, points: 1000000 });
+
 module.exports = {
   AVAILABILITY_TYPE,
   ORDER_STATUS,
@@ -296,6 +310,14 @@ module.exports = {
   REPORT_BEST_SELLER_LIMIT,
   ADMIN_REPLY_MAX,
   ADMIN_REVIEW_RATING_ALL,
+  DISCOUNT_TYPE,
+  VOUCHER_FIELD_MAX,
+  VOUCHER_CODE_PATTERN,
+  VOUCHER_MAX_QUOTA,
+  VOUCHER_MAX_PERCENT,
+  ADMIN_VOUCHER_STATUS,
+  LOYALTY_FIELDS,
+  LOYALTY_MAX,
   CUSTOM_CAKE_CATEGORY_NAME,
   CATALOG_FIELD_MAX,
   MAX_PRICE,

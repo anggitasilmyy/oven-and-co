@@ -410,10 +410,9 @@ Catatan khusus:
     (setelah kunci pengguna, sebelum desain & stok — urutan sama dengan transaksi admin); 4/8/12 bersamaan × 20 putaran
     → semua 201, nomor unik & berurutan. Diuji bersama Kelompok 2 (worktree sementara): AD-07 dengan 8 checkout 15/15,
     AD-06 10/10, hotfix #19 8/8, Kelompok 1 13/13, tanpa deadlock.
-  **Kelompok 3 (berjalan) — 6.4.6 AD-02 Dashboard: selesai** (commit `5300bf9`, branch
-  `feat/step-6.4-admin-api-groups-3-4`). **6.4.7 AD-08: selesai** (commit `e39b5be`). **6.4.8 AD-10: selesai, menunggu
-  review** (belum di-commit). Urutan berikutnya: Kelompok 4: 6.4.9 AD-09 sesuai SPEC saat ini (voucher dengan
-  `expected_quota` + kunci baris + 409, aturan loyalty), 6.4.10 AD-11. Promo pesanan besar (minimum quantity, diskon
+  **Kelompok 3 — 6.4.6 AD-02 Dashboard: selesai** (commit `5300bf9`, branch `feat/step-6.4-admin-api-groups-3-4`).
+  **6.4.7 AD-08: selesai** (commit `e39b5be`). **6.4.8 AD-10: selesai** (commit `2532a10`). **Kelompok 4 — 6.4.9 AD-09:
+  selesai, menunggu review** (belum di-commit). Berikutnya: 6.4.10 AD-11. Promo pesanan besar (minimum quantity, diskon
   bertingkat — saran dosen "Mini ERP Bakery") **tidak ada di dokumen sumber** dan butuh kolom baru → diajukan sebagai
   CR-02 terpisah; schema & kontrak API tidak diubah sebelum CR-02 disetujui.
   - Endpoint: `GET /api/admin/dashboard` — **hanya Owner** (Staf 403, SPEC §2). Kontrak = mock
@@ -556,6 +555,67 @@ Catatan khusus:
     tampilkan, filter 2 ★ — semua request 200, tanpa error konsol, DB berubah sesuai.
   - Keterbatasan (Step 6.6): `AdminReviewCard` menampilkan path foto `/uploads/reviews/…` tanpa `toUploadUrl()` sehingga
     di mode API gambar dicari di origin frontend (sama dengan foto produk AD-06).
+  **6.4.9 AD-09 Promo & Loyalty (FR-34 · UC-29 · A-09 · BR-020 · BR-09 · BR-10) — sesuai SPEC saat ini, tanpa CR-02**
+  - Endpoint — **hanya Owner** (SPEC §2: promo & loyalty hak Owner; Staf & pelanggan 403, tamu 401): `GET|POST
+    /api/admin/vouchers`, `PUT /api/admin/vouchers/:id`, `PATCH /api/admin/vouchers/:id/active`, `GET|PUT
+    /api/admin/loyalty`. POST 201, lainnya 200; voucher tidak ada 404; id tidak sah 400 `INVALID_ID`. Kontrak = mock
+    `services/adminPromoService.js` / `mock/promoAdmin.js`; aturan diport ke `services/adminPromoRules.service.js`
+    (pesan & `fieldErrors` sama: code, title, discount_type, discount_value, product_id, quota, valid_from, valid_to;
+    loyalty: 5 field). Validasi bentuk zod `validators/adminPromo.validator.js` (salah bentuk → 400 tanpa fieldErrors).
+    Voucher tidak dihapus (dirujuk pesanan & user_vouchers); papan = voucher + nama produk + terpakai (pesanan tidak
+    dibatalkan) + status hari ini WIB (nonaktif → berakhir → kuota habis → terjadwal → aktif) + daftar produk, dalam satu
+    snapshot REPEATABLE READ. Tidak ada minimum quantity/diskon bertingkat/promo grosir (CR-02 terpisah); schema tidak
+    berubah; checkout 6.3 hanya disesuaikan lewat perbaikan klaim voucher terpisah (lihat butir "Perbaikan checkout").
+  - **Kuota & `expected_quota`** (`vouchers.quota` = sisa, diubah checkout `quota − 1` & pembatalan `quota + 1` secara
+    atomik): PUT mengunci baris voucher `SELECT … FOR UPDATE` sebagai pembacaan pertama transaksi, lalu — kuota form =
+    `expected_quota` atau = kuota terkunci → kuota TIDAK ditulis (edit informasi tidak menimpa pemakaian); kuota berbeda →
+    `expected_quota` wajib (tanpa → 400) dan harus = kuota terkunci (basi → 409), keduanya `fieldErrors.quota`. Transaksi
+    voucher hanya mengunci baris voucher (checkout: users → store_settings → … → vouchers) → tanpa urutan silang. Kode
+    unik: pengecekan + UNIQUE(code); P2002 bersamaan → 400 `fieldErrors.code` yang sama. Aktif/nonaktif hanya menulis
+    `is_active`. Loyalty: validasi (bilangan bulat > 0, batas atas, Platinum > Gold) sebelum transaksi, lalu kunci
+    `store_settings` + UPDATE 5 kolom saja (profil toko & review_bonus_points tidak tersentuh).
+  - Uji: `server/tests/adminPromoRules.test.js` (7), `adminPromoRoute.test.js` (10; urutan operasi: kunci = pembacaan
+    pertama, rollback, P2002) — server 446/446 saat AD-09 selesai. Sensitivitas: tanpa kunci baris → 1 gagal; kuota ditulis
+    absolut → 2 gagal.
+  - **`product_id` BIGINT (hasil final review):** sebelumnya regex `^[1-9]\d{0,18}$` menerima 19 digit di atas batas
+    BIGINT signed → di MySQL `9223372036854775808` menghasilkan **500** (`PrismaClientUnknownRequestError`). Kini
+    `isBigIntIdString` (`adminPromoRules.service.js`) memeriksa format string lalu `BigInt(value) ≤ 9223372036854775807`
+    (tanpa Number); angka JSON di luar safe integer dianggap tidak sah (presisi hilang saat parse). ID tidak sah tidak pernah
+    dikirim ke query → 400 `fieldErrors.product_id` "Produk tidak ditemukan" (pesan mock). Uji: valid, tepat batas
+    (produk ada → 201), batas + 1, 20 digit, format tidak sah, angka JSON tidak aman, PUT; terhadap service sebelumnya test
+    route gagal (ID batas + 1 sampai ke query). MySQL: lama 500 → baru 400; tepat batas dengan produk ada → 201.
+  - MySQL 8 sementara lewat HTTP: fungsional 9/9 (hak akses 6 endpoint; papan = SQL; tambah + fieldErrors + 10 POST kode
+    sama serentak → tepat 1 × 201; voucher baru diklaim lalu dipakai checkout & dibatalkan — kuota/terpakai benar;
+    nonaktif → checkout ditolak, hilang dari `/promos/active`, C-21 `expired`; skenario form basi `expected_quota`; kuota 0
+    → kuota habis; aturan loyalty → checkout context, `/me/points`, level AD-10, poin Selesai AD-04 = floor(total/2000);
+    400/404/INVALID_ID). **Konkurensi kuota** (10 putaran × [20 checkout + 10 simpan judul] dan [20 batal + 10 simpan
+    judul], 20 pelanggan berbeda): **implementasi 0 putaran kehilangan kuota, semua PUT 200, tanpa 5xx; kontrol negatif
+    (tanpa kunci, kuota ditulis absolut) kehilangan kuota di 10/10 putaran (288 unit)**. Ubah kuota bersamaan dengan 20
+    checkout (30 putaran, jeda acak): admin 200 → kuota = baru − checkout (1×), admin 409 → kuota = lama − checkout (29×),
+    0 hasil tidak sah. General log: `BEGIN` → `SELECT … FROM vouchers … FOR UPDATE` → … → `COMMIT`; loyalty mengunci
+    `store_settings`. Regresi: 37 endpoint identik dengan commit `2532a10` (termasuk `/me/vouchers`, `/promos/active`,
+    `/checkout/context`, AD-10), AD-02 10/10, AD-08 10/10, AD-10 9/9, tulis AD-06/AD-07 & checkout voucher 6.3
+    (WEEKEND15 = SQL, voucher salah produk/kode tak dikenal ditolak) 3/3.
+  - Browser mode API (Owner 1440 & 390 px): buat voucher, ubah judul (tanpa checkout di antaranya), sakelar nonaktif,
+    simpan & kembalikan aturan loyalty — DB berubah sesuai, tanpa error halaman (satu log jaringan 400 dari uji ubah kuota
+    yang disengaja, lihat koreksi kontrak form di bawah).
+  - **Koreksi hasil audit AD-09 — kontrak form (`expected_quota`), Step 6.6:** `VoucherFormModal` (Step 5.8) mengirim body
+    yang sama untuk POST & PUT (`code, title, discount_type, discount_value, product_id, quota, valid_from, valid_to,
+    is_active`; angka sebagai teks, `quota` = kuota saat halaman dimuat) dan **tidak mengirim `expected_quota`**. Akibatnya
+    (dibuktikan lewat HTTP dengan body form yang sama): edit tanpa perubahan kuota hanya berhasil bila kuota di database belum
+    berubah sejak form dibuka; **edit informasi saja (mis. judul) ditolak 400** ("…wajib menyertakan kuota awal form
+    (expected_quota)…") bila sejak form dibuka ada checkout/pembatalan yang mengubah kuota — data tetap aman (judul tidak
+    tersimpan, kuota tidak tertimpa), tetapi pesannya membingungkan. Mengubah kuota dari UI selalu 400. Step 6.6: form mode
+    ubah mengirim `expected_quota` = kuota saat form dibuka (tidak saat membuat); 409 → tampilkan pesan & muat ulang papan
+    (`apiClient` belum meneruskan `fieldErrors`); **mock `saveAdminVoucher` disesuaikan dengan aturan yang sama** agar
+    kontrak mock = API. Dengan expected_quota: edit informasi berhasil & kuota terbaru utuh; ubah kuota basi → 409.
+  - **Open issue — distribusi voucher (menunggu keputusan bisnis kelompok/dosen; kandidat CR terpisah):** tidak ada kode
+    yang membuat baris `user_vouchers` — server hanya membaca, menandai terpakai saat checkout, dan mengosongkan `used_at`
+    saat batal; klaim hanya dibuat seed (pelanggan demo) dan seed mock. Dokumen hanya menyebut `user_vouchers` "voucher milik
+    pelanggan", `claimed_at` "waktu diterima", FR-23, dan validasi "milik pelanggan" — tanpa FR/UC/layar cara menerima
+    voucher. Akibatnya voucher baru buatan Owner (dan kode di banner Beranda) tidak bisa dipakai pelanggan tanpa klaim
+    (checkout: "Voucher tidak berlaku untuk pesanan ini"). Bukan bug AD-09/6.3; **tidak** diasumsikan semua voucher otomatis
+    dimiliki pelanggan; endpoint klaim tidak dibuat.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.
