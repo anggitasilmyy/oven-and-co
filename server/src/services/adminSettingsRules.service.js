@@ -1,7 +1,8 @@
 // services/adminSettingsRules.service.js
 // Step 6.4.10 · FR-36 · UC-30 · A-11 · BR-022 · BR-02 · BR-05 · BR-12 · TF-10 · AD-11 — aturan murni pengaturan toko.
 // Port server dari client utils/rules/settings.js (pesan & kunci fieldErrors sama dengan mock settingsAdmin.js):
-// profil & operasional toko, jam operasional per hari, sakelar metode bayar, dan pemetaan baris → respons.
+// profil & operasional toko, jam operasional per hari, dan sakelar metode bayar. Pemetaan baris ⇄ respons/data tulis ada
+// di adminSettingsView.service.js (diekspor ulang di sini agar API C1 tetap).
 // Perbedaan yang disengaja (lebih ketat / lebih tepat dari mock, didokumentasikan di ROADMAP):
 //   - angka berupa teks hanya desimal biasa ("10", "2.5"); hex/eksponen/tanda ("0x10", "1e3", "-1") → tidak sah;
 //   - TANPA pembulatan diam-diam (hasil final review C1): radius & tarif dinormalisasi menjadi teks desimal kanonik
@@ -12,20 +13,17 @@
 //   - batas 2 desimal radius dicek dari teks, bukan `x * 100` (mock menolak 1,15 karena galat float);
 //   - jam operasional wajib tepat 7 hari (dicek validator); hari tutup selalu menyimpan jam null;
 //   - menonaktifkan metode yang sudah nonaktif = idempoten (tanpa cek "metode online terakhir").
-// Respons hanya berisi field kontrak mock (whitelist) — koordinat toko, aturan loyalty, batas waktu bayar, dan bonus
-// ulasan tidak ikut (bukan isi AD-11).
 
 const {
-  STORE_PROFILE_FIELDS, STORE_FIELD_MAX, MAX_DELIVERY_RADIUS_KM, MAX_DELIVERY_FEE_PER_KM, PAYMENT_GROUP,
+  STORE_FIELD_MAX, MAX_DELIVERY_RADIUS_KM, MAX_DELIVERY_FEE_PER_KM, PAYMENT_GROUP,
 } = require('../utils/businessConstants');
-const { formatTime } = require('../utils/jakartaDate');
+const { toStoreProfile, toOperatingHourView, toPaymentMethodView } = require('./adminSettingsView.service');
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DECIMAL_TEXT = /^(\d+)(?:\.(\d+))?$/;
 const RADIUS_MAX_DECIMALS = 2; // delivery_radius_km DECIMAL(5,2)
 
 const isBlank = (v) => v == null || (typeof v === 'string' && v.trim() === '');
-const numberOrNull = (v) => (v == null ? null : Number(v));
 
 /**
  * Angka form (teks atau number JSON) → teks desimal kanonik tanpa konversi Number: nol di depan & nol di belakang
@@ -140,38 +138,6 @@ function paymentMethodToggleError(methods, methodCode, isActive) {
   return otherOnline ? null : { statusCode: 409, message: LAST_ONLINE_METHOD };
 }
 
-/** Baris store_settings → profil kontrak mock (6 field saja) */
-function toStoreProfile(row) {
-  const view = {
-    store_name: row.storeName,
-    address: row.address ?? null,
-    whatsapp_number: row.whatsappNumber ?? null,
-    preorder_cutoff_time: formatTime(row.preorderCutoffTime),
-    delivery_radius_km: numberOrNull(row.deliveryRadiusKm),
-    delivery_fee_per_km: numberOrNull(row.deliveryFeePerKm),
-  };
-  return Object.fromEntries(STORE_PROFILE_FIELDS.map((f) => [f, view[f]]));
-}
-
-/**
- * Baris operating_hours → respons. Hari tutup SELALU jam null (kontrak "hari tutup = jam null", hasil final review C1),
- * termasuk data lama yang masih menyimpan jam pada hari tutup — database tidak diubah, hanya respons.
- */
-const toOperatingHourView = (row) => ({
-  hour_id: row.hourId,
-  day_of_week: row.dayOfWeek,
-  open_time: row.isOpen ? formatTime(row.openTime) : null,
-  close_time: row.isOpen ? formatTime(row.closeTime) : null,
-  is_open: row.isOpen,
-});
-
-const toPaymentMethodView = (row) => ({
-  method_code: row.methodCode,
-  name: row.name,
-  method_group: row.methodGroup,
-  is_active: row.isActive,
-});
-
 module.exports = {
   toDecimalText,
   normalizeStoreProfile,
@@ -179,6 +145,7 @@ module.exports = {
   normalizeOperatingHours,
   validateOperatingHours,
   paymentMethodToggleError,
+  // Ekspor ulang (API C1 tetap): mapper respons kini di adminSettingsView.service.js (review C1 L-1)
   toStoreProfile,
   toOperatingHourView,
   toPaymentMethodView,

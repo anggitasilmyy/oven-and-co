@@ -643,6 +643,81 @@ Catatan khusus:
     108 pembatalan bersamaan dengan aktifkan ulang semua 200. Regresi setelah perbaikan: AD-09 9/9, konkurensi kuota 0
     hilang, ubah kuota vs checkout 0 tidak sah, checkout/batal 6.3 + AD-06/AD-07 3/3, AD-02 10/10, AD-08 10/10, AD-10 9/9,
     37 endpoint identik dengan `2532a10`.
+  **6.4.10 AD-11 Pengaturan (FR-36 · UC-30 · A-11 · BR-022 · BR-02 · BR-05 · BR-12 · TF-10) — bertahap per checkpoint:**
+  **C1 selesai** (commit `ba72b83`: aturan, validator, GET); **C2 selesai, menunggu review** (belum di-commit: PUT profil,
+  PUT jam operasional, PATCH metode bayar). Berikutnya C3 akun staf, lalu C4 perbaikan checkout terpisah (T1 pengaturan
+  basi saat checkout → 409 + rollback; T2 ganti metode bayar memastikan metode masih aktif di dalam transaksi), kemudian
+  integrasi MySQL 8 untuk C2–C4 sekaligus.
+  - Endpoint — **hanya Owner** (SPEC §2: pengaturan toko & akun staf hak Owner; Staf & pelanggan 403, tamu 401). Kontrak =
+    client `services/settingsService.js` / mock `settingsAdmin.js`: `GET /api/admin/settings` → `{profile, hours,
+    paymentMethods}`; `PUT /api/admin/settings` (6 field profil) → profil; `PUT /api/admin/settings/operating-hours
+    {hours}` → 7 baris urut hari; `PATCH /api/admin/payment-methods/:code/active {is_active}` → `{method_code, is_active}`
+    (berbeda dari `GET /api/payment-methods` filter AD-03 yang tidak diubah). Akun staf (`/api/admin/staff`) menyusul C3.
+  - File: aturan murni `services/adminSettingsRules.service.js` (profil, jam, sakelar metode) & `adminStaffRules.service.js`
+    (akun, dipakai C3); pemetaan baris ⇄ respons/data tulis `services/adminSettingsView.service.js` (dipisah di C2 —
+    temuan review C1 L-1; rules tetap mengekspor ulang mapper); `services/adminSettings.service.js`; validasi bentuk zod
+    `validators/adminSettings.validator.js` (field di luar kontrak dibuang); rute `routes/admin/settings.routes.js` &
+    `paymentMethodAdmin.routes.js`; konstanta di `utils/businessConstants.js`.
+  - Lingkup (keputusan audit, disetujui): profil = 6 field mock (nama, alamat, WhatsApp, batas pre-order, radius, tarif).
+    **Koordinat toko tidak diubah AD-11 (open issue OI-01)** — alamat bisa diganti tanpa menggeser titik hitung ongkir.
+    `payment_timeout_minutes` & `review_bonus_points` tidak diatur AD-11 (bukan isi A-11); aturan loyalty milik AD-09.
+  - Validasi (pesan & `fieldErrors` = mock): WhatsApp toko = kontrak mock (+62, 9–13 digit termasuk 62, maks. 20 karakter —
+    huruf/simbol di antara digit ikut diterima seperti mock); jam operasional **tepat 7 hari unik 1–7**, hari buka jam buka
+    < jam tutup, hari tutup disimpan jam null, minimal satu hari buka; minimal satu metode online aktif (BR-05) → 409;
+    metode tidak ada → 404; status sama dengan tujuan → 200 tanpa UPDATE. Berbeda dari mock (lebih ketat/tepat):
+    angka teks hanya desimal biasa (hex, eksponen, tanda, `.5`, `5.` ditolak — pesan sama dengan mock untuk teks bukan
+    angka: "Radius harus lebih dari 0 km"); radius 1,15 diterima (mock menolak karena galat float `x * 100`).
+  - **Tanpa pembulatan diam-diam (hasil final review C1, M1):** radius & tarif dinormalisasi menjadi teks desimal kanonik
+    (`toDecimalText`, tanpa `Number()`), presisi dicek dari teks (radius ≤ 2 desimal, tarif bulat; nol di belakang koma
+    boleh: `"1.150"` → `"1.15"`, `"2500.00"` → `"2500"`), lalu teks itu ditulis apa adanya ke kolom DECIMAL. Sebelumnya
+    `"10.0000000000000001"` / `"2500.0000000000000001"` lolos karena `Number()` membulatkannya. Keterbatasan: presisi angka
+    JSON (bukan teks) yang hilang saat `JSON.parse` tidak terdeteksi (sama dengan AD-09). Hasil normalisasi bisa NaN —
+    penulisan hanya terjadi setelah validasi lolos.
+  - **Hari tutup = jam null di respons (L1):** GET/PUT mengirim jam null untuk `is_open = false` walau data lama masih
+    menyimpan jam; data DB tidak diubah oleh GET.
+  - Transaksi: GET = `runInReadSnapshot` (REPEATABLE READ, 3 query berurutan lewat `tx`, tanpa locking read; `select` 6
+    kolom profil). Tulis C2: validasi bentuk & isi **sebelum** transaksi (input tidak sah tidak membuka transaksi);
+    di dalam transaksi `lockAdminMasterData` (`store_settings FOR UPDATE`) = operasi pertama, lalu baca kondisi terbaru
+    (read view InnoDB dibuat setelah kunci), validasi bisnis (metode bayar; konflik hour_id jam operasional), UPDATE/INSERT
+    berurutan tanpa `Promise.all`, lalu respons dibaca ulang lewat `tx`: profil (`findFirst`), jam (`findMany`), metode
+    bayar (`findUnique` setelah UPDATE; jalur idempoten tanpa UPDATE memakai baris yang dibaca setelah kunci). Semua penulis pengaturan (profil, jam, metode, loyalty AD-09) memakai kunci yang sama →
+    diserialkan: dua Owner menonaktifkan dua metode online terakhir bersamaan → satu 200, satu 409. Urutan kunci
+    store_settings → operating_hours / payment_methods; checkout users → store_settings → … (kunci bersama FK
+    payment_methods setelahnya) → tanpa urutan silang. Pesanan lama tidak berubah (ongkir, slot, metode tersalin).
+  - Uji: `server/tests/adminSettingsRules.test.js`, `adminStaffRules.test.js`, `adminSettingsRoute.test.js` (GET, C1);
+    `adminSettingsWriteRoute.test.js` & `adminPaymentMethodRoute.test.js` (C2) dengan fake `tests/helpers/settingsDb.js`
+    yang meniru kunci baris (antrian FOR UPDATE), read view pada pembacaan biasa pertama, commit/rollback, serta mendeteksi
+    Prisma global, query tumpang tindih, dan baca/tulis sebelum kunci. Rangkaian HTTP → zod → normalisasi → validasi →
+    Prisma: nilai tertulis `"1.15"`/`"2500"` dari `"1.150"`/`"2500.00"`; `"10.0000000000000001"`, `"2500.0000000000000001"`,
+    `"1.149"`, `"2500.01"` → 400 tanpa transaksi; rollback hari ke-5 jam operasional tanpa perubahan parsial; 10 putaran
+    dua PATCH bersamaan → [200, 409]. Sensitivitas (mutasi): baca metode sebelum kunci → 6 gagal; tanpa kunci → 6; baca
+    lewat Prisma global → 7; `Promise.all` upsert → 3; radius/tarif ditulis Number → 3; tanpa validasi isi → 2; hari tutup
+    menulis jam → 1 (angka mutasi ini diukur sebelum perbaikan review C2; jam kini UPDATE/INSERT, bukan upsert).
+  - **Perbaikan hasil final review C2 (L-1, L-2, L-3):**
+    · L-1 PATCH metode bayar: `updateMany` wajib `count === 1` dan hasil baca ulang (`findUnique` lewat `tx`) wajib = status
+      tujuan; selain itu 409 "Metode bayar gagal diperbarui karena data berubah. Muat ulang halaman lalu coba lagi." +
+      rollback (tanpa sukses palsu). Respons dari baris tersimpan (`method_code` = nilai DB — collation `_ci` MySQL bisa
+      menyimpan bentuk lain dari input). Urutan: kunci → baca → UPDATE → baca ulang.
+    · L-2 konflik `hour_id` data lama: `hour_id` = PK TINYINT tanpa AUTO_INCREMENT. Setelah kunci, SEMUA baris
+      `operating_hours` (termasuk di luar 1–7) dibaca; hari yang ada → UPDATE berdasarkan `day_of_week` (hour_id tetap),
+      hari yang belum ada → INSERT `hour_id = day_of_week` — bila hour_id itu sudah dipakai baris hari lain → **409 sebelum
+      menulis** dengan pesan yang menyebut hari & baris penyebab ("…Perbaiki tabel operating_hours (hour_id = day_of_week
+      untuk hari 1–7), lalu simpan ulang."). ID tidak diganti otomatis. P2002 lain dari database TIDAK dipetakan ke 409
+      (tetap 500 umum, rollback penuh).
+    · L-3 hari di luar 1–7: GET & PUT hanya mengirim hari 1–7 (`onlyValidDays`); baris lama di luar rentang tidak dikirim,
+      tidak dihapus, dan tidak diubah (PUT hanya menulis 7 hari sah). Sebelumnya baris hari ke-8 ikut terkirim sehingga form
+      AD-11 mengirim 8 baris dan selalu ditolak.
+    · Uji tambahan (route): count 1/0, baca ulang tidak sesuai/hilang → 409 tanpa commit, `method_code` dari DB, jalur
+      idempoten tanpa tulis; konflik hour_id (termasuk baris di luar 1–7, beberapa konflik sekaligus) → 409 tanpa tulis &
+      data utuh; P2002 lain → 500 & rollback; GET/PUT dengan baris hari 8 & 0 → 7 hari, baris lama utuh. Sensitivitas
+      (mutasi): tanpa cek count → 1 gagal; baca ulang tidak dibandingkan → 1; respons dari input → 1; tanpa baca ulang → 3;
+      baca ulang lewat Prisma global → 7; tanpa deteksi konflik → 2; deteksi mengabaikan baris di luar 1–7 → 1; baca jam
+      sebelum transaksi → 9; tanpa filter hari (GET & PUT) → 2, GET saja → 1, PUT saja → 1. Server 527/527 (C2 sebelum
+      perbaikan 517, baseline C1 494).
+  - Keterbatasan & catatan Step 6.6: urutan metode dalam satu kelompok mengikuti `GET /api/payment-methods` (kelompok lalu
+    nama), berbeda dari urutan tabel mock; `apiClient` belum meneruskan `fieldErrors`; respons PUT profil berupa number
+    (dibaca ulang dari DB) walau normalisasi server memakai teks. MySQL 8 (kunci sungguhan, DECIMAL/TIME) diuji setelah
+    C2–C4 selesai.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

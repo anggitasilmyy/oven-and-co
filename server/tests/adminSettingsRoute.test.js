@@ -232,8 +232,20 @@ test('L1: data lama — hari tutup yang masih menyimpan jam di DB dikirim dengan
   assert.deepEqual(queryLog, ['storeSetting.findFirst', 'operatingHour.findMany', 'paymentMethod.findMany']); // tanpa tulis
 });
 
-test('C1 hanya GET: metode tulis & sub-rute belum ada → 404 tanpa query; Staf tetap 403', async () => {
-  for (const [path, method] of [['', 'PUT'], ['', 'POST'], ['/operating-hours', 'PUT'], ['/lainnya', 'GET']]) {
+test('L-3: GET dengan baris lama di luar 1–7 (8 & 0) hanya mengirim hari 1–7; DB tidak berubah', async () => {
+  tables.operatingHours.push({ hourId: 8, dayOfWeek: 8, openTime: time('06:00'), closeTime: time('23:00'), isOpen: true });
+  tables.operatingHours.push({ hourId: 9, dayOfWeek: 0, openTime: null, closeTime: null, isOpen: false });
+  const before = structuredClone(tables.operatingHours);
+  const { status, json } = await request();
+  assert.equal(status, 200);
+  assert.deepEqual(json.data.hours.map((h) => h.day_of_week), [1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(tables.operatingHours, before);
+  assert.deepEqual(queryLog, ['storeSetting.findFirst', 'operatingHour.findMany', 'paymentMethod.findMany']);
+});
+
+// C2 menambah PUT profil & PUT jam (diuji di adminSettingsWriteRoute.test.js); metode/sub-rute di luar kontrak tetap 404
+test('metode & sub-rute di luar kontrak → 404 tanpa query; Staf tetap 403', async () => {
+  for (const [path, method] of [['', 'POST'], ['', 'DELETE'], ['/operating-hours', 'GET'], ['/operating-hours', 'POST'], ['/lainnya', 'GET']]) {
     const res = await request(path, { method, body: method === 'GET' ? undefined : { store_name: 'X' } });
     assert.equal(res.status, 404, `${method} ${path}`);
   }
