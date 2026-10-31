@@ -410,9 +410,9 @@ Catatan khusus:
     (setelah kunci pengguna, sebelum desain & stok — urutan sama dengan transaksi admin); 4/8/12 bersamaan × 20 putaran
     → semua 201, nomor unik & berurutan. Diuji bersama Kelompok 2 (worktree sementara): AD-07 dengan 8 checkout 15/15,
     AD-06 10/10, hotfix #19 8/8, Kelompok 1 13/13, tanpa deadlock.
-  **Kelompok 3 (berjalan) — 6.4.6 AD-02 Dashboard: selesai, menunggu review** (branch
-  `feat/step-6.4-admin-api-groups-3-4`, belum di-commit). Urutan berikutnya: 6.4.7 AD-08, 6.4.8 AD-10; Kelompok 4: 6.4.9
-  AD-09 (voucher dengan `expected_quota` + kunci baris + 409), 6.4.10 AD-11.
+  **Kelompok 3 (berjalan) — 6.4.6 AD-02 Dashboard: selesai** (commit `5300bf9`, branch
+  `feat/step-6.4-admin-api-groups-3-4`). **6.4.7 AD-08: selesai, menunggu review** (belum di-commit). Urutan berikutnya:
+  6.4.8 AD-10; Kelompok 4: 6.4.9 AD-09 (voucher dengan `expected_quota` + kunci baris + 409), 6.4.10 AD-11.
   - Endpoint: `GET /api/admin/dashboard` — **hanya Owner** (Staf 403, SPEC §2). Kontrak = mock
     `services/dashboardService.js`: `{todayKey, kpi{revenueToday, revenueChange, ordersToday, needsProcessing,
     rating{average,count}}, salesChart, statusCounts, totalOrders, recentOrders, bestSellers, lowStock}`. Tanpa input,
@@ -471,6 +471,53 @@ Catatan khusus:
       dan versi ini pada data yang sama); best sellers Beranda = Dashboard; 5 baris pertama AD-03 = Pesanan Terbaru.
   - Browser mode API (1440 & 390 px): login Owner → Dashboard tanpa error halaman/konsol, semua panel terisi; Staf yang
     membuka `/admin/dashboard` diarahkan ke Pesanan.
+  **6.4.7 AD-08 Laporan Penjualan (FR-33 · UC-27 · UC-28 · A-08 · BR-019)**
+  - Endpoint: `GET /api/admin/reports/sales?period=harian|mingguan|bulanan|rentang&from=YYYY-MM-DD&to=YYYY-MM-DD` —
+    **hanya Owner** (SPEC §2 "laporan & ekspor"; Staf 403). Kontrak = mock `services/reportService.js` /
+    `mock/reportViews.js`: `{todayKey, store_name, period, from, to, kpi{revenue, transactions, average, itemsSold}, daily,
+    bestSellers, paymentMethods, transactions}`. **Tidak ada endpoint ekspor**: Export Excel/PDF (UC-28, A-08) dibuat di
+    peramban dari respons yang sama (`client/utils/reportExport.js`), jadi isi file = isi layar.
+  - Periode (asumsi prototype dari client `constants/report.js`, dipindah ke `utils/businessConstants.js`): harian = hari
+    ini, mingguan = 7 hari terakhir (default bila `period` kosong), bulanan = bulan berjalan s.d. hari ini, rentang = maks.
+    92 hari dan tidak melewati hari ini; tanggal = WIB `created_at`. Validasi: zod `validators/adminReport.validator.js`
+    (periode tidak dikenal/ganda → 400 "Periode laporan tidak valid." — **berbeda dari mock** yang diam-diam memakai
+    mingguan), aturan rentang di `services/reportRules.service.js` dengan pesan mock (tanggal tidak sah termasuk
+    2026-02-30, mulai > selesai, melewati hari ini, > 92 hari → 400). Validasi dilakukan sebelum transaksi dibuka;
+    `from`/`to` diabaikan untuk periode selain rentang (sama dengan mock).
+  - Aturan murni `services/reportRules.service.js` (port `utils/rules/report.js`, memakai `isSalesOrder` &
+    `aggregateDailySales` dari `salesRules.service.js`): transaksi = lunas & tidak dibatalkan; rupiah dijumlah dalam sen;
+    rata-rata dibulatkan ke rupiah; metode = pembayaran terbaru (cadangan `payment_option` bila tidak ada baris payments),
+    nama/kelompok dari `payment_methods`; terlaris urut jumlah lalu id numerik (5); transaksi terbaru dulu (seri waktu →
+    id terbesar). **Keputusan 6.4.7 — produk terlaris laporan menyertakan produk yang kini nonaktif** (penjualan
+    historis, sama dengan mock, dan jumlahnya tetap cocok dengan "Produk Terjual"), berbeda dari Dashboard/Beranda.
+  - Snapshot: `services/salesReport.service.js` memakai `runInReadSnapshot` (REPEATABLE READ); urutan query lewat `tx`:
+    nama toko, metode bayar, pesanan penjualan (+ relasi user, pembayaran terbaru, item), nama produk. Semua bagian
+    laporan dihitung dari SATU hasil query pesanan, jadi omzet = Σ per hari = Σ metode = Σ tabel. Tanpa locking read.
+  - Keterbatasan (tanpa ubah schema): `orders.created_at` tidak ber-index → filter rentang memindai tabel `orders`
+    (sama dengan AD-02/AD-03); tabel transaksi dikirim lengkap (paginasi di client, sama dengan mock). Jam di kolom
+    "Tanggal" diformat client dengan zona waktu peramban (uji browser UTC menampilkan 03.43 untuk 10.43 WIB) — Step 6.6.
+  - Uji: `server/tests/reportRules.test.js` (7), `adminReportRoute.test.js` (8; penjaga Prisma global, `$transaction`
+    palsu mencatat isolation level, deteksi query tumpang tindih) — server 415/415. Sensitivitas: nama produk lewat
+    Prisma global → 6 test gagal; `Promise.all` di dalam transaksi → test "berurutan" gagal.
+  - MySQL 8 sementara (Docker, InnoDB 30 tabel) lewat HTTP:
+    · General log satu request: `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`, `BEGIN`, 7 SELECT (termasuk relasi users,
+      payments, order_items) di satu koneksi, `COMMIT`; tanpa locking read.
+    · Fungsional 10/10, setiap bagian (KPI, per hari, terlaris, metode, transaksi) = SQL independen untuk 5 periode
+      (harian, mingguan, bulanan, rentang 92 hari, rentang lampau): hak akses (tamu 401, pelanggan/Staf 403), default &
+      400 dengan pesan mock, rentang kosong, batas 23.59.59/00.00 WIB, Bayar di Toko lewat alur AD-04 (disiapkan → siap
+      diambil → tandai lunas → metode "Bayar di Toko"), online simulasi lunas lalu batal pelanggan (keluar), produk
+      dinonaktifkan via AD-06 (tetap di laporan, hilang dari Dashboard), omzet harian & 7 hari = Dashboard AD-02.
+    · Konsistensi saat pelunasan bersamaan (5 putaran × 30 pelunasan, 8 pekerja laporan harian; 10 invarian: KPI = Σ per
+      hari = Σ metode = Σ tabel, omzet = baseline + k·T, produk terjual, k pesanan terlama di tabel, QRIS, terlaris):
+      **implementasi 0 dari 1.185 respons**. Kontrol negatif buatan (KPI dari `order.aggregate` terpisah di luar snapshot;
+      identik saat diam) **1.084 dari 1.087 respons melanggar** — uji mampu mendeteksi angka antarbagian yang tidak cocok.
+    · Latensi diam (311 pesanan, 4 vCPU): harian p50 37 ms, mingguan 38 ms, rentang 92 hari 40 ms (p95 ≤ 50 ms).
+    · Regresi: 30 endpoint (termasuk Dashboard Owner/Staf/tamu, Beranda, katalog, AD-03/04/05/06/07, checkout context
+      dengan `now` dinormalisasi) **identik dengan commit `5300bf9`** pada data yang sama; AD-02 fungsional 10/10 dan
+      konsistensi AD-02 0 dari 411 respons.
+  - Browser mode API (1440 & 390 px): Owner → Laporan harian/mingguan/bulanan/rentang (semua dari API, 200), Export Excel
+    (.xlsx, omzet di file = layar) & Export PDF terunduh, tanpa error halaman/konsol; Staf yang membuka `/admin/laporan`
+    diarahkan ke Pesanan.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

@@ -234,6 +234,14 @@ const BEST_SELLER_LIMIT = 5;
 const RECENT_ORDERS_LIMIT = 5;
 const NEEDS_PROCESSING_STATUSES = Object.freeze([ORDER_STATUS.DIKONFIRMASI, ORDER_STATUS.SEDANG_DISIAPKAN]);
 
+// Step 6.4.7 · FR-33 · AD-08 Laporan Penjualan (client constants/report.js). Periode = A-08 (harian/mingguan/bulanan)
+// + rentang khusus (UI/UX Spec). Asumsi prototype: mingguan = 7 hari terakhir, bulanan = bulan berjalan s.d. hari ini,
+// rentang maks. 92 hari & tidak melewati hari ini.
+const REPORT_PERIOD = Object.freeze({ HARIAN: 'harian', MINGGUAN: 'mingguan', BULANAN: 'bulanan', RENTANG: 'rentang' });
+const REPORT_WEEK_DAYS = 7;
+const REPORT_MAX_RANGE_DAYS = 92;
+const REPORT_BEST_SELLER_LIMIT = 5;
+
 module.exports = {
   AVAILABILITY_TYPE,
   ORDER_STATUS,
@@ -277,6 +285,10 @@ module.exports = {
   BEST_SELLER_LIMIT,
   RECENT_ORDERS_LIMIT,
   NEEDS_PROCESSING_STATUSES,
+  REPORT_PERIOD,
+  REPORT_WEEK_DAYS,
+  REPORT_MAX_RANGE_DAYS,
+  REPORT_BEST_SELLER_LIMIT,
   CUSTOM_CAKE_CATEGORY_NAME,
   CATALOG_FIELD_MAX,
   MAX_PRICE,
