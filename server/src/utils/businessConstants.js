@@ -261,6 +261,26 @@ const ADMIN_VOUCHER_STATUS = Object.freeze({
 const LOYALTY_FIELDS = Object.freeze(['earn_amount_per_point', 'redeem_points_unit', 'redeem_value', 'gold_min_points', 'platinum_min_points']);
 const LOYALTY_MAX = Object.freeze({ amount: 10000000, points: 1000000 });
 
+// Step 6.4.10 · FR-36 · UC-30 · AD-11 Pengaturan — kontrak client constants/settings.js & mock settingsAdmin.js
+// Field profil yang dibaca/diubah AD-11 (mock PROFILE_FIELDS). Koordinat toko (OI-01), payment_timeout_minutes, dan
+// review_bonus_points TIDAK termasuk (bukan isi A-11 / UI/UX Spec AD-11); aturan loyalty milik AD-09.
+const STORE_PROFILE_FIELDS = Object.freeze([
+  'store_name', 'address', 'whatsapp_number', 'preorder_cutoff_time', 'delivery_radius_km', 'delivery_fee_per_km',
+]);
+const STORE_FIELD_MAX = Object.freeze({
+  storeName: 100, // store_settings.store_name VARCHAR(100)
+  address: 255, // asumsi prototype client (kolom TEXT) agar alamat ringkas di struk
+  whatsapp: 20, // store_settings.whatsapp_number VARCHAR(20)
+  userName: 100, // users.name VARCHAR(100)
+  email: 150, // users.email VARCHAR(150)
+});
+const MAX_DELIVERY_RADIUS_KM = 999.99; // DECIMAL(5,2)
+const MAX_DELIVERY_FEE_PER_KM = 1000000; // asumsi prototype client
+const DAYS_OF_WEEK = Object.freeze([1, 2, 3, 4, 5, 6, 7]); // operating_hours.day_of_week: 1 Senin – 7 Minggu
+// Peran akun yang dapat dibuat/diatur Owner (PRD Batch 7: "staff accounts with roles (Owner, Staf)")
+const ADMIN_ACCOUNT_ROLES = Object.freeze(['staf', 'owner']);
+const OWNER_ROLE = 'owner';
+
 module.exports = {
   AVAILABILITY_TYPE,
   ORDER_STATUS,
@@ -318,6 +338,13 @@ module.exports = {
   ADMIN_VOUCHER_STATUS,
   LOYALTY_FIELDS,
   LOYALTY_MAX,
+  STORE_PROFILE_FIELDS,
+  STORE_FIELD_MAX,
+  MAX_DELIVERY_RADIUS_KM,
+  MAX_DELIVERY_FEE_PER_KM,
+  DAYS_OF_WEEK,
+  ADMIN_ACCOUNT_ROLES,
+  OWNER_ROLE,
   CUSTOM_CAKE_CATEGORY_NAME,
   CATALOG_FIELD_MAX,
   MAX_PRICE,
