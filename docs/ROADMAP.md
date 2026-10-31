@@ -616,6 +616,33 @@ Catatan khusus:
     voucher. Akibatnya voucher baru buatan Owner (dan kode di banner Beranda) tidak bisa dipakai pelanggan tanpa klaim
     (checkout: "Voucher tidak berlaku untuk pesanan ini"). Bukan bug AD-09/6.3; **tidak** diasumsikan semua voucher otomatis
     dimiliki pelanggan; endpoint klaim tidak dibuat.
+  - **Perbaikan checkout terpisah (hasil audit AD-09, disetujui) — klaim voucher bersyarat** (`orderCreate.service.js`
+    `claimVoucher`; perubahan logis terpisah dari API AD-09): sebelumnya checkout menilai voucher dari SELECT biasa
+    (snapshot) lalu `UPDATE vouchers … WHERE quota > 0` saja, sehingga perubahan Owner yang commit di antaranya terlewat —
+    direproduksi di MySQL: voucher dinonaktifkan tetap terpakai, diskon 10.000 → 1.000 tetap memotong 10.000. Kini UPDATE
+    kuota bersyarat **pada versi terbaru setelah menunggu kunci baris** (current read): `is_active`, `valid_from ≤ hari ini
+    (WIB) ≤ valid_to`, `quota > 0`, dan `code`/`discount_type`/`discount_value`/`product_id` = nilai mentah yang dievaluasi
+    checkout (kuota tidak dibandingkan dengan angka lama). Gagal → 409 "Voucher tidak berlaku untuk pesanan ini" dan seluruh
+    transaksi checkout di-rollback. Tanpa FOR UPDATE baru; urutan kunci tetap users → store_settings → desain → daily_stocks →
+    user_vouchers → vouchers (sama dengan pembatalan: orders → daily_stocks → user_vouchers → vouchers; transaksi Owner hanya
+    baris voucher). Perubahan yang tidak memengaruhi diskon (judul, kuota naik, periode diperpanjang) tidak menolak checkout.
+    Uji: `server/tests/orderVoucherClaim.test.js` (16) — server 464/464 (termasuk uji BIGINT AD-09); terhadap kode
+    sebelum perbaikan 9 test gagal. `assertRolledBack` memeriksa orders, order_items, payments, riwayat status, poin,
+    `daily_stocks.qty_sold`, `user_vouchers.used_at`, dan `vouchers.quota` = nilai sebelum checkout (fake memulihkan seluruh
+    tabel termasuk perubahan Owner; commit Owner terpisah dibuktikan di MySQL). Dua uji **checkout lebih dahulu** (hook
+    setelah klaim): pesanan 201 dengan diskon yang diklaim (10.000, bukan 1.000), perubahan Owner (diskon, nonaktif, judul /
+    periode) tetap tersimpan, kuota tepat −1 dan tidak tertimpa, satu klaim & satu pesanan bervoucher, checkout berikutnya
+    ditolak tanpa sisa data; kedua uji ini juga lulus pada kode lama (perilaku checkout lebih dahulu memang tidak berubah).
+    MySQL 8: **Owner lebih dahulu** (sesi SQL mengunci → ubah → commit saat checkout berjalan) untuk nonaktif, nilai & jenis
+    diskon, produk, kode, periode berakhir/mulai, kuota 0 → **8/8 checkout 409 tanpa sisa** (orders, order_items, payments,
+    riwayat, poin, stok, klaim, kuota tidak berubah); **checkout lebih dahulu** (checkout memegang kunci voucher, tertahan di
+    INSERT pesanan) → checkout 201 dengan aturan lama, lalu `PATCH …/active` / `PUT` diskon (+ expected_quota) Owner 200
+    sesudahnya, pemakaian tidak tertimpa, pembatalan tetap mengembalikan kuota & klaim — 2/2; server sebelum perbaikan: 7
+    skenario Owner-lebih-dahulu lolos 201. 10 putaran × 20 checkout serentak + nonaktif di tengah: 108 berhasil, 92 ditolak
+    409/400, 0 status lain/5xx/deadlock, kuota = klaim terpakai = pesanan aktif, checkout setelah PATCH selalu ditolak;
+    108 pembatalan bersamaan dengan aktifkan ulang semua 200. Regresi setelah perbaikan: AD-09 9/9, konkurensi kuota 0
+    hilang, ubah kuota vs checkout 0 tidak sah, checkout/batal 6.3 + AD-06/AD-07 3/3, AD-02 10/10, AD-08 10/10, AD-10 9/9,
+    37 endpoint identik dengan `2532a10`.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

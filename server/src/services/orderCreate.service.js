@@ -130,7 +130,8 @@ async function loadVoucherInput(tx, owner, code) {
   const claim = voucher
     ? await tx.userVoucher.findUnique({ where: { userId_voucherId: { userId: owner, voucherId: voucher.voucherId } } })
     : null;
-  return { voucher: voucher ? mapVoucher(voucher) : null, claim: claim ? mapClaim(claim) : null };
+  // `row` = nilai mentah yang dievaluasi checkout (Decimal/BigInt asli) — dipakai syarat klaim (claimVoucher)
+  return { voucher: voucher ? mapVoucher(voucher) : null, claim: claim ? mapClaim(claim) : null, row: voucher };
 }
 
 /** Stok ready hari ini: qty_sold naik HANYA bila sisa mencukupi (satu UPDATE atomik per produk) */
@@ -143,13 +144,34 @@ async function takeReadyStock(tx, lines, todayKey) {
   }
 }
 
-async function claimVoucher(tx, owner, voucherId, now) {
+/**
+ * Klaim voucher: tandai klaim terpakai lalu kurangi kuota dengan UPDATE BERSYARAT (Step 6.4.9, hasil audit AD-09).
+ * Voucher dievaluasi dari SELECT biasa (snapshot); Owner bisa mengubah/menonaktifkan voucher dan commit sebelum
+ * klaim ini. UPDATE adalah current read: menunggu kunci baris voucher, lalu syarat dinilai terhadap versi TERBARU —
+ * voucher harus masih aktif, dalam periode hari ini (WIB), kuota > 0, dan kode/jenis/nilai diskon/produk masih sama
+ * dengan yang dihitung checkout. Kuota TIDAK dibandingkan dengan angka lama (checkout bersamaan tetap boleh).
+ * Gagal → 409 dan seluruh transaksi checkout (stok, klaim, pesanan, pembayaran, poin) di-rollback.
+ * Urutan kunci tidak berubah: … → daily_stocks → user_vouchers → vouchers (sama dengan pembatalan pesanan).
+ */
+async function claimVoucher(tx, owner, voucherRow, todayKey, now) {
+  const voucherId = voucherRow.voucherId;
   const claimed = await tx.userVoucher.updateMany({
     where: { userId: owner, voucherId, usedAt: null },
     data: { usedAt: now },
   });
+  const today = dateKeyToDbDate(todayKey);
   const quota = await tx.voucher.updateMany({
-    where: { voucherId, quota: { gt: 0 } },
+    where: {
+      voucherId,
+      quota: { gt: 0 },
+      isActive: true,
+      validFrom: { lte: today },
+      validTo: { gte: today },
+      code: voucherRow.code,
+      discountType: voucherRow.discountType,
+      discountValue: voucherRow.discountValue,
+      productId: voucherRow.productId,
+    },
     data: { quota: { decrement: 1 } },
   });
   if (claimed.count !== 1 || quota.count !== 1) throw httpError(409, VOUCHER_INVALID_TEXT);
@@ -255,7 +277,7 @@ async function createOrder(userId, input, now = new Date()) {
 
         await takeReadyStock(tx, context.lines, context.todayKey);
         const voucherId = quote.voucher?.valid ? BigInt(voucherInput.voucher.voucher_id) : null;
-        if (voucherId) await claimVoucher(tx, owner, voucherId, now);
+        if (voucherId) await claimVoucher(tx, owner, voucherInput.row, context.todayKey, now);
 
         const order = await writeOrder(tx, { owner, input, context, quote, voucherId, now });
 
