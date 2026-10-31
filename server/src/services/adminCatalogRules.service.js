@@ -5,11 +5,13 @@
 //   - Produk: nama, kategori, harga > 0, tipe & lead time wajib; maks. 5 foto (validation rule Produk)
 //   - Lead time: ready 0, pre-order ≥ 1 (BR-02 H-1), custom ≥ 3 (BR-02 H-3), maks. LEAD_TIME_MAX_DAYS
 //   - Kategori Custom Cake ↔ tipe custom; hanya satu produk custom aktif (dasar Custom Cake Builder C-11)
+//   - Tambahan server (review Step 6.4, dasar tipe kolom SPEC §8): harga & harga tambahan maks. 2 angka desimal
+//     (DECIMAL(12,2) membulatkan diam-diam, mis. 0,004 → 0,00); deskripsi & komposisi maks. 65.535 byte UTF-8 (TEXT).
 // Data memakai bentuk snake_case seperti tabel mock; id dibandingkan sebagai string (BIGINT).
 
 const {
   AVAILABILITY_TYPE, CUSTOM_CAKE_CATEGORY_NAME, CATALOG_FIELD_MAX, MAX_PRICE, LEAD_TIME_RULE, PRODUCT_PHOTO_MAX,
-  CUSTOM_OPTION_GROUP_LABEL,
+  CUSTOM_OPTION_GROUP_LABEL, TEXT_MAX_BYTES,
 } = require('../utils/businessConstants');
 const { OPTION_GROUPS } = require('../validators/customCakeDesign.validator');
 
@@ -17,6 +19,19 @@ const text = (v) => String(v ?? '').trim();
 const optionalText = (v) => text(v) || null;
 const sameName = (a, b) => text(a).toLowerCase() === text(b).toLowerCase();
 const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+
+const DECIMAL_PLACES_ERROR = 'Maksimal 2 angka desimal';
+const TEXT_TOO_LONG = `Teks terlalu panjang (maksimal ${TEXT_MAX_BYTES.toLocaleString('id-ID')} byte)`;
+
+/**
+ * true bila angka punya ≤ 2 angka desimal. Memakai representasi string terpendek Number (selalu kembali ke double
+ * yang sama), jadi "28000.50" → 28000.5 lolos, sedangkan 0.004, 1.005, atau 1e-7 ditolak — tanpa pembulatan diam-diam
+ * dan tanpa galat floating point dari perkalian (DECIMAL(12,2) MySQL).
+ */
+const hasAtMostTwoDecimals = (n) => /^\d+(\.\d{1,2})?$/.test(String(n));
+
+/** Panjang teks dalam byte UTF-8 melewati kolom TEXT (65.535 byte) — bukan jumlah karakter JavaScript */
+const exceedsTextBytes = (value) => typeof value === 'string' && Buffer.byteLength(value, 'utf8') > TEXT_MAX_BYTES;
 
 /** Angka dari input form ('' / spasi / null → NaN agar terdeteksi kosong) */
 function toNumber(value) {
@@ -69,6 +84,7 @@ function variantErrors(variants) {
     else if (variants.some((o, j) => j < i && sameName(o.name, v.name))) err.name = 'Nama varian sudah dipakai';
     if (!Number.isFinite(v.extra_price) || v.extra_price < 0) err.extra_price = 'Harga tambahan minimal Rp 0';
     else if (v.extra_price > MAX_PRICE) err.extra_price = 'Harga tambahan terlalu besar';
+    else if (!hasAtMostTwoDecimals(v.extra_price)) err.extra_price = DECIMAL_PLACES_ERROR;
     return Object.keys(err).length ? err : null;
   });
 }
@@ -89,6 +105,10 @@ function validateProduct(product, { categories, products, productId = null }) {
 
   if (!Number.isFinite(product.price) || product.price <= 0) errors.price = 'Harga harus lebih dari Rp 0';
   else if (product.price > MAX_PRICE) errors.price = 'Harga terlalu besar';
+  else if (!hasAtMostTwoDecimals(product.price)) errors.price = DECIMAL_PLACES_ERROR;
+
+  if (exceedsTextBytes(product.description)) errors.description = TEXT_TOO_LONG;
+  if (exceedsTextBytes(product.ingredients)) errors.ingredients = TEXT_TOO_LONG;
 
   if (!LEAD_TIME_RULE[product.availability_type]) errors.availability_type = 'Pilih tipe produk';
   else {
@@ -152,6 +172,7 @@ function validateCustomOption(option, options, optionId = null) {
   }
   if (!Number.isFinite(option.extra_price) || option.extra_price < 0) errors.extra_price = 'Harga tambahan minimal Rp 0';
   else if (option.extra_price > MAX_PRICE) errors.extra_price = 'Harga tambahan terlalu besar';
+  else if (!hasAtMostTwoDecimals(option.extra_price)) errors.extra_price = DECIMAL_PLACES_ERROR;
   return errors;
 }
 
@@ -180,7 +201,9 @@ function validationError(errors) {
 }
 
 module.exports = {
+  TEXT_TOO_LONG,
   toNumber,
+  hasAtMostTwoDecimals,
   normalizeProductInput,
   validateProduct,
   normalizeCustomOptionInput,

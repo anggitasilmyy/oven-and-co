@@ -60,3 +60,41 @@ test('validationError: 400, pesan pertama (string lalu varian), fieldErrors utuh
   e = validationError({ variants: [null, { extra_price: 'Harga tambahan minimal Rp 0' }] });
   assert.equal(e.message, 'Harga tambahan minimal Rp 0');
 });
+
+test('review 6.4 · harga & harga tambahan maks. 2 desimal (DECIMAL(12,2)), tanpa pembulatan diam-diam', () => {
+  const ctx = { categories, products };
+  const priceErr = (price) => validateProduct(product({ price }), ctx).price;
+  assert.equal(priceErr('28000.50'), undefined);
+  assert.equal(priceErr(28000.5), undefined);
+  assert.equal(priceErr('0.01'), undefined);
+  assert.equal(priceErr('9999999999.99'), undefined);
+  assert.equal(priceErr('28000.505'), 'Maksimal 2 angka desimal');
+  assert.equal(priceErr(0.004), 'Maksimal 2 angka desimal');
+  assert.equal(priceErr(1e-7), 'Maksimal 2 angka desimal');
+  assert.equal(priceErr(0), 'Harga harus lebih dari Rp 0');
+  assert.equal(priceErr('-5'), 'Harga harus lebih dari Rp 0');
+  assert.equal(priceErr('10000000000'), 'Harga terlalu besar');
+  const variantErr = (extra) => validateProduct(product({ variants: [{ name: 'V', extra_price: extra, is_active: true }] }), ctx).variants?.[0]?.extra_price;
+  assert.equal(variantErr(0), undefined);
+  assert.equal(variantErr('2500.25'), undefined);
+  assert.equal(variantErr('2500.255'), 'Maksimal 2 angka desimal');
+  const optErr = (extra) => validateCustomOption(normalizeCustomOptionInput({ option_group: 'rasa', name: 'A', extra_price: extra }), []).extra_price;
+  assert.equal(optErr('0'), undefined);
+  assert.equal(optErr(0.1), undefined);
+  assert.equal(optErr('15000.001'), 'Maksimal 2 angka desimal');
+});
+
+test('review 6.4 · deskripsi & komposisi maks. 65.535 byte UTF-8 (bukan karakter); kosong/null tetap sah', () => {
+  const ctx = { categories, products };
+  const errs = (o) => validateProduct(product(o), ctx);
+  assert.equal(errs({ description: 'a'.repeat(65535) }).description, undefined);
+  assert.equal(errs({ description: 'a'.repeat(65536) }).description, 'Teks terlalu panjang (maksimal 65.535 byte)');
+  // 'é' = 2 byte: 32.768 karakter = 65.536 byte → ditolak walau jumlah karakter jauh di bawah batas
+  assert.equal(errs({ ingredients: 'é'.repeat(32768) }).ingredients, 'Teks terlalu panjang (maksimal 65.535 byte)');
+  // '€' = 3 byte: 21.845 karakter = 65.535 byte → tepat di batas
+  assert.equal(errs({ ingredients: '€'.repeat(21845) }).ingredients, undefined);
+  for (const value of ['', null, undefined]) {
+    const e = errs({ description: value, ingredients: value });
+    assert.deepEqual([e.description, e.ingredients], [undefined, undefined]);
+  }
+});

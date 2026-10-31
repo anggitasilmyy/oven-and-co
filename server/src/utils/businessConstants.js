@@ -209,6 +209,9 @@ const LEAD_TIME_RULE = Object.freeze({
   [AVAILABILITY_TYPE.CUSTOM]: Object.freeze({ min: CUSTOM_CAKE_MIN_LEAD_DAYS, max: LEAD_TIME_MAX_DAYS }),
 });
 
+// Kolom TEXT MySQL (products.description, products.ingredients): maks. 65.535 BYTE, bukan karakter
+const TEXT_MAX_BYTES = 65535;
+
 // Foto produk maks. 5 (FR-30, validation rule Produk)
 const PRODUCT_PHOTO_MAX = 5;
 
@@ -274,4 +277,5 @@ module.exports = {
   LEAD_TIME_RULE,
   PRODUCT_PHOTO_MAX,
   CUSTOM_OPTION_GROUP_LABEL,
+  TEXT_MAX_BYTES,
 };

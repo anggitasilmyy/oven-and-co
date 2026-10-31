@@ -194,7 +194,8 @@ Catatan khusus:
   rujukan di pesanan lama tidak dikosongkan) kecuali tabel penghubung M:N & `cart_items` (`CASCADE`); tidak ada UNIQUE
   di luar SPEC (mis. `order_items.design_id`). Seed pilihan A: data master SPEC §9/§10 + 9 pesanan contoh (semua status,
   termasuk OVC-261012-018), id tetap, `upsert` tanpa menimpa (idempoten). `BigInt`/`Decimal` perlu serializer di 6.2+.
-- 6.3 (sebagian, belum selesai): produk, kategori, opsi custom, simpan desain, `POST /api/cart`, `GET /api/checkout/context`,
+- 6.3: **selesai — masuk `main` lewat PR #18** (hotfix konkurensi lanjutan: PR #19 aksi pesanan, PR #20 nomor
+  pesanan; catatan di bawah adalah isi & hasil uji saat pengerjaan). Cakupan: produk, kategori, opsi custom, simpan desain, `POST /api/cart`, `GET /api/checkout/context`,
   `GET /api/promos/active`, dan akun: wishlist (`/me/wishlist`), poin (`/me/points`, `/me/points/history`),
   voucher (`/me/vouchers`), alamat (`/me/addresses`), profil & kata sandi (`/me/profile`, `/me/password`),
   pesanan (`POST/GET /orders`, `GET /orders/:no`, `GET|PATCH /orders/:no/payment`, `PATCH /orders/:no/cancel`,
@@ -382,6 +383,11 @@ Catatan khusus:
     pukul 09.00 WIB lewat preload khusus uji agar slot pickup hari ini tersedia. Regresi: Kelompok 1 13/13, hotfix 8/8.
     Browser mode API (1440 & 390 px): AD-06 daftar, ubah harga (PUT JSON), toggle aktif, tab opsi; AD-07 simpan rencana,
     validasi client rencana < terjual, catat stok masuk — tanpa error halaman.
+  - Perbaikan hasil review akhir (dasar tipe kolom SPEC §8, tambahan server — mock belum memeriksanya): harga produk &
+    harga tambahan varian/opsi maks. 2 angka desimal (DECIMAL(12,2) MySQL membulatkan diam-diam: 0,004 → 0,00 sehingga
+    "harga > 0" bisa dilanggar) → 400 `Maksimal 2 angka desimal`; deskripsi & komposisi produk maks. 65.535 byte UTF-8
+    (kolom TEXT; sebelumnya > batas → 500 "Data too long") → 400 `fieldErrors.description` / `ingredients`. Berlaku
+    untuk JSON & multipart; kosong/null tetap sah.
   - Keterbatasan (menunggu 6.6): form AD-06 masih mengirim foto baru sebagai data URL (ditolak server) dan `ProductImage`
     belum memakai `toUploadUrl()`, jadi unggah/tampil foto `/uploads/products/…` di browser belum bisa diuji (file diverifikasi
     lewat URL server); `apiClient` belum meneruskan `fieldErrors` (halaman hanya menampilkan pesan pertama).

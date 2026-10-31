@@ -288,3 +288,43 @@ test('PATCH active: toggle, aturan form (satu custom aktif), body tidak valid, 4
   for (const body of [{}, { is_active: 'true' }, { is_active: 1 }]) assert.equal((await call('PATCH', '/products/1/active', body)).status, 400);
   assert.equal((await call('PATCH', '/products/999/active', { is_active: true })).status, 404);
 });
+
+test('review 6.4 · harga & desimal → 400 fieldErrors (JSON & multipart), tidak ada yang tersimpan', async () => {
+  const before = dump();
+  for (const [overrides, field, message] of [
+    [{ price: '28000.505' }, 'price', 'Maksimal 2 angka desimal'],
+    [{ price: 0.004 }, 'price', 'Maksimal 2 angka desimal'],
+    [{ price: 0 }, 'price', 'Harga harus lebih dari Rp 0'],
+    [{ price: -1000 }, 'price', 'Harga harus lebih dari Rp 0'],
+    [{ price: '9999999999.991' }, 'price', 'Harga terlalu besar'],
+    [{ variants: [{ name: 'V', extra_price: '500.125', is_active: true }] }, 'variants', [{ extra_price: 'Maksimal 2 angka desimal' }]],
+  ]) {
+    const res = await call('POST', '/products', valid(overrides));
+    assert.deepEqual([res.status, res.json.fieldErrors?.[field]], [400, message], JSON.stringify(overrides));
+    const multipart = await call('POST', '/products', form({ ...valid(overrides), photos: [] }));
+    assert.deepEqual([multipart.status, multipart.json.fieldErrors?.[field]], [400, message], `multipart ${JSON.stringify(overrides)}`);
+  }
+  assert.equal(dump(), before);
+  // Harga 2 desimal & harga tambahan 0 diterima
+  const ok = await call('POST', '/products', valid({ price: '28000.50', variants: [{ name: 'Biasa', extra_price: 0, is_active: true }] }));
+  assert.equal(ok.status, 201);
+  assert.equal(find(ok.json.data.product_id).price, 28000.5);
+});
+
+test('review 6.4 · deskripsi/komposisi > 65.535 byte → 400 fieldErrors (JSON & multipart), batas tepat & null diterima', async () => {
+  const before = dump();
+  const tooLong = 'Teks terlalu panjang (maksimal 65.535 byte)';
+  let res = await call('POST', '/products', valid({ description: 'a'.repeat(65536) }));
+  assert.deepEqual([res.status, res.json.fieldErrors?.description], [400, tooLong]);
+  res = await call('PUT', '/products/1', form({ ...valid({ name: 'Classic Butter Croissant', category_id: 3 }), ingredients: 'é'.repeat(32768) }));
+  assert.deepEqual([res.status, res.json.fieldErrors?.ingredients], [400, tooLong]);
+  assert.equal(dump(), before);
+
+  res = await call('POST', '/products', valid({ description: 'a'.repeat(65535), ingredients: null }));
+  assert.equal(res.status, 201);
+  const row = find(res.json.data.product_id);
+  assert.deepEqual([row.description.length, row.ingredients], [65535, null]);
+  res = await call('PUT', '/products/1', form({ ...valid({ name: 'Classic Butter Croissant', category_id: 3 }), description: '', ingredients: '€'.repeat(21845) }));
+  assert.equal(res.status, 200);
+  assert.deepEqual([find(1).description, Buffer.byteLength(find(1).ingredients)], ['', 65535]);
+});

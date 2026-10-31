@@ -116,3 +116,16 @@ test('database gagal → 500 dan rollback', async () => {
   assert.equal(res.status, 500);
   assert.equal(dump(), before);
 });
+
+test('review 6.4 · harga tambahan opsi: 0 & 2 desimal diterima, 3 desimal → 400 fieldErrors (tidak dibulatkan)', async () => {
+  let res = await call('POST', '', { option_group: 'rasa', name: 'Pandan', extra_price: '0' });
+  assert.equal(res.status, 201);
+  res = await call('PUT', '/9', { name: 'Cokelat', extra_price: '12500.75', is_active: true });
+  assert.deepEqual([res.status, Number(opt(9).extraPrice)], [200, 12500.75]);
+  const before = dump();
+  for (const extra of ['15000.001', 0.004]) {
+    res = await call('POST', '', { option_group: 'rasa', name: 'Matcha', extra_price: extra });
+    assert.deepEqual([res.status, res.json.fieldErrors?.extra_price], [400, 'Maksimal 2 angka desimal'], String(extra));
+  }
+  assert.equal(dump(), before);
+});
