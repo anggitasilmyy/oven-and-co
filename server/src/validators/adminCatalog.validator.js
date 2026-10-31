@@ -97,6 +97,7 @@ function parseMultipartProduct(body) {
 }
 
 module.exports = {
+  validateIdParam, // Step 6.4.8: dipakai juga validators/adminCustomer.validator.js (id ulasan)
   validateProductId,
   validateOptionId,
   validateMaterialId,

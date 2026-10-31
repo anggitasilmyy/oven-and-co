@@ -411,8 +411,11 @@ Catatan khusus:
     → semua 201, nomor unik & berurutan. Diuji bersama Kelompok 2 (worktree sementara): AD-07 dengan 8 checkout 15/15,
     AD-06 10/10, hotfix #19 8/8, Kelompok 1 13/13, tanpa deadlock.
   **Kelompok 3 (berjalan) — 6.4.6 AD-02 Dashboard: selesai** (commit `5300bf9`, branch
-  `feat/step-6.4-admin-api-groups-3-4`). **6.4.7 AD-08: selesai, menunggu review** (belum di-commit). Urutan berikutnya:
-  6.4.8 AD-10; Kelompok 4: 6.4.9 AD-09 (voucher dengan `expected_quota` + kunci baris + 409), 6.4.10 AD-11.
+  `feat/step-6.4-admin-api-groups-3-4`). **6.4.7 AD-08: selesai** (commit `e39b5be`). **6.4.8 AD-10: selesai, menunggu
+  review** (belum di-commit). Urutan berikutnya: Kelompok 4: 6.4.9 AD-09 sesuai SPEC saat ini (voucher dengan
+  `expected_quota` + kunci baris + 409, aturan loyalty), 6.4.10 AD-11. Promo pesanan besar (minimum quantity, diskon
+  bertingkat — saran dosen "Mini ERP Bakery") **tidak ada di dokumen sumber** dan butuh kolom baru → diajukan sebagai
+  CR-02 terpisah; schema & kontrak API tidak diubah sebelum CR-02 disetujui.
   - Endpoint: `GET /api/admin/dashboard` — **hanya Owner** (Staf 403, SPEC §2). Kontrak = mock
     `services/dashboardService.js`: `{todayKey, kpi{revenueToday, revenueChange, ordersToday, needsProcessing,
     rating{average,count}}, salesChart, statusCounts, totalOrders, recentOrders, bestSellers, lowStock}`. Tanpa input,
@@ -518,6 +521,41 @@ Catatan khusus:
   - Browser mode API (1440 & 390 px): Owner → Laporan harian/mingguan/bulanan/rentang (semua dari API, 200), Export Excel
     (.xlsx, omzet di file = layar) & Export PDF terunduh, tanpa error halaman/konsol; Staf yang membuka `/admin/laporan`
     diarahkan ke Pesanan.
+  **6.4.8 AD-10 Pelanggan & Ulasan (FR-35 · UC-25 · A-10 · BR-021 · BR-11)**
+  - Endpoint (Staf & Owner, SPEC §2; pelanggan 403, tamu 401): `GET /api/admin/customers`, `GET /api/admin/reviews?rating=
+    semua|1..5`, `PUT /api/admin/reviews/:id/reply {admin_reply}`, `PATCH /api/admin/reviews/:id/hidden {is_hidden}`.
+    Kontrak = mock `services/adminCustomerService.js` / `mock/customerAdmin.js`; aturan diport ke
+    `services/adminCustomerRules.service.js`, validasi zod `validators/adminCustomer.validator.js` (id via
+    `validateIdParam` yang kini diekspor `adminCatalog.validator.js` → 400 `INVALID_ID`).
+  - Pelanggan: hanya role customer (termasuk akun nonaktif); total pesanan = tidak dibatalkan; total belanja = lunas &
+    tidak dibatalkan (sama dengan AD-02/AD-08); level = poin earn + review_bonus positif tahun kalender WIB berjalan
+    (TF-11) dengan ambang `store_settings` (memakai ulang `loyaltyRules.service.js`); pesanan terakhir = pesanan terbaru
+    apa pun statusnya; urut pesanan terakhir ↓, nama, id. Agregat dihitung MySQL (`groupBy`), tanpa memuat semua
+    pesanan; kata sandi/google_id tidak pernah dikirim; pencarian di client (sama dengan mock).
+  - Ulasan: admin melihat semua (termasuk tersembunyi), terbaru lalu id ↓, ringkasan `{total, hidden, unreplied}` dari
+    semua ulasan; foto = path unggahan (sama dengan endpoint ulasan pelanggan). Balasan di-trim, wajib, maks. 500
+    karakter (asumsi client `ADMIN_REPLY_MAX`); `is_hidden` = nilai tujuan (idempoten). Efek ke web pelanggan memakai
+    kode 6.3 yang sudah ada: balasan tampil di C-09/C-10; ulasan tersembunyi tidak tampil & tidak dihitung di rating
+    produk maupun rating Dashboard. Ulasan tidak dihapus; bonus poin ulasan tidak berubah. Berbeda dari mock (lebih
+    ketat): rating tidak dikenal → 400, `is_hidden` wajib boolean, `admin_reply` wajib teks.
+  - Konsistensi: daftar pelanggan & daftar ulasan memakai `runInReadSnapshot` (REPEATABLE READ, query berurutan lewat
+    `tx`); balas/sembunyikan = `updateMany` satu baris (tidak ada → 404) lalu baca ulang dalam satu transaksi, tanpa
+    locking read. Balasan bersamaan → yang terakhir menang (sama dengan mock; form tidak membawa nilai awal).
+  - Uji: `server/tests/adminCustomerRules.test.js` (4), `adminCustomerRoute.test.js` (5), `adminReviewRoute.test.js` (7)
+    — server 431/431. Sensitivitas: satu `groupBy` lewat Prisma global → 5 test gagal; tanpa batas 500 karakter → 2 gagal.
+  - MySQL 8 sementara lewat HTTP: fungsional 9/9 — ulasan dibuat lewat API pelanggan C-19 (+1 disisipkan SQL dengan
+    foto), hak akses 4 endpoint, daftar pelanggan & ulasan (+ filter tiap rating) = SQL independen, balasan tampil di
+    `/products/:id/reviews`, sembunyikan menghapus dari ulasan & ringkasan produk serta rating Dashboard lalu kembali,
+    validasi/404/INVALID_ID tanpa menulis, alur checkout → lunas → AD-04 Selesai (+1.300 poin, Gold → Platinum) → batal
+    sesuai SQL, 10 balasan + 10 sembunyikan serentak (semua 200, nilai akhir salah satu yang dikirim). Konsistensi daftar
+    pelanggan saat 5 × 20 pembatalan pesanan lunas bersamaan (invarian: selisih total pesanan × T = selisih total
+    belanja): **implementasi 0 dari 948 respons; kontrol negatif (query sama tanpa snapshot) 93 dari 1.165**. General
+    log: satu koneksi, `REPEATABLE READ` untuk daftar, tanpa locking read. Regresi: 32 endpoint identik dengan commit
+    `e39b5be` (termasuk Dashboard & Laporan), AD-02 10/10, AD-08 10/10.
+  - Browser mode API (Staf 1440 px, Owner 390 px): tab Pelanggan & Ulasan, balas (modal), sembunyikan (konfirmasi) &
+    tampilkan, filter 2 ★ — semua request 200, tanpa error konsol, DB berubah sesuai.
+  - Keterbatasan (Step 6.6): `AdminReviewCard` menampilkan path foto `/uploads/reviews/…` tanpa `toUploadUrl()` sehingga
+    di mode API gambar dicari di origin frontend (sama dengan foto produk AD-06).
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

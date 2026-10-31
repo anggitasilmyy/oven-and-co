@@ -242,6 +242,11 @@ const REPORT_WEEK_DAYS = 7;
 const REPORT_MAX_RANGE_DAYS = 92;
 const REPORT_BEST_SELLER_LIMIT = 5;
 
+// Step 6.4.8 · FR-35 · AD-10 Pelanggan & Ulasan (client constants/adminCustomer.js). Asumsi prototype: balasan admin
+// maks. 500 karakter (reviews.admin_reply bertipe TEXT); filter rating 'semua' atau bintang tepat 1–5.
+const ADMIN_REPLY_MAX = 500;
+const ADMIN_REVIEW_RATING_ALL = 'semua';
+
 module.exports = {
   AVAILABILITY_TYPE,
   ORDER_STATUS,
@@ -289,6 +294,8 @@ module.exports = {
   REPORT_WEEK_DAYS,
   REPORT_MAX_RANGE_DAYS,
   REPORT_BEST_SELLER_LIMIT,
+  ADMIN_REPLY_MAX,
+  ADMIN_REVIEW_RATING_ALL,
   CUSTOM_CAKE_CATEGORY_NAME,
   CATALOG_FIELD_MAX,
   MAX_PRICE,
