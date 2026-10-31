@@ -644,15 +644,16 @@ Catatan khusus:
     hilang, ubah kuota vs checkout 0 tidak sah, checkout/batal 6.3 + AD-06/AD-07 3/3, AD-02 10/10, AD-08 10/10, AD-10 9/9,
     37 endpoint identik dengan `2532a10`.
   **6.4.10 AD-11 Pengaturan (FR-36 · UC-30 · A-11 · BR-022 · BR-02 · BR-05 · BR-12 · TF-10) — bertahap per checkpoint:**
-  **C1 selesai** (commit `ba72b83`: aturan, validator, GET); **C2 selesai, menunggu review** (belum di-commit: PUT profil,
-  PUT jam operasional, PATCH metode bayar). Berikutnya C3 akun staf, lalu C4 perbaikan checkout terpisah (T1 pengaturan
+  **C1 selesai** (commit `ba72b83`: aturan, validator, GET); **C2 selesai** (commit `628d04f`: PUT profil, PUT jam
+  operasional, PATCH metode bayar); **C3 akun staf selesai, menunggu review** (belum di-commit: C3a GET, C3b POST, C3c
+  PATCH aktif/nonaktif — butir C3 di bawah). Berikutnya C4 perbaikan checkout terpisah (T1 pengaturan
   basi saat checkout → 409 + rollback; T2 ganti metode bayar memastikan metode masih aktif di dalam transaksi), kemudian
   integrasi MySQL 8 untuk C2–C4 sekaligus.
   - Endpoint — **hanya Owner** (SPEC §2: pengaturan toko & akun staf hak Owner; Staf & pelanggan 403, tamu 401). Kontrak =
     client `services/settingsService.js` / mock `settingsAdmin.js`: `GET /api/admin/settings` → `{profile, hours,
     paymentMethods}`; `PUT /api/admin/settings` (6 field profil) → profil; `PUT /api/admin/settings/operating-hours
     {hours}` → 7 baris urut hari; `PATCH /api/admin/payment-methods/:code/active {is_active}` → `{method_code, is_active}`
-    (berbeda dari `GET /api/payment-methods` filter AD-03 yang tidak diubah). Akun staf (`/api/admin/staff`) menyusul C3.
+    (berbeda dari `GET /api/payment-methods` filter AD-03 yang tidak diubah). Akun staf `/api/admin/staff` = C3 (butir C3).
   - File: aturan murni `services/adminSettingsRules.service.js` (profil, jam, sakelar metode) & `adminStaffRules.service.js`
     (akun, dipakai C3); pemetaan baris ⇄ respons/data tulis `services/adminSettingsView.service.js` (dipisah di C2 —
     temuan review C1 L-1; rules tetap mengekspor ulang mapper); `services/adminSettings.service.js`; validasi bentuk zod
@@ -718,6 +719,79 @@ Catatan khusus:
     nama), berbeda dari urutan tabel mock; `apiClient` belum meneruskan `fieldErrors`; respons PUT profil berupa number
     (dibaca ulang dari DB) walau normalisasi server memakai teks. MySQL 8 (kunci sungguhan, DECIMAL/TIME) diuji setelah
     C2–C4 selesai.
+  - **C3 Akun staf (FR-36 · FR-26 · UC-30; UI/UX AD-11 "menambah atau menonaktifkan akun staf"; PRD "staff accounts with
+    roles (Owner, Staf)") — selesai, menunggu review.** Endpoint **hanya Owner aktif** (tamu 401, Staf & pelanggan 403,
+    Owner nonaktif 401 `SESSION_INVALID`); kontrak = client `settingsService.js` getAdminAccounts / addAdminAccount /
+    setAdminAccountStatus (mock `settingsAdmin.js`). Akun = `{user_id (string), name, email, phone, role, is_active,
+    created_at}` (`toAdminAccount`). File: `services/adminStaff.service.js` (GET, POST), `adminStaffStatus.service.js`
+    (PATCH; dipisah agar ±150 baris), `adminStaffRules.service.js` (aturan murni, C1 + cek ulang pelaku),
+    `routes/admin/staff.routes.js`; validasi bentuk `validateStaffBody` / `validateStaffId` / `validateActiveBody` (C1).
+    Tidak ada hapus akun, ubah peran, maupun ubah data akun (keputusan audit no. 7; rute itu 404). Schema tidak berubah.
+    · **C3a `GET /api/admin/staff`** → akun Owner & Staf **termasuk nonaktif**, urut peran (Owner dulu) → nama → id
+      numerik; pelanggan disaring di query (`role in [staf, owner]`); satu `findMany` dengan **select whitelist 7 kolom**
+      tanpa transaksi (keputusan C3 D3) — `password_hash` & `google_id` tidak pernah dibaca, apalagi dikirim.
+    · **C3b `POST /api/admin/staff` `{name, email, phone, password, role}` → 201.** Aturan registrasi server: nama ≤ 100,
+      email valid & huruf kecil, HP dinormalisasi seperti login (spasi ( ) - dibuang) lalu `^\+62\d{8,13}$`, sandi ≥ 8
+      karakter & ≤ 72 byte, peran Owner/Staf (Owner boleh membuat Owner). Urutan: validasi isi (gagal → 400 fieldErrors
+      mock, tanpa query/hash/tulis) → cek unik email/HP terhadap **seluruh** tabel users (pelanggan & akun nonaktif juga;
+      email tanpa beda huruf) → **bcrypt cost 12 di luar transaksi** → INSERT tunggal **tanpa kunci store_settings**
+      (keputusan C3 D1: pembuatan akun hanya menambah akun aktif, jadi tidak bisa melanggar invariant Owner) → dibaca
+      balik lewat select whitelist. **UNIQUE(users.email/phone) = otoritas terakhir**: dua request bersamaan yang lolos
+      cek awal → yang kalah P2002 → 400 `fieldErrors.email/phone` (keputusan C3 D4) **hanya** bila `meta.target` persis
+      `users_email_key`/`users_phone_key` (atau nama field `email`/`phone`); P2002 lain (google_id, PRIMARY, tak dikenal)
+      tetap 500. Field di luar kontrak (`is_active`, `google_id`, `user_id`, `password_hash`, …) dibuang zod; akun baru
+      selalu aktif tanpa google_id. Kata sandi asli tidak disimpan, tidak dikirim, dan tidak diteruskan ke Prisma.
+    · **C3c `PATCH /api/admin/staff/:id/active` `{is_active}` → 200 akun (dibaca ulang).** Satu transaksi:
+      `lockAdminMasterData` (`store_settings FOR UPDATE`, operasi pertama — kunci yang sama dengan C2 & AD-06/07/09) →
+      **cek ulang pelaku setelah kunci** (nonaktif → 401 `SESSION_INVALID`, keputusan C3 D2; bukan Owner → 403) → baca
+      target (select whitelist; bukan Owner/Staf / tidak ada → 404 **sebelum** UPDATE, jadi baris pelanggan tidak pernah
+      dikunci) → bila menonaktifkan Owner lain: hitung ulang Owner aktif → akun sendiri 400, **Owner aktif terakhir 409**
+      → status sudah sama dengan tujuan → 200 tanpa UPDATE (idempoten) → `updateMany` bersyarat `{userId, role in [staf,
+      owner], isActive: !tujuan}` hanya `data: {isActive}`, `count` wajib 1 → baca ulang wajib = tujuan; selain itu 409
+      "Status akun gagal diperbarui karena data berubah…" + rollback. ID tidak sah 400 `INVALID_ID`. Tanpa `FOR UPDATE`
+      pada users (satu-satunya penulis `users.is_active` = endpoint ini, sudah diserialkan kunci store_settings). Urutan
+      kunci: checkout users(pelanggan) → store_settings; PATCH store_settings → users(admin); transaksi lain yang menyentuh
+      baris users admin (riwayat status AD-04 = kunci S lewat FK `changed_by`, reset sandi) tidak pernah menunggu
+      store_settings → tanpa siklus. Penonaktifan langsung berlaku: middleware auth membaca `is_active` setiap request
+      (token lama → 401), login menolak akun nonaktif.
+    · **Invariant minimal satu Owner aktif** dijaga dua pengaman yang saling menutup — cek ulang pelaku (pelaku selalu
+      Owner aktif, ikut terhitung) + larangan menonaktifkan akun sendiri — sehingga cabang 409 "Owner aktif terakhir"
+      tidak tercapai lewat urutan normal; cek 409 dipertahankan sebagai lapis ketiga (diuji dengan hitungan yang
+      dipalsukan). **Dua Owner saling menonaktifkan bersamaan:** yang pertama memegang kunci berhasil; yang kedua menunggu,
+      lalu cek ulang pelaku menemukan dirinya sudah nonaktif → 401 `SESSION_INVALID` → tepat satu Owner aktif tersisa.
+      Pelaku yang dinonaktifkan selagi menunggu kunci tidak bisa melanjutkan permintaan apa pun (termasuk menonaktifkan
+      Owner ketiga atau dirinya sendiri).
+    · Uji (Prisma dipalsukan): `adminStaffRoute.test.js` (7, GET), `adminStaffCreateRoute.test.js` (12, POST),
+      `adminStaffStatusRoute.test.js` (16, PATCH), `adminStaffRules.test.js` (+1 cek pelaku). Fake
+      `tests/helpers/settingsDb.js` diperluas secara kompatibel (opsi `userRows`): auth membaca data committed terbaru,
+      `user.create` menegakkan UNIQUE seperti MySQL (email tanpa beda huruf, phone, google_id, PK) dengan P2002 +
+      `meta.target`, `tx.user.updateMany` dievaluasi ulang pada data terbaru saat commit. Skenario: hak akses tanpa
+      query/transaksi; kontrak & urutan; tanpa data sensitif (seed berisi hash & google_id); normalisasi; hash bcrypt
+      (`getRounds` = 12, `compare`); duplikat terhadap Staf/Owner/pelanggan; dua POST bersamaan (keduanya lolos cek awal →
+      satu 201, satu 400 dari UNIQUE); P2002 lain → 500 dan log tanpa kata sandi; login `/api/auth/login` dengan akun baru;
+      PATCH Staf/Owner aktif↔nonaktif, 404 pelanggan, `INVALID_ID`, akun sendiri, idempoten, `count` 0 / baca ulang tidak
+      sesuai → 409, hanya kolom `is_active` berubah (semua kolom semua pengguna dibandingkan); konkurensi 10 putaran dua
+      Owner saling menonaktifkan → selalu [200, 401], tepat satu Owner aktif; skenario pelaku dinonaktifkan selagi menunggu
+      kunci (deterministik: request pertama ditahan memegang kunci, request kedua lolos auth lalu menunggu) → 401, tanpa
+      efek. Sensitivitas (mutasi): GET 8/8 terdeteksi (tanpa select, filter setelah baca, Staf diizinkan, …); POST 13/13
+      (cek unik hanya akun admin, P2002 membabi buta / substring, cost 10, teks asli, field sisipan, kunci store_settings,
+      kata sandi di log, …); PATCH 15/15 (tanpa kunci → 11 gagal; cek pelaku sebelum kunci → 11; tanpa cek pelaku → 11;
+      tanpa cek pelaku + tanpa cek Owner terakhir → 12; Owner aktif dihitung sebelum kunci → 2; tanpa cek count → 1; tanpa
+      baca ulang → 5; UPDATE menyentuh kolom lain → 3; `FOR UPDATE` users sebelum cek peran → 13; …). Server 563/563 (C2
+      527).
+    · **Batas bukti:** fake membuktikan LOGIKA transaksi (urutan, kunci sebagai operasi pertama, baca setelah kunci,
+      serialisasi lewat antrian kunci tiruan, rollback). **Belum terbukti — MySQL 8 (tahap C4):** kunci baris InnoDB &
+      read view setelah `BEGIN` Prisma, tidak adanya deadlock nyata dengan checkout & AD-04, bentuk `meta.target` P2002
+      di Prisma 6.19.3 + MySQL, collation `_ci` email, timeout transaksi Prisma (default maxWait 2 s / timeout 5 s) saat
+      antre di belakang checkout.
+    · Catatan & temuan terbuka: (1) Step 6.6 — `PengaturanPage` membaca `user.user_id`, sesi API memakai `userId`, jadi
+      label "Akun Anda" tidak muncul di mode API (server tetap menolak 400); `AdminAccountFormModal` mengecek email/HP ganda
+      hanya terhadap akun admin (server memeriksa semua pengguna); `apiClient` belum meneruskan `fieldErrors`. (2) Regex HP
+      registrasi & konstanta bcrypt 12 kini ada di `auth.service`, `profile.validator`, `profile.service`, dan
+      `adminStaffRules`/`adminStaff` — pola yang sudah ada; penyatuan menyentuh fitur auth/profil di luar AD-11 (belum
+      dilakukan). (3) Pesan "Email sudah terdaftar" memungkinkan Owner mengetahui email pelanggan terdaftar (Owner memang
+      melihat email pelanggan di AD-10). (4) Error 500 Prisma dicatat `errorHandler`; argumen create tidak memuat kata sandi
+      asli (hanya hash). (5) Audit log aksi admin (FR-37, Could) tetap Step 6.5.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

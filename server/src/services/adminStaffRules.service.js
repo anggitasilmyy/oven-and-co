@@ -9,7 +9,7 @@
 //   - Status: akun sendiri → 400, Owner aktif terakhir → 409, bukan akun admin / tidak ada → 404; tanpa perubahan → null.
 // Respons akun = whitelist (tanpa password_hash, google_id).
 
-const { ADMIN_ACCOUNT_ROLES, OWNER_ROLE, STORE_FIELD_MAX } = require('../utils/businessConstants');
+const { ADMIN_ACCOUNT_ROLES, OWNER_ROLE, STORE_FIELD_MAX, API_ERROR_CODE } = require('../utils/businessConstants');
 const { normalizePhone, isValidEmail } = require('./auth.service');
 
 const PASSWORD_MIN_LENGTH = 8; // SPEC §10 (TF-15)
@@ -20,7 +20,21 @@ const MESSAGES = Object.freeze({
   NOT_FOUND: 'Akun admin tidak ditemukan',
   SELF: 'Tidak dapat menonaktifkan akun yang sedang dipakai',
   LAST_OWNER: 'Minimal satu akun Owner harus tetap aktif',
+  ACTOR_INACTIVE: 'Akun tidak ditemukan atau tidak aktif.', // sama dengan middleware auth
+  ACTOR_NOT_OWNER: 'Anda tidak memiliki izin untuk mengakses resource ini.', // sama dengan requireRole
 });
+
+/**
+ * Cek ulang pelaku SETELAH kunci (keputusan audit C3 D2). Middleware auth memeriksa status di awal request; bila akun
+ * pelaku dinonaktifkan Owner lain selama request menunggu kunci, pelaku tidak boleh melanjutkan.
+ * @param {{role, is_active}|null} actor — dibaca setelah kunci
+ * @returns {{statusCode, message, apiCode?}|null} 401 SESSION_INVALID (tidak ada / nonaktif), 403 (bukan Owner), null = boleh
+ */
+function actorStatusError(actor) {
+  if (!actor || !actor.is_active) return { statusCode: 401, message: MESSAGES.ACTOR_INACTIVE, apiCode: API_ERROR_CODE.SESSION_INVALID };
+  if (actor.role !== OWNER_ROLE) return { statusCode: 403, message: MESSAGES.ACTOR_NOT_OWNER };
+  return null;
+}
 
 /** Rapikan input form akun (email huruf kecil; HP dinormalisasi seperti registrasi/login) */
 function normalizeAdminAccount(input = {}) {
@@ -102,6 +116,7 @@ module.exports = {
   normalizeAdminAccount,
   validateAdminAccount,
   adminAccountStatusError,
+  actorStatusError,
   toAdminAccount,
   compareAdminAccounts,
   STAFF_MESSAGES: MESSAGES,

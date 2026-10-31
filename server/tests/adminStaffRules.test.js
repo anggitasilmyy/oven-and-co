@@ -4,7 +4,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  normalizeAdminAccount, validateAdminAccount, adminAccountStatusError, toAdminAccount, compareAdminAccounts, STAFF_MESSAGES: M,
+  normalizeAdminAccount, validateAdminAccount, adminAccountStatusError, actorStatusError, toAdminAccount, compareAdminAccounts,
+  STAFF_MESSAGES: M,
 } = require('../src/services/adminStaffRules.service');
 
 const FORM = { name: ' Dewi Staf ', email: ' Dewi@Demo.COM ', phone: '+62 812-3456-7899', password: 'rahasia123', role: 'staf' };
@@ -78,4 +79,14 @@ test('respons akun: whitelist tanpa password_hash/google_id; urutan Owner → St
     { user_id: '9', role: 'staf', name: 'Budi' }, { user_id: '2', role: 'staf', name: 'Andi' },
   ];
   assert.deepEqual([...rows].sort(compareAdminAccounts).map((r) => r.user_id), ['3', '2', '9', '10']);
+});
+
+test('pelaku dicek ulang setelah kunci (C3 D2): tidak ada / nonaktif → 401 SESSION_INVALID, bukan Owner → 403', () => {
+  const session = { statusCode: 401, message: M.ACTOR_INACTIVE, apiCode: 'SESSION_INVALID' };
+  assert.deepEqual(actorStatusError(null), session);
+  assert.deepEqual(actorStatusError({ role: 'owner', is_active: false }), session);
+  assert.deepEqual(actorStatusError({ role: 'staf', is_active: true }), { statusCode: 403, message: M.ACTOR_NOT_OWNER });
+  assert.deepEqual(actorStatusError({ role: 'customer', is_active: true }), { statusCode: 403, message: M.ACTOR_NOT_OWNER });
+  assert.equal(actorStatusError({ role: 'owner', is_active: true }), null);
+  assert.equal(M.ACTOR_INACTIVE, 'Akun tidak ditemukan atau tidak aktif.'); // pesan sama dengan middleware auth
 });

@@ -8,6 +8,14 @@
 //   - pelanggaran dicatat: query lewat Prisma global, query tumpang tindih dalam satu transaksi (Promise.all), baca atau
 //     tulis sebelum kunci diperoleh, SQL mentah selain kunci store_settings;
 //   - constraint operating_hours seperti MySQL: PK hour_id & UNIQUE day_of_week → P2002 bila dilanggar;
+//   - tabel `users` opsional (`userRows`, Step 6.4.10 C3): bila diisi, middleware auth membaca data committed TERBARU
+//     (penonaktifan akun langsung berlaku di request berikutnya) dan Prisma global `user.findMany` dicatat beserta
+//     argumennya (`ctl.userQueries`) agar `select` whitelist bisa diperiksa; `user.create` menegakkan UNIQUE seperti
+//     MySQL (email tanpa beda huruf — collation _ci, phone, google_id bila tidak null, PK) dengan P2002 + meta.target nama
+//     indeks, id auto-increment, dan default kolom; argumen create dicatat (`ctl.userWrites`); di dalam transaksi
+//     `tx.user.findUnique/findMany` membaca read view yang sama dengan tabel lain dan `tx.user.updateMany` dievaluasi
+//     ulang terhadap data committed TERBARU saat commit (seperti UPDATE InnoDB = current read), argumennya dicatat di
+//     `tx.userUpdates`; tanpa `userRows` perilaku lama tetap;
 //   - kait uji: `forceCount[op]` memalsukan jumlah baris UPDATE (tulisan tidak diterapkan), `transformRead(op, hasil)`
 //     mengubah hasil baca (meniru data yang berubah di luar perkiraan).
 // Setiap file test berjalan di proses terpisah (node --test), jadi state modul aman.
@@ -37,11 +45,26 @@ const pick = (row, select) => (select ? Object.fromEntries(Object.keys(select).m
 const sortMethods = (rows) => [...rows].sort((a, b) => GROUP_ORDER.indexOf(a.methodGroup) - GROUP_ORDER.indexOf(b.methodGroup) || a.name.localeCompare(b.name));
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
+/** Filter `where` Prisma yang dipakai untuk users: kolom = nilai, `{ in: [...] }`, `{ not: … }` */
+function matchesUser(row, where = {}) {
+  return Object.entries(where).every(([key, cond]) => {
+    if (key === 'OR') return cond.some((alt) => matchesUser(row, alt));
+    if (key === 'email' && typeof cond === 'string') return row.email.toLowerCase() === cond.toLowerCase(); // collation _ci
+    if (cond && typeof cond === 'object' && !(cond instanceof Date) && typeof cond !== 'bigint') {
+      if ('in' in cond) return cond.in.includes(row[key]);
+      if ('not' in cond) return row[key] !== cond.not;
+      throw new Error(`filter users tidak dikenal: ${key}`);
+    }
+    return row[key] === cond;
+  });
+}
+
 /**
  * @param {object} fakePrisma — objek dari tests/helpers/fakePrisma.js
  * @param {Record<string, {userId, role, isActive}>} users — untuk middleware auth (Prisma global, di luar transaksi)
+ * @param {{userRows?: () => Array<object>}} [options] — baris `users` lengkap (C3); dipanggil ulang setiap reset()
  */
-function installSettingsDb(fakePrisma, users) {
+function installSettingsDb(fakePrisma, users, { userRows } = {}) {
   const ctl = {
     committed: null,
     transactions: [], // { id, options, ops, committed, error }
@@ -52,10 +75,14 @@ function installSettingsDb(fakePrisma, users) {
     afterLock: null, // async (txId) => void — tahan transaksi setelah kunci (uji bersamaan)
     forceCount: {}, // { 'paymentMethod.updateMany': 0 } — jumlah baris palsu, tulisan tidak diterapkan
     transformRead: null, // (op, result) => result
+    userQueries: [], // argumen query users lewat Prisma global (selain auth)
+    userWrites: [], // argumen user.create
     reset() {
+      const committed = seedTables();
+      if (userRows) committed.users = userRows();
       Object.assign(ctl, {
-        committed: seedTables(), transactions: [], globalCalls: [], violations: [], lockWaits: 0, failOn: null, afterLock: null,
-        forceCount: {}, transformRead: null,
+        committed, transactions: [], globalCalls: [], violations: [], lockWaits: 0, failOn: null, afterLock: null,
+        forceCount: {}, transformRead: null, userQueries: [], userWrites: [],
       });
     },
   };
@@ -151,6 +178,20 @@ function installSettingsDb(fakePrisma, users) {
           return { ...data };
         }),
       },
+      user: {
+        findUnique: run('user.findUnique', 'baca', async ({ where, select }) => {
+          const row = (view().users ?? []).find((u) => u.userId === BigInt(where.userId));
+          return row ? pick(row, select) : null;
+        }),
+        findMany: run('user.findMany', 'baca', async ({ where, select } = {}) => (view().users ?? [])
+          .filter((u) => matchesUser(u, where)).map((u) => pick(u, select))),
+        updateMany: run('user.updateMany', 'tulis', async ({ where, data }) => {
+          tx.userUpdates.push(structuredClone({ where, data }));
+          const count = (view().users ?? []).filter((u) => matchesUser(u, where)).length;
+          write((t) => { t.users.filter((u) => matchesUser(u, where)).forEach((u) => Object.assign(u, data)); });
+          return { count };
+        }),
+      },
       paymentMethod: {
         findMany: run('paymentMethod.findMany', 'baca', async () => sortMethods(view().paymentMethods).map((r) => ({ ...r }))),
         findUnique: run('paymentMethod.findUnique', 'baca', async ({ where }) => {
@@ -176,11 +217,42 @@ function installSettingsDb(fakePrisma, users) {
     });
   }
   fakePrisma.$queryRaw = async () => { ctl.globalCalls.push('$queryRaw'); throw new Error('$queryRaw di luar transaksi'); };
-  fakePrisma.user = { findUnique: async ({ where }) => users[String(where.userId)] ?? null };
+  fakePrisma.user = userRows
+    ? {
+      // Middleware auth (userId) & login (email/phone) membaca data committed terbaru — bukan snapshot
+      findUnique: async ({ where, select }) => {
+        const row = ctl.committed.users.find((u) => (where.userId != null ? u.userId === BigInt(where.userId) : matchesUser(u, where)));
+        return row ? pick(row, select) : null;
+      },
+      create: async (args) => {
+        ctl.userWrites.push(structuredClone(args));
+        await tick();
+        const failure = ctl.failOn?.('user.create', args);
+        if (failure) throw failure instanceof Error ? failure : Object.assign(new Error('Kegagalan uji pada user.create'), { code: 'P2034' });
+        const rows = ctl.committed.users;
+        const { data } = args;
+        const userId = data.userId ?? rows.reduce((max, u) => (u.userId > max ? u.userId : max), 0n) + 1n;
+        const target = rows.some((u) => u.userId === userId) ? 'PRIMARY'
+          : rows.some((u) => u.email.toLowerCase() === data.email.toLowerCase()) ? 'users_email_key'
+            : rows.some((u) => u.phone === data.phone) ? 'users_phone_key'
+              : data.googleId != null && rows.some((u) => u.googleId === data.googleId) ? 'users_google_id_key' : null;
+        if (target) throw Object.assign(new Error(`Unique constraint failed on the constraint: \`${target}\``), { code: 'P2002', meta: { target } });
+        const row = { userId, passwordHash: null, googleId: null, isActive: true, createdAt: new Date(), ...data };
+        ctl.committed.users = [...rows, row];
+        return pick(row, args.select);
+      },
+      findMany: async (args = {}) => {
+        ctl.userQueries.push(structuredClone(args));
+        await tick();
+        if (ctl.failOn?.('user.findMany', args)) throw Object.assign(new Error("Can't reach database server at db:3306"), { code: 'P1001' });
+        return ctl.committed.users.filter((u) => matchesUser(u, args.where)).map((u) => pick(u, args.select));
+      },
+    }
+    : { findUnique: async ({ where }) => users[String(where.userId)] ?? null };
   fakePrisma.$transaction = async (callback, options) => {
     if (typeof callback !== 'function') throw new Error('hanya transaksi interaktif yang dipakai AD-11');
     const id = ++seq;
-    const tx = { id, options, ops: [], writes: [], hourWrites: [], locked: false, snapshot: null, committed: false, error: null };
+    const tx = { id, options, ops: [], writes: [], hourWrites: [], userUpdates: [], locked: false, snapshot: null, committed: false, error: null };
     ctl.transactions.push(tx);
     try {
       const result = await callback(createTx(id, tx));

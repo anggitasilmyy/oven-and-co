@@ -27,6 +27,7 @@ const adminReviewRoutes = require('./routes/admin/review.routes');
 const adminPromoRoutes = require('./routes/admin/promo.routes');
 const adminSettingsRoutes = require('./routes/admin/settings.routes');
 const adminPaymentMethodRoutes = require('./routes/admin/paymentMethodAdmin.routes');
+const adminStaffRoutes = require('./routes/admin/staff.routes');
 
 const errorHandler = require('./middlewares/errorHandler');
 const { getReferencePhotoDir } = require('./utils/referencePhotoStorage');
@@ -99,6 +100,7 @@ app.use('/api/admin/customers', adminCustomerRoutes);
 app.use('/api/admin/reviews', adminReviewRoutes);
 app.use('/api/admin/settings', adminSettingsRoutes);
 app.use('/api/admin/payment-methods', adminPaymentMethodRoutes);
+app.use('/api/admin/staff', adminStaffRoutes);
 app.use('/api/admin', adminPromoRoutes);
 app.use('/api/payment-methods', paymentMethodRoutes);
 
