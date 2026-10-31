@@ -3,7 +3,8 @@
 // - `where` dinilai dengan whereMatch agar tes memeriksa hasil filter, bukan bentuk query.
 // - $executeRaw meniru UPDATE stok bersyarat (qty_planned - qty_sold >= qty) dan mengembalikan jumlah baris.
 // - $transaction mengembalikan seluruh tabel bila callback gagal (meniru rollback); kunci FOR UPDATE dicatat.
-// - `ops` mencatat urutan tx:begin / lock:<tabel> / order.findFirst untuk memeriksa bahwa kunci = pembacaan pertama.
+// - `ops` mencatat urutan tx:begin / lock:<tabel> / order.findFirst / order.findMany / executeRaw untuk memeriksa urutan
+//   kunci (kunci = pembacaan pertama; kunci penomoran sebelum nomor dibaca & stok diambil).
 // Tidak membuktikan perilaku locking/transaksi/foreign key MySQL yang sebenarnya.
 
 const { matchesWhere } = require('./whereMatch');
@@ -219,6 +220,7 @@ function installOrderDb(fakePrisma, dates) {
     order: {
       findMany: async ({ where, select, include, orderBy }) => {
         fail('order.findMany');
+        state.ops.push('order.findMany');
         return sortBy(state.t.orders.filter((o) => matchesWhere(o, where)), orderBy)
           .map((o) => (select ? pick(o, select) : orderView(o, include)));
       },
@@ -343,6 +345,7 @@ function installOrderDb(fakePrisma, dates) {
     $executeRaw: async (strings, ...values) => {
       const sql = strings.join('?');
       state.raw.push({ sql, values });
+      state.ops.push('executeRaw');
       state.hooks.beforeStockUpdate?.();
       // Pengembalian stok saat batal: GREATEST(qty_sold - qty, 0)
       if (/UPDATE daily_stocks SET qty_sold = GREATEST\(qty_sold - \?, 0\)\s+WHERE product_id = \? AND stock_date = \?$/.test(sql)) {

@@ -22,7 +22,7 @@ const { nextOrderNumber, formatOrderNumber, paymentCodeFor, gatewayRefFor, gener
 const { mapStoreSetting, mapAddress, mapPaymentMethod, mapOperatingHour, mapVoucher, mapClaim } =
   require('./checkout.service');
 
-const ORDER_NUMBER_ATTEMPTS = 3; // nomor pesanan bentrok dengan pesanan bersamaan (UNIQUE) → hitung ulang
+const ORDER_NUMBER_ATTEMPTS = 3; // jaring pengaman bila nomor tetap bentrok (UNIQUE) — penomoran sudah diserialkan lockRows
 
 const MESSAGES = Object.freeze({
   UNAVAILABLE: 'Ada produk yang sudah tidak tersedia. Hapus dari keranjang.',
@@ -106,9 +106,18 @@ async function loadAndValidate(userId, input, now) {
   return { todayKey, settings, lines, address, distance, method, payAtStore, expiredAt };
 }
 
-/** Kunci baris pengguna: pesanan, klaim voucher, dan saldo poin pelanggan yang sama diproses berurutan */
+/**
+ * Kunci baris pengguna: pesanan, klaim voucher, dan saldo poin pelanggan yang sama diproses berurutan.
+ * Lalu kunci penomoran pesanan: nomor OVC-YYMMDD-NNN = urutan terbesar hari itu + 1, jadi pesanan dari pelanggan
+ * BERBEDA yang dibuat bersamaan harus diserialkan agar tidak menghitung nomor yang sama (sebelumnya ≥ 4 checkout
+ * bersamaan → bentrok UNIQUE orders.order_number berulang → 500). SPEC §8 tidak punya tabel/kolom penghitung, jadi
+ * dipakai baris yang pasti ada: store_settings (satu baris, PK). Diambil SEBELUM baris desain & stok dikunci (urutan
+ * kunci sama dengan transaksi admin yang mengunci store_settings lalu daily_stocks → tidak saling menunggu silang),
+ * dan sebelum SELECT biasa pertama sehingga nomor terakhir yang dibaca sudah termasuk pesanan yang baru di-commit.
+ */
 async function lockRows(tx, owner, designIds) {
   await tx.$queryRaw`SELECT user_id FROM users WHERE user_id = ${owner} FOR UPDATE`;
+  await tx.$queryRaw`SELECT setting_id FROM store_settings ORDER BY setting_id LIMIT 1 FOR UPDATE`;
   // Urutan tetap (id naik) agar dua transaksi tidak saling menunggu
   for (const designId of designIds) {
     await tx.$queryRaw`SELECT design_id FROM custom_cake_designs WHERE design_id = ${designId} FOR UPDATE`;
