@@ -226,7 +226,8 @@ test('hotfix 6.3: kunci baris pesanan adalah pembacaan PERTAMA transaksi simulas
     const number = await place();
     await run(number);
     assert.deepEqual(firstOpsAfterBegin(), ['lock:orders', 'order.findFirst'], label);
-    assert.deepEqual(db.locks[db.locks.length - 1].values, [number], label);
+    // Kunci pesanan transaksi ini (ganti metode kini juga mengunci baris metode tujuan — T2 — setelahnya)
+    assert.deepEqual(db.locks.filter((l) => /FROM orders/.test(l.sql)).at(-1).values, [number], label);
   };
   await check('ganti metode', (number) => changeMethod(number, 'bca_va'));
   await check('simulasi lunas', (number) => simulate(number));

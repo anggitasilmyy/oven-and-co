@@ -128,6 +128,8 @@ const OPERATING_HOURS_DEFAULT = Object.freeze({ open_time: '07:00', close_time: 
 // Teks validation rule Pembayaran & Voucher (SPEC §6)
 const PAY_AT_STORE_DISABLED_TEXT = 'Tidak tersedia untuk pre-order dan delivery';
 const VOUCHER_INVALID_TEXT = 'Voucher tidak berlaku untuk pesanan ini';
+// T2 (ROADMAP 6.4.10): metode bayar dinonaktifkan Owner (AD-11) selagi checkout / ganti metode berjalan → 409 + rollback
+const PAYMENT_METHOD_UNAVAILABLE_TEXT = 'Metode pembayaran baru saja dinonaktifkan. Pilih metode lain lalu coba lagi.';
 
 const ROLES = Object.freeze({
   CUSTOMER: 'customer',
@@ -307,6 +309,7 @@ module.exports = {
   OPERATING_HOURS_DEFAULT,
   PAY_AT_STORE_DISABLED_TEXT,
   VOUCHER_INVALID_TEXT,
+  PAYMENT_METHOD_UNAVAILABLE_TEXT,
   ROLES,
   POINT_TX_TYPE,
   MEMBER_LEVEL,

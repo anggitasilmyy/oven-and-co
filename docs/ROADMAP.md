@@ -412,9 +412,10 @@ Catatan khusus:
     AD-06 10/10, hotfix #19 8/8, Kelompok 1 13/13, tanpa deadlock.
   **Kelompok 3 — 6.4.6 AD-02 Dashboard: selesai** (commit `5300bf9`, branch `feat/step-6.4-admin-api-groups-3-4`).
   **6.4.7 AD-08: selesai** (commit `e39b5be`). **6.4.8 AD-10: selesai** (commit `2532a10`). **Kelompok 4 — 6.4.9 AD-09:
-  selesai, menunggu review** (belum di-commit). Berikutnya: 6.4.10 AD-11. Promo pesanan besar (minimum quantity, diskon
-  bertingkat — saran dosen "Mini ERP Bakery") **tidak ada di dokumen sumber** dan butuh kolom baru → diajukan sebagai
-  CR-02 terpisah; schema & kontrak API tidak diubah sebelum CR-02 disetujui.
+  selesai** (commit `39d4081`; perbaikan klaim voucher basi hasil audit di commit `6890692`). 6.4.10 AD-11: butir di
+  bawah. Promo pesanan besar (minimum quantity, diskon bertingkat — saran dosen "Mini ERP Bakery") **tidak ada di
+  dokumen sumber** dan butuh kolom baru → diajukan sebagai CR-02 terpisah; schema & kontrak API tidak diubah sebelum
+  CR-02 disetujui.
   - Endpoint: `GET /api/admin/dashboard` — **hanya Owner** (Staf 403, SPEC §2). Kontrak = mock
     `services/dashboardService.js`: `{todayKey, kpi{revenueToday, revenueChange, ordersToday, needsProcessing,
     rating{average,count}}, salesChart, statusCounts, totalOrders, recentOrders, bestSellers, lowStock}`. Tanpa input,
@@ -646,11 +647,12 @@ Catatan khusus:
   **6.4.10 AD-11 Pengaturan (FR-36 · UC-30 · A-11 · BR-022 · BR-02 · BR-05 · BR-12 · TF-10) — bertahap per checkpoint:**
   **C1 selesai** (commit `ba72b83`: aturan, validator, GET); **C2 selesai** (commit `628d04f`: PUT profil, PUT jam
   operasional, PATCH metode bayar); **C3 akun staf selesai** (commit `10f4bb5`: C3a GET, C3b POST, C3c PATCH
-  aktif/nonaktif — butir C3 di bawah). Berikutnya C4 perbaikan checkout terpisah (T1 pengaturan
-  basi saat checkout → 409 + rollback; T2 ganti metode bayar memastikan metode masih aktif di dalam transaksi), kemudian
-  integrasi MySQL 8 untuk C2–C4 sekaligus. **Integrasi MySQL 8 — Validasi AD-11 (C3), dengan smoke test C2: selesai,
-  menunggu commit** (butir di bawah; termasuk perbaikan F-1 & F-2). **T1/T2 belum dikerjakan**; integrasi MySQL penuh
-  untuk C2 & C4 belum dilakukan (C2 baru smoke test).
+  aktif/nonaktif — butir C3 di bawah). **Integrasi MySQL 8 — Validasi AD-11 (C3), dengan smoke test C2: selesai**
+  (commit `b53296a`; butir di bawah; termasuk perbaikan F-1 & F-2). **C4 perbaikan checkout (T1 pengaturan basi saat
+  checkout → 409 + rollback; T2 metode bayar diperiksa ulang di dalam transaksi checkout & ganti metode): selesai,
+  menunggu commit** — final review tanpa temuan Critical/High; butir "C4" di bawah. Integrasi MySQL untuk C4 selesai
+  (`tests-mysql/09`, `10`); C2 di MySQL: PUT profil & PATCH metode bayar asli teruji bersamaan dengan checkout (T1-c,
+  T2-d, T2-e), PUT jam operasional asli baru diuji di unit test (T1-a meniru penulisannya lewat SQL).
   - Endpoint — **hanya Owner** (SPEC §2: pengaturan toko & akun staf hak Owner; Staf & pelanggan 403, tamu 401). Kontrak =
     client `services/settingsService.js` / mock `settingsAdmin.js`: `GET /api/admin/settings` → `{profile, hours,
     paymentMethods}`; `PUT /api/admin/settings` (6 field profil) → profil; `PUT /api/admin/settings/operating-hours
@@ -795,7 +797,7 @@ Catatan khusus:
       dilakukan). (3) Pesan "Email sudah terdaftar" memungkinkan Owner mengetahui email pelanggan terdaftar (Owner memang
       melihat email pelanggan di AD-10). (4) Error 500 Prisma dicatat `errorHandler`; argumen create tidak memuat kata sandi
       asli (hanya hash). (5) Audit log aksi admin (FR-37, Could) tetap Step 6.5.
-  - **Integrasi MySQL 8 — Validasi AD-11 (C3), dengan smoke test C2 — selesai, menunggu commit.** Harness terpisah dari
+  - **Integrasi MySQL 8 — Validasi AD-11 (C3), dengan smoke test C2 — selesai (commit `b53296a`).** Harness terpisah dari
     unit test: `server/tests-mysql/` (`npm run test:mysql` → `run.sh`: container MySQL 8 sementara di tmpfs, port lokal
     33306, database `ovenco_c4_test`, akun aplikasi `c4app` hanya pada database uji; guard menolak port 3306 / nama
     database tanpa `_test`; container dihapus di akhir; log & hasil di `/tmp/c4`, tidak di repo). Hasil akhir (container
@@ -840,6 +842,52 @@ Catatan khusus:
       transaksi sampai transaksi berikutnya memulihkannya (query biasa tidak terdampak — pool terpisah); (5)
       `connection_limit` di `DATABASE_URL` ditimpa 5/4; (6) shutdown tanpa batas waktu paksa; (7) endpoint snapshot
       AD-02/AD-08/AD-09/AD-10 belum diuji di MySQL pada tahap ini (kode tidak berubah; hanya wrapper transaksi).
+  - **C4 Perbaikan checkout T1/T2 (FR-12 – FR-16 · BR-05 · BR-06 · BR-09 · BR-12 · C-14 · C-15 · AD-11) — selesai, menunggu
+    commit.** Hasil uji: unit test server **609/609**, integrasi MySQL 8 **51/51** (42 sebelumnya + 4 skenario `09` + 5
+    skenario `10`), `lock_deadlocks` = 0. Schema, migrasi, kontrak API sukses, dan frontend tidak berubah.
+    · **T1 pengaturan basi saat checkout → 409 + rollback.** `loadAndValidate` membaca pengaturan di luar transaksi; setelah
+      `lockRows` (users X → store_settings X) checkout membaca ulang `store_settings` & `operating_hours` (SELECT biasa
+      pertama → read view dibuat setelah kunci, jadi melihat commit Owner terakhir) lalu membandingkan field yang dipakai
+      pesanan: selalu batas pre-order & jam operasional; pembayaran online → `payment_timeout_minutes`; delivery →
+      koordinat, radius, tarif; tukar poin → `redeem_points_unit`, `redeem_value`. Berbeda → 409 "Pengaturan toko baru saja
+      diperbarui. Muat ulang halaman checkout lalu coba lagi." sebelum ada tulisan apa pun. Perubahan yang tidak dipakai
+      (nama, WhatsApp, poin perolehan) tetap 201. Semua penulis pengaturan (AD-11 profil/jam/metode, AD-09 loyalty)
+      mengunci store_settings lebih dulu, jadi nilai yang dibaca final sampai commit.
+    · **T2 metode bayar masih aktif di dalam transaksi → 409 + rollback** (pesan `PAYMENT_METHOD_UNAVAILABLE_TEXT`).
+      Checkout: metode terpilih dibaca ulang setelah kunci store_settings (AD-11 satu-satunya penulis `payment_methods`
+      dan mengunci store_settings lebih dulu). Ganti metode (`PATCH /api/orders/:no/payment`): baris metode tujuan dikunci
+      `FOR SHARE` (locking read → nilai terbaru) sebelum UPDATE pembayaran. Urutan kunci: pesanan X → [Bayar di Toko:
+      UPDATE pesanan + INSERT riwayat — S baris pelanggan lewat FK] → metode S → pembayaran X. Riwayat ditulis SEBELUM kunci
+      metode agar transaksi tidak menunggu baris pelanggan sambil memegang kunci metode (InnoDB mengantrekan S di belakang
+      X AD-11 yang menunggu → siklus tiga arah dengan checkout pelanggan yang sama); dibuktikan T2-d. Metode yang sudah
+      nonaktif sebelum request tetap 400 "Pilih metode pembayaran." (perilaku lama).
+    · File: `server/src/services/checkoutSettingsRules.service.js` (baru, aturan murni `changedCheckoutSettings`);
+      `orderCreate.service.js` (`assertSettingsUnchanged`, `assertMethodStillActive`); `payment.service.js`
+      (`lockActiveMethod`, urutan tulis ganti metode); `utils/businessConstants.js` (`PAYMENT_METHOD_UNAVAILABLE_TEXT`).
+      Uji unit: `server/tests/orderSettingsStale.test.js` (T1), `paymentMethodStale.test.js` (T2), helper
+      `tests/helpers/orderDb.js` (kait `whileWaitingSettingsLock` / `whileWaitingMethodLock`, `findUnique` metode, commit
+      transaksi lain bertahan setelah rollback), `paymentRoute.test.js` (asersi kunci pesanan disesuaikan). Integrasi:
+      `server/tests-mysql/09-checkout-settings.it.test.js` (T1-a batas pre-order & jam operasional berubah selagi checkout
+      menunggu kunci → 409 tanpa data parsial; T1-b perubahan tidak relevan → 201; T1-c PUT profil asli × checkout asli,
+      hanya 201/409, 0 deadlock) dan `10-payment-method-active.it.test.js` (T2-a checkout; T2-b/T2-c ganti metode online &
+      ke Bayar di Toko → 409 + rollback pesanan/riwayat; T2-d urutan kunci tanpa deadlock; T2-e PATCH metode asli ×
+      checkout × ganti metode, tanpa 5xx/deadlock/data parsial).
+    · **Keterbatasan & pekerjaan lanjutan (hasil final review, implementasi tidak diubah):**
+      (L1) `getCartView` membaca `preorder_cutoff_time` dalam query terpisah yang paralel dengan pembacaan pengaturan
+      `loadAndValidate`; bila Owner commit tepat di antara keduanya, tanggal siap divalidasi dengan batas lama tanpa 409
+      (jendela sangat sempit) — lanjutan: pakai satu pembacaan pengaturan untuk keranjang & checkout.
+      (L2) Jam operasional dibandingkan untuk ketujuh hari, bukan hanya hari tanggal siap: perubahan jam hari lain juga
+      menolak checkout yang sedang berjalan (aman, 409 lalu coba lagi; konservatif).
+      (L3) Uji beban T1-c dan T2-e tidak mewajibkan minimal satu 409, jadi bisa lulus tanpa race benar-benar terjadi;
+      bukti race ada di skenario deterministik T1-a, T2-a – T2-d.
+      (L4) Judul uji "pengaturan sama → 201; ongkir … dibaca ulang setelah kunci" (`orderSettingsStale.test.js`) kurang
+      tepat: quote memakai pengaturan dari `loadAndValidate` (identik dengan hasil baca ulang bila lolos T1).
+      (L5) T2-d memakai asersi waktu `patch.ms < 1500` — berpotensi flaky di mesin lambat.
+      (L6) Di MySQL nyata T1 baru diuji untuk batas pre-order & jam operasional; ongkir, radius, koordinat, poin, dan
+      batas pembayaran online hanya diuji di unit test (jalur perbandingan sama). PUT jam operasional asli belum diuji
+      bersamaan dengan checkout di MySQL.
+      Catatan: lock wait > 2 s (F-2) tetap 500 — checkout yang menunggu kunci store_settings lebih lama dari itu tidak
+      menjadi 409.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.
