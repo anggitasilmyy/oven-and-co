@@ -16,6 +16,9 @@
 //     `tx.user.findUnique/findMany` membaca read view yang sama dengan tabel lain dan `tx.user.updateMany` dievaluasi
 //     ulang terhadap data committed TERBARU saat commit (seperti UPDATE InnoDB = current read), argumennya dicatat di
 //     `tx.userUpdates`; tanpa `userRows` perilaku lama tetap;
+//   - kunci baris `users` (F-1 integrasi MySQL 8): `SELECT user_id FROM users WHERE user_id = ? FOR UPDATE` lewat
+//     $queryRaw MENUNGGU pemegang baris yang sama (antrian per kunci, seperti InnoDB); id baris yang dikunci dicatat di
+//     `ctl.lockedUserIds` (membuktikan baris pelanggan tidak pernah dikunci); semua kunci dilepas saat commit/rollback;
 //   - kait uji: `forceCount[op]` memalsukan jumlah baris UPDATE (tulisan tidak diterapkan), `transformRead(op, hasil)`
 //     mengubah hasil baca (meniru data yang berubah di luar perkiraan).
 // Setiap file test berjalan di proses terpisah (node --test), jadi state modul aman.
@@ -77,29 +80,35 @@ function installSettingsDb(fakePrisma, users, { userRows } = {}) {
     transformRead: null, // (op, result) => result
     userQueries: [], // argumen query users lewat Prisma global (selain auth)
     userWrites: [], // argumen user.create
+    lockedUserIds: [], // id baris users yang pernah dikunci FOR UPDATE (urut waktu)
     reset() {
       const committed = seedTables();
       if (userRows) committed.users = userRows();
       Object.assign(ctl, {
         committed, transactions: [], globalCalls: [], violations: [], lockWaits: 0, failOn: null, afterLock: null,
-        forceCount: {}, transformRead: null, userQueries: [], userWrites: [],
+        forceCount: {}, transformRead: null, userQueries: [], userWrites: [], lockedUserIds: [],
       });
     },
   };
-  let lockHolder = null;
-  const lockQueue = [];
+  // Kunci per baris: 'store_settings' atau 'users:<id>' → { holder, queue }
+  const locks = new Map();
   let seq = 0;
 
-  async function acquire(id) {
-    if (lockHolder != null) ctl.lockWaits += 1;
-    while (lockHolder != null) await new Promise((resolve) => lockQueue.push(resolve));
-    lockHolder = id;
+  async function acquire(id, key = 'store_settings') {
+    if (!locks.has(key)) locks.set(key, { holder: null, queue: [] });
+    const lock = locks.get(key);
+    if (lock.holder === id) return;
+    if (lock.holder != null) ctl.lockWaits += 1;
+    while (lock.holder != null) await new Promise((resolve) => lock.queue.push(resolve));
+    lock.holder = id;
   }
   function release(id) {
-    if (lockHolder !== id) return;
-    lockHolder = null;
-    const next = lockQueue.shift();
-    if (next) next();
+    for (const lock of locks.values()) {
+      if (lock.holder !== id) continue;
+      lock.holder = null;
+      const next = lock.queue.shift();
+      if (next) next();
+    }
   }
 
   function createTx(id, tx) {
@@ -109,7 +118,7 @@ function installSettingsDb(fakePrisma, users, { userRows } = {}) {
       if (!tx.snapshot) tx.snapshot = structuredClone(ctl.committed);
       return tx.snapshot;
     };
-    const run = (op, kind, fn) => async (args) => {
+    const run = (op, kind, fn) => async (args, ...rest) => {
       if (inFlight > 0) ctl.violations.push(`tumpang tindih: ${op} (tx ${id})`);
       inFlight += 1;
       tx.ops.push(op);
@@ -119,7 +128,7 @@ function installSettingsDb(fakePrisma, users, { userRows } = {}) {
         const failure = ctl.failOn?.(op, args); // true → error umum; objek Error → dilempar apa adanya (mis. P2002)
         if (failure) throw failure instanceof Error ? failure : Object.assign(new Error(`Kegagalan uji pada ${op}`), { code: 'P2034' });
         if (kind === 'tulis' && op in ctl.forceCount) return { count: ctl.forceCount[op] };
-        const result = await fn(args);
+        const result = await fn(args, ...rest);
         return kind === 'baca' && ctl.transformRead ? ctl.transformRead(op, result) : result;
       } finally {
         inFlight -= 1;
@@ -131,18 +140,27 @@ function installSettingsDb(fakePrisma, users, { userRows } = {}) {
       tx.writes.push(apply);
     };
 
+    const lockStoreSettings = run('lock:store_settings', 'lock', async () => {
+      await acquire(id);
+      tx.locked = true;
+      if (ctl.afterLock) await ctl.afterLock(id);
+      return ctl.committed.storeSetting ? [{ setting_id: 1 }] : [];
+    });
+    const lockUser = run('lock:users', 'lock', async (_strings, userId) => {
+      const key = BigInt(userId);
+      await acquire(id, `users:${key}`);
+      ctl.lockedUserIds.push(String(key));
+      return (ctl.committed.users ?? []).some((u) => u.userId === key) ? [{ user_id: key }] : [];
+    });
+
     return {
-      $queryRaw: run('lock:store_settings', 'lock', async (strings) => {
+      $queryRaw: (strings, ...values) => {
         const sql = (Array.isArray(strings) ? strings.join('?') : String(strings)).replace(/\s+/g, ' ');
-        if (!/FROM store_settings/.test(sql) || !/FOR UPDATE/.test(sql)) {
-          ctl.violations.push(`SQL mentah tidak dikenal: ${sql}`);
-          throw new Error(`SQL tidak dikenal: ${sql}`);
-        }
-        await acquire(id);
-        tx.locked = true;
-        if (ctl.afterLock) await ctl.afterLock(id);
-        return ctl.committed.storeSetting ? [{ setting_id: 1 }] : [];
-      }),
+        if (/FROM store_settings/.test(sql) && /FOR UPDATE/.test(sql)) return lockStoreSettings(strings);
+        if (/^SELECT user_id FROM users WHERE user_id = \? FOR UPDATE$/.test(sql.trim())) return lockUser(strings, values[0]);
+        ctl.violations.push(`SQL mentah tidak dikenal: ${sql}`);
+        return Promise.reject(new Error(`SQL tidak dikenal: ${sql}`));
+      },
       $executeRaw: run('executeRaw', 'tulis', async () => { throw new Error('$executeRaw tidak dipakai AD-11'); }),
       storeSetting: {
         findFirst: run('storeSetting.findFirst', 'baca', async ({ select } = {}) => {

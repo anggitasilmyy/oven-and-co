@@ -1,13 +1,14 @@
 // Regresi tingkat HTTP Step 6.4.10 C3c: PATCH /api/admin/staff/:id/active (FR-36 · FR-26 · UC-30 · A-11 · AD-11
 // "Nonaktifkan / Aktifkan akun"). Hanya Owner aktif; akun sendiri 400; Owner aktif terakhir 409; bukan akun admin / tidak
-// ada 404; ID tidak sah 400 INVALID_ID; idempoten tanpa UPDATE; urutan transaksi kunci store_settings → cek ulang pelaku
-// (nonaktif → 401 SESSION_INVALID) → target → hitung Owner aktif → UPDATE bersyarat (count) → baca ulang; hanya kolom
-// is_active berubah; respons tanpa password_hash/google_id; penonaktifan langsung berlaku di request berikutnya.
+// ada 404 (diperiksa di luar transaksi — tanpa kunci); ID tidak sah 400 INVALID_ID; idempoten tanpa UPDATE; urutan
+// transaksi (perbaikan F-1 integrasi MySQL 8): kunci baris target → kunci store_settings → cek ulang pelaku (nonaktif →
+// 401 SESSION_INVALID) → target → hitung Owner aktif → UPDATE bersyarat (count) → baca ulang; baris pelanggan tidak pernah
+// dikunci; hanya kolom is_active berubah; respons tanpa password_hash/google_id; penonaktifan langsung berlaku.
 //
 // BATAS BUKTI: fake tests/helpers/settingsDb.js membuktikan LOGIKA transaksi — urutan operasi, kunci sebagai operasi
 // pertama, baca setelah kunci, serialisasi dua request lewat antrian kunci tiruan, rollback, dan UPDATE yang dievaluasi
 // ulang pada data terbaru. Fake TIDAK membuktikan perilaku InnoDB sungguhan (kunci baris MySQL, read view Prisma `BEGIN`,
-// deadlock dengan checkout, timeout transaksi) — itu diuji di MySQL 8 setelah C4 (rencana AD-11).
+// deadlock dengan checkout & AD-04, timeout transaksi) — itu dibuktikan di tests-mysql/ (npm run test:mysql).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -64,12 +65,15 @@ const quiet = async (fn) => { const o = console.error; console.error = () => {};
 const ACCOUNT_KEYS = ['created_at', 'email', 'is_active', 'name', 'phone', 'role', 'user_id'];
 const WHITELIST = ['createdAt', 'email', 'isActive', 'name', 'phone', 'role', 'userId'];
 const NOT_UPDATED = 'Status akun gagal diperbarui karena data berubah. Muat ulang halaman lalu coba lagi.';
-const FULL_FLOW = ['lock:store_settings', 'user.findUnique', 'user.findUnique', 'user.updateMany', 'user.findUnique'];
+const LOCKS = ['lock:users', 'lock:store_settings']; // F-1: baris target dulu, lalu store_settings
+const FULL_FLOW = [...LOCKS, 'user.findUnique', 'user.findUnique', 'user.updateMany', 'user.findUnique'];
+const CUSTOMER_IDS = ['1', '7'];
 
 function assertCleanTx() {
   assert.deepEqual(db.violations, []);
   assert.deepEqual(db.globalCalls, []);
-  for (const t of db.transactions) assert.equal(t.ops[0], 'lock:store_settings', `tx ${t.id}: kunci = operasi pertama`);
+  for (const t of db.transactions) assert.deepEqual(t.ops.slice(0, 2), LOCKS, `tx ${t.id}: kunci target lalu store_settings = operasi pertama`);
+  assert.deepEqual(db.lockedUserIds.filter((id) => CUSTOMER_IDS.includes(id)), [], 'baris pelanggan tidak pernah dikunci');
 }
 /** Semua kolom semua pengguna sama dengan seed, kecuali is_active pengguna yang disebut */
 function assertOnlyIsActiveChanged(changed = {}) {
@@ -106,14 +110,13 @@ test('ID tidak sah → 400 INVALID_ID; body tidak sah → 400; keduanya tanpa tr
   assert.equal(db.transactions.length, 0);
 });
 
-test('akun tidak ditemukan & akun pelanggan (aktif/nonaktif) → 404 tanpa UPDATE; baris pelanggan tidak berubah', async () => {
+test('akun tidak ditemukan & akun pelanggan (aktif/nonaktif) → 404 tanpa transaksi & tanpa kunci; baris pelanggan tidak berubah', async () => {
   for (const [id, isActive] of [['999', false], ['1', false], ['7', true], ['1', true]]) {
     db.reset();
     const res = await setActive(id, isActive);
     assert.deepEqual([res.status, res.json.message], [404, 'Akun admin tidak ditemukan'], `${id}/${isActive}`);
-    const [tx] = db.transactions;
-    assert.deepEqual(tx.ops, ['lock:store_settings', 'user.findUnique', 'user.findUnique']); // 404 sebelum UPDATE
-    assert.deepEqual(tx.userUpdates, []);
+    assert.equal(db.transactions.length, 0, 'diperiksa di luar transaksi (F-1)');
+    assert.deepEqual(db.lockedUserIds, [], 'tidak ada baris users yang dikunci');
     assertOnlyIsActiveChanged();
   }
   assertCleanTx();
@@ -158,7 +161,8 @@ test('Owner menonaktifkan Owner lain (masih ada Owner aktif): 200; Owner aktif d
   const { status, json } = await setActive(4, false);
   assert.deepEqual([status, json.data.role, json.data.is_active], [200, 'owner', false]);
   const [tx] = db.transactions;
-  assert.deepEqual(tx.ops, ['lock:store_settings', 'user.findUnique', 'user.findUnique', 'user.findMany', 'user.updateMany', 'user.findUnique']);
+  assert.deepEqual(tx.ops, [...LOCKS, 'user.findUnique', 'user.findUnique', 'user.findMany', 'user.updateMany', 'user.findUnique']);
+  assert.deepEqual(db.lockedUserIds, ['4'], 'hanya baris target yang dikunci, bukan pelaku');
   assert.deepEqual(activeOwners(), ['3']);
   assertOnlyIsActiveChanged({ 4: false });
   const next = await call('/admin/staff', { method: 'GET', token: tokenFor('4') });
@@ -197,7 +201,7 @@ test('idempoten: status sudah sesuai tujuan → 200 dari baris yang dibaca setel
     db.reset();
     const { status, json } = await setActive(id, isActive);
     assert.deepEqual([status, json.data.user_id, json.data.is_active], [200, id, isActive], `${id}/${isActive}`);
-    assert.deepEqual(db.transactions[0].ops, ['lock:store_settings', 'user.findUnique', 'user.findUnique']);
+    assert.deepEqual(db.transactions[0].ops, [...LOCKS, 'user.findUnique', 'user.findUnique']);
     assertOnlyIsActiveChanged();
   }
   assertCleanTx();
@@ -207,7 +211,7 @@ test('UPDATE count 0 / baca ulang tidak sesuai / baris hilang → 409 tanpa suks
   db.forceCount = { 'user.updateMany': 0 };
   const zero = await setActive(2, false);
   assert.deepEqual([zero.status, zero.json.message], [409, NOT_UPDATED]);
-  assert.deepEqual(db.transactions[0].ops, FULL_FLOW.slice(0, 4));
+  assert.deepEqual(db.transactions[0].ops, FULL_FLOW.slice(0, 5));
   assertOnlyIsActiveChanged();
 
   let readbacks;
@@ -255,7 +259,7 @@ test('Skenario A: Owner A & Owner B saling menonaktifkan bersamaan (10 putaran) 
     assert.equal(activeOwners().length, 1, `putaran ${round}: tepat satu Owner aktif`);
     assert.equal(db.lockWaits, 1, `putaran ${round}: request kedua menunggu kunci`);
     const loser = db.transactions.find((t) => !t.committed);
-    assert.deepEqual(loser.ops, ['lock:store_settings', 'user.findUnique']); // berhenti di cek ulang pelaku
+    assert.deepEqual(loser.ops, [...LOCKS, 'user.findUnique']); // berhenti di cek ulang pelaku
     assertCleanTx();
   }
 });
@@ -293,7 +297,7 @@ test('Skenario B: pelaku dinonaktifkan selagi menunggu kunci → cek ulang setel
   assert.equal(byA.status, 200);
   assert.deepEqual([byB.status, byB.json.code], [401, 'SESSION_INVALID']);
   assert.equal(userOf(2).isActive, true); // permintaan B tidak berefek
-  assert.deepEqual(db.transactions.find((t) => !t.committed).ops, ['lock:store_settings', 'user.findUnique']);
+  assert.deepEqual(db.transactions.find((t) => !t.committed).ops, [...LOCKS, 'user.findUnique']);
   assertCleanTx();
 });
 

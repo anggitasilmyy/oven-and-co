@@ -645,10 +645,12 @@ Catatan khusus:
     37 endpoint identik dengan `2532a10`.
   **6.4.10 AD-11 Pengaturan (FR-36 · UC-30 · A-11 · BR-022 · BR-02 · BR-05 · BR-12 · TF-10) — bertahap per checkpoint:**
   **C1 selesai** (commit `ba72b83`: aturan, validator, GET); **C2 selesai** (commit `628d04f`: PUT profil, PUT jam
-  operasional, PATCH metode bayar); **C3 akun staf selesai, menunggu review** (belum di-commit: C3a GET, C3b POST, C3c
-  PATCH aktif/nonaktif — butir C3 di bawah). Berikutnya C4 perbaikan checkout terpisah (T1 pengaturan
+  operasional, PATCH metode bayar); **C3 akun staf selesai** (commit `10f4bb5`: C3a GET, C3b POST, C3c PATCH
+  aktif/nonaktif — butir C3 di bawah). Berikutnya C4 perbaikan checkout terpisah (T1 pengaturan
   basi saat checkout → 409 + rollback; T2 ganti metode bayar memastikan metode masih aktif di dalam transaksi), kemudian
-  integrasi MySQL 8 untuk C2–C4 sekaligus.
+  integrasi MySQL 8 untuk C2–C4 sekaligus. **Integrasi MySQL 8 — Validasi AD-11 (C3), dengan smoke test C2: selesai,
+  menunggu commit** (butir di bawah; termasuk perbaikan F-1 & F-2). **T1/T2 belum dikerjakan**; integrasi MySQL penuh
+  untuk C2 & C4 belum dilakukan (C2 baru smoke test).
   - Endpoint — **hanya Owner** (SPEC §2: pengaturan toko & akun staf hak Owner; Staf & pelanggan 403, tamu 401). Kontrak =
     client `services/settingsService.js` / mock `settingsAdmin.js`: `GET /api/admin/settings` → `{profile, hours,
     paymentMethods}`; `PUT /api/admin/settings` (6 field profil) → profil; `PUT /api/admin/settings/operating-hours
@@ -720,7 +722,7 @@ Catatan khusus:
     (dibaca ulang dari DB) walau normalisasi server memakai teks. MySQL 8 (kunci sungguhan, DECIMAL/TIME) diuji setelah
     C2–C4 selesai.
   - **C3 Akun staf (FR-36 · FR-26 · UC-30; UI/UX AD-11 "menambah atau menonaktifkan akun staf"; PRD "staff accounts with
-    roles (Owner, Staf)") — selesai, menunggu review.** Endpoint **hanya Owner aktif** (tamu 401, Staf & pelanggan 403,
+    roles (Owner, Staf)") — selesai (commit `10f4bb5`).** Endpoint **hanya Owner aktif** (tamu 401, Staf & pelanggan 403,
     Owner nonaktif 401 `SESSION_INVALID`); kontrak = client `settingsService.js` getAdminAccounts / addAdminAccount /
     setAdminAccountStatus (mock `settingsAdmin.js`). Akun = `{user_id (string), name, email, phone, role, is_active,
     created_at}` (`toAdminAccount`). File: `services/adminStaff.service.js` (GET, POST), `adminStaffStatus.service.js`
@@ -783,7 +785,8 @@ Catatan khusus:
       serialisasi lewat antrian kunci tiruan, rollback). **Belum terbukti — MySQL 8 (tahap C4):** kunci baris InnoDB &
       read view setelah `BEGIN` Prisma, tidak adanya deadlock nyata dengan checkout & AD-04, bentuk `meta.target` P2002
       di Prisma 6.19.3 + MySQL, collation `_ci` email, timeout transaksi Prisma (default maxWait 2 s / timeout 5 s) saat
-      antre di belakang checkout.
+      antre di belakang checkout. → Kini dibuktikan di butir "Integrasi MySQL 8 — Validasi AD-11 (C3)" di bawah (dua
+      temuan nyata F-1 & F-2 diperbaiki).
     · Catatan & temuan terbuka: (1) Step 6.6 — `PengaturanPage` membaca `user.user_id`, sesi API memakai `userId`, jadi
       label "Akun Anda" tidak muncul di mode API (server tetap menolak 400); `AdminAccountFormModal` mengecek email/HP ganda
       hanya terhadap akun admin (server memeriksa semua pengguna); `apiClient` belum meneruskan `fieldErrors`. (2) Regex HP
@@ -792,6 +795,51 @@ Catatan khusus:
       dilakukan). (3) Pesan "Email sudah terdaftar" memungkinkan Owner mengetahui email pelanggan terdaftar (Owner memang
       melihat email pelanggan di AD-10). (4) Error 500 Prisma dicatat `errorHandler`; argumen create tidak memuat kata sandi
       asli (hanya hash). (5) Audit log aksi admin (FR-37, Could) tetap Step 6.5.
+  - **Integrasi MySQL 8 — Validasi AD-11 (C3), dengan smoke test C2 — selesai, menunggu commit.** Harness terpisah dari
+    unit test: `server/tests-mysql/` (`npm run test:mysql` → `run.sh`: container MySQL 8 sementara di tmpfs, port lokal
+    33306, database `ovenco_c4_test`, akun aplikasi `c4app` hanya pada database uji; guard menolak port 3306 / nama
+    database tanpa `_test`; container dihapus di akhir; log & hasil di `/tmp/c4`, tidak di repo). Hasil akhir (container
+    baru, MySQL 8.0.46, Prisma 6.19.3): **42/42 skenario lulus** (35 skenario C3/C2/timeout/sesi + 7 skenario I1–I7),
+    **`lock_deadlocks` = 0**, unit test server **588/588**. Schema, migrasi, dan frontend tidak berubah.
+    · Terbukti di MySQL nyata: read view REPEATABLE READ dibuat pada SELECT biasa pertama (bukan BEGIN / FOR UPDATE);
+      invariant minimal satu Owner aktif dengan 2/3/4 Owner saling menonaktifkan (30 putaran, selalu tepat 1 tersisa);
+      P2002 `meta.target` = string nama indeks (`users_email_key`, `users_phone_key`, `users_google_id_key`), sesuai
+      asumsi C3b; POST bersamaan 2/5/10 → tepat satu 201; collation `utf8mb4_unicode_ci` (PAD SPACE) menyamakan huruf
+      besar/kecil, `ß`=`ss`, `é`=`e` (cek awal JS meloloskan, UNIQUE + P2002 tetap → 400). Smoke C2: PUT profil
+      menunggu kunci, DECIMAL/TIME tersimpan tepat, dua metode online terakhir → [200, 409].
+    · **F-1 (deadlock tiga arah, diperbaiki):** urutan lama PATCH (store_settings X → UPDATE baris admin) membentuk siklus
+      dengan AD-04 Selesai (S baris admin lewat FK `changed_by` → S baris pelanggan lewat FK poin) dan checkout (baris
+      pelanggan X → store_settings X). Urutan baru `adminStaffStatus.service.js`: validasi target di luar transaksi
+      (pelanggan / tidak ada → 404 tanpa kunci) → kunci baris target → kunci store_settings → cek ulang pelaku →
+      invariant → UPDATE bersyarat → baca ulang. Siklus deterministik D2b & beban campuran D3 (3 × 50 putaran) → 0
+      deadlock; `performance_schema.data_locks` membuktikan baris pelanggan tidak pernah dikunci.
+    · **Deadlock checkout × pembatalan pelanggan yang sama (diperbaiki):** pembatalan memegang `daily_stocks` lalu
+      menunggu kunci S baris pelanggan (INSERT riwayat/poin) sementara checkout memegang baris pelanggan lalu menunggu
+      `daily_stocks` (terbukti 6/6). `cancelMyOrder` kini menulis refund poin & riwayat SEBELUM mengembalikan stok &
+      voucher (isi & atomicity tetap). I6: 20/20 tanpa deadlock, data stok/kuota/klaim/pesanan/riwayat konsisten.
+    · **F-2 (timeout transaksi Prisma, diperbaiki):** `timeout` Prisma tidak menghentikan pernyataan yang menunggu kunci;
+      setelah P2028 dengan pernyataan masih berjalan, koneksi pool rusak (401 `SESSION_INVALID` palsu, P1017, panic
+      engine, atau respons bergeser permanen). Perbaikan di `server/src/lib/`:
+      `transactionLockWait.js` — setiap transaksi interaktif memasang `innodb_lock_wait_timeout` 2 s (1205 sebelum
+      timeout Prisma) lalu memulihkan nilai sesi asli saat commit, rollback, dan error (global MySQL tidak diubah);
+      `prismaClients.js` + `prisma.js` — dua client: utama `connection_limit` 5 (query biasa & auth) dan transaksi 4
+      (`timeout` 15 s, `maxWait` 2 s; opsi per panggilan seperti `runInReadSnapshot` 10 s tetap berlaku), semua
+      `prisma.$transaction` dialihkan tanpa mengubah 33 titik transaksi; `$disconnect` menutup kedua pool (SIGTERM/SIGINT
+      di `server.js`); `transactionProbe.js` — `SELECT <nonce>, CONNECTION_ID()` sebagai pernyataan pertama, mismatch →
+      tepat satu `SELECT` read-only tambahan (memicu Prisma membuang koneksi rusak) → retry maks. 2 kali sebelum callback
+      bisnis; error bisnis tidak di-retry, callback tidak pernah dijalankan dua kali. Terbukti: I3 20/20 (koneksi rusak
+      hilang dari PROCESSLIST, retry di CONNECTION_ID lain, 4 transaksi berikutnya benar, tanpa panic/P1017, koneksi sehat
+      tidak terganggu); 7 lock wait berturut-turut commit (13,6 s), 8 → P2028 dengan rollback bersih lalu pulih; checkout
+      10 produk yang terkena P2028 → 500 tanpa perubahan stok/pesanan, checkout berikutnya 201; auth tetap cepat saat
+      pool transaksi penuh.
+    · **Keterbatasan:** (1) pemulihan koneksi bergantung pada perilaku internal **Prisma 6.19.3** yang tidak
+      terdokumentasi (pernyataan tambahan setelah mismatch membuat Prisma membuang koneksi; probe satu kolom terbukti
+      gagal) — versi dipin persis; **setiap upgrade Prisma wajib mengulang I3–I5** (`tests-mysql/08`); (2) lebih dari 7
+      lock wait berturut-turut dalam satu transaksi tetap P2028 (500), kini pulih bersih; (3) lock wait > 2 s kini 500,
+      bukan sukses lambat (pemetaan error tidak diubah); (4) setelah P2028 nilai sesi 2 s bisa tertinggal di koneksi pool
+      transaksi sampai transaksi berikutnya memulihkannya (query biasa tidak terdampak — pool terpisah); (5)
+      `connection_limit` di `DATABASE_URL` ditimpa 5/4; (6) shutdown tanpa batas waktu paksa; (7) endpoint snapshot
+      AD-02/AD-08/AD-09/AD-10 belum diuji di MySQL pada tahap ini (kode tidak berubah; hanya wrapper transaksi).
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.
