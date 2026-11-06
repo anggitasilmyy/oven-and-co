@@ -50,6 +50,7 @@ const { default: otherTabCart } = await import('../../src/stores/useCartStore.js
 const { isCommittedForOtherSessionError } = await import('../../src/utils/apiErrors.js');
 const {
   CLIENT_ERROR_CODE, SESSION_CHANGED_MESSAGE, SESSION_CHANGED_COMMITTED_MESSAGE, API_ERROR_CODE,
+  CLIENT_REQUEST_ERROR_CODE,
 } = await import('../../src/constants/apiErrors.js');
 const { AUTH_PERSIST_KEY } = await import('../../src/constants/auth.js');
 
@@ -169,7 +170,8 @@ test('M1: respons GAGAL tetap kegagalan — pengguna sama → error server; akun
 test('M1: hasil tidak diketahui (jaringan putus / 401 token lama) → tidak pernah dikirim ulang otomatis', async () => {
   signIn(customer(1), 'jwt-A');
   scriptFetch([{ networkError: true }]);
-  await assert.rejects(createOrder(orderInput([line(1, 1)])), TypeError);
+  // Step 6.6 (CP1): gangguan jaringan kini error terstruktur (status 0, kode jaringan), bukan TypeError mentah
+  await assert.rejects(createOrder(orderInput([line(1, 1)])), { status: 0, code: CLIENT_REQUEST_ERROR_CODE.NETWORK_ERROR });
   assert.equal(calls.length, 1);
 
   // 401 untuk token lama setelah masuk lagi: mutasi belum tersimpan, tetap tidak diulang dengan token baru

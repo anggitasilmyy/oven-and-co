@@ -33,6 +33,25 @@ export const CLIENT_ERROR_CODE = {
   SESSION_CHANGED_COMMITTED: 'CLIENT_SESSION_CHANGED_COMMITTED',
 };
 
+/**
+ * Step 6.6 (CP1) · kegagalan request yang BUKAN urusan sesi. Sengaja objek terpisah dari CLIENT_ERROR_CODE:
+ * isSessionError() memakai seluruh nilai CLIENT_ERROR_CODE untuk membuang data milik sesi lama, sedangkan
+ * gangguan jaringan tidak boleh membuang data yang sedang tampil.
+ */
+export const CLIENT_REQUEST_ERROR_CODE = {
+  /** Tidak ada respons HTTP sama sekali (server mati, koneksi ditolak, CORS, jaringan putus) — status 0 */
+  NETWORK_ERROR: 'CLIENT_NETWORK_ERROR',
+  /** Ada respons HTTP, tetapi isinya bukan JSON yang bisa dibaca (mis. halaman HTML proxy 502) — status HTTP asli */
+  INVALID_RESPONSE: 'CLIENT_INVALID_RESPONSE',
+};
+
+/** Status error untuk kegagalan tanpa respons HTTP (sama dengan konvensi XMLHttpRequest.status) */
+export const NETWORK_ERROR_STATUS = 0;
+
+export const NETWORK_ERROR_MESSAGE = 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda dan coba kembali.';
+
+export const INVALID_RESPONSE_MESSAGE = 'Respons server tidak dapat dibaca. Silakan coba kembali.';
+
 /** Pesan untuk CLIENT_ERROR_CODE.SESSION_CHANGED_COMMITTED — tanpa detail transaksi akun sebelumnya */
 export const SESSION_CHANGED_COMMITTED_MESSAGE =
   'Akun berganti saat permintaan diproses. Permintaan sudah diproses untuk akun sebelumnya dan tidak ditampilkan di akun ini.';

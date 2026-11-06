@@ -1,7 +1,7 @@
 // utils/apiErrors.js
 // Step 6.3 · FR-26 · BR-04 — klasifikasi error REST API (fungsi murni, dipakai services/apiClient & service lain).
 
-import { API_ERROR_CODE, CLIENT_ERROR_CODE, HTTP_METHOD } from '../constants/apiErrors';
+import { API_ERROR_CODE, CLIENT_ERROR_CODE, CLIENT_REQUEST_ERROR_CODE, HTTP_METHOD } from '../constants/apiErrors';
 
 /**
  * true bila sesi lokal harus dihapus: hanya 401 ber-kode SESSION_INVALID untuk request yang memang membawa token.
@@ -11,12 +11,34 @@ export function isSessionInvalidResponse(status, body, hadToken) {
   return Boolean(hadToken) && status === 401 && body?.code === API_ERROR_CODE.SESSION_INVALID;
 }
 
-/** Error HTTP terstruktur (dipakai apiClient untuk respons server maupun kegagalan sesi buatan frontend) */
-export function createApiError(message, status, code) {
-  const error = new Error(message);
+/** fieldErrors sah = objek biasa { field: pesan } (bentuk server errorHandler & mock) */
+const isFieldErrorMap = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Error HTTP terstruktur (dipakai apiClient untuk respons server maupun kegagalan sesi/jaringan buatan frontend).
+ * Step 6.6 (CP1): `fieldErrors` (error validasi per field, kunci sama dengan mock) dan `cause` (error asli, untuk
+ * logging internal — tidak pernah ditampilkan) ikut disimpan bila ada.
+ * @param {string} message
+ * @param {number} status — status HTTP; 0 = tanpa respons HTTP (jaringan)
+ * @param {string} [code] — kode aplikasi server (API_ERROR_CODE) atau kode frontend
+ * @param {{fieldErrors?: object, cause?: unknown}} [extra]
+ */
+export function createApiError(message, status, code, { fieldErrors, cause } = {}) {
+  const error = new Error(message, cause === undefined ? undefined : { cause });
   error.status = status;
   if (typeof code === 'string') error.code = code;
+  if (isFieldErrorMap(fieldErrors)) error.fieldErrors = fieldErrors;
   return error;
+}
+
+/** Pembatalan request oleh pemanggil (AbortController) — bukan gangguan jaringan */
+export function isAbortError(error) {
+  return error?.name === 'AbortError';
+}
+
+/** Gagal terhubung ke server (tanpa respons HTTP) — dari apiClient mode API */
+export function isNetworkError(error) {
+  return error?.code === CLIENT_REQUEST_ERROR_CODE.NETWORK_ERROR;
 }
 
 // Identitas pengguna kini di utils/sessionIdentity.js (satu sumber); diekspor ulang untuk import lama

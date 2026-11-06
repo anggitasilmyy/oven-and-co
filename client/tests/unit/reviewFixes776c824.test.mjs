@@ -42,7 +42,7 @@ const { default: useCartStore } = await import('../../src/stores/useCartStore.js
 // Tab kedua: instance store terpisah (state memori sendiri), localStorage bersama
 const { default: otherTabCart } = await import('../../src/stores/useCartStore.js?tab=kedua');
 const { toOrderedLines, subtractOrderedItems } = await import('../../src/utils/rules/cart.js');
-const { CLIENT_ERROR_CODE } = await import('../../src/constants/apiErrors.js');
+const { CLIENT_ERROR_CODE, CLIENT_REQUEST_ERROR_CODE } = await import('../../src/constants/apiErrors.js');
 const { AUTH_PERSIST_KEY } = await import('../../src/constants/auth.js');
 
 const customer = (id) => ({ userId: String(id), name: `Pelanggan ${id}`, role: 'customer' });
@@ -173,7 +173,8 @@ test('M-2: request checkout GAGAL / jaringan putus → keranjang tidak berubah',
   scriptFetch([{ status: 409, body: { message: 'Stok habis' } }]);
   await assert.rejects(createOrder(orderInput(snapshot)), { status: 409 });
   scriptFetch([{ networkError: true }]);
-  await assert.rejects(createOrder(orderInput(snapshot)), TypeError);
+  // Step 6.6 (CP1): gangguan jaringan kini error terstruktur (status 0, kode jaringan), bukan TypeError mentah
+  await assert.rejects(createOrder(orderInput(snapshot)), { status: 0, code: CLIENT_REQUEST_ERROR_CODE.NETWORK_ERROR });
   // Akun lain aktif + respons gagal → tidak ada rekonsiliasi
   scriptFetch([{ before: () => otherTabWrites(customer(2), 'jwt-B'), status: 409, body: { message: 'Stok habis' } }]);
   await assert.rejects(createOrder(orderInput(snapshot)), { code: CLIENT_ERROR_CODE.SESSION_CHANGED });

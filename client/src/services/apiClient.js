@@ -3,10 +3,14 @@
 // Memilih antara mock handler atau fetch REST API berdasarkan VITE_USE_MOCK
 // Step 6.3: body FormData (unggah foto). Token request HANYA dari useAuthStore (satu sumber); identitas request
 // dijaga services/sessionRecovery.js (sinkron antar-tab, 401 kedaluwarsa, respons dari identitas lama dibuang).
+// Step 6.6 (CP1) · G3 & G4: `fieldErrors` dari server diteruskan; gagal jaringan / respons tak terbaca menjadi error
+// berpesan Indonesia dengan kode CLIENT_REQUEST_ERROR_CODE (lihat constants/apiErrors).
 
 import { prepareRequestSession, settleResponse, runMockRequest, sessionError } from './sessionRecovery';
-import { createApiError } from '../utils/apiErrors';
-import { CLIENT_ERROR_CODE } from '../constants/apiErrors';
+import {
+  CLIENT_ERROR_CODE, CLIENT_REQUEST_ERROR_CODE, NETWORK_ERROR_STATUS, NETWORK_ERROR_MESSAGE, INVALID_RESPONSE_MESSAGE,
+} from '../constants/apiErrors';
+import { createApiError, isAbortError } from '../utils/apiErrors';
 import { resolveUploadUrl } from '../utils/uploadUrl';
 
 // `?? {}`: import.meta.env hanya ada di Vite; fallback agar modul bisa diuji di Node (tests/unit)
@@ -20,20 +24,57 @@ export function toUploadUrl(path) {
   return resolveUploadUrl(path, API_BASE);
 }
 
+/** Step 6.6 (CP1): penyebab asli tetap tercatat di console saat development (tidak pernah ditampilkan ke pengguna) */
+function logRequestFailure(kind, method, path, cause) {
+  if (ENV.DEV) console.error(`[apiClient] ${kind}: ${method} ${path}`, cause);
+}
+
+/**
+ * Kirim satu request. Hasil `{ res, json, unreadable }`:
+ * - fetch gagal tanpa respons HTTP (server mati, koneksi ditolak, CORS, jaringan putus) → error jaringan status 0
+ *   (CLIENT_NETWORK_ERROR) dengan pesan Indonesia; error asli disimpan di `cause`.
+ * - AbortError (request dibatalkan pemanggil) diteruskan apa adanya — bukan gangguan jaringan.
+ * - body tidak bisa dibaca sebagai JSON → json `{}` + `unreadable: true` (diputuskan apiClient setelah aturan sesi).
+ */
 async function send(path, { method, body, token }) {
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    // FormData: browser menentukan Content-Type + boundary multipart sendiri
-    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      // FormData: browser menentukan Content-Type + boundary multipart sendiri
+      body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
+    });
+  } catch (cause) {
+    if (isAbortError(cause)) throw cause;
+    logRequestFailure('network error', method, path, cause);
+    throw createApiError(NETWORK_ERROR_MESSAGE, NETWORK_ERROR_STATUS, CLIENT_REQUEST_ERROR_CODE.NETWORK_ERROR, { cause });
+  }
 
-  const json = await res.json().catch(() => ({}));
-  return { res, json };
+  try {
+    const json = await res.json();
+    // JSON sah tetapi bukan objek (mis. null/angka) diperlakukan sama dengan body yang tidak bisa dibaca
+    if (json !== null && typeof json === 'object') return { res, json, unreadable: false };
+    logRequestFailure(`respons bukan objek JSON (HTTP ${res.status})`, method, path, json);
+  } catch (cause) {
+    if (isAbortError(cause)) throw cause;
+    logRequestFailure(`respons tidak bisa dibaca (HTTP ${res.status})`, method, path, cause);
+  }
+  return { res, json: {}, unreadable: true };
+}
+
+/** Respons HTTP gagal → error terstruktur dengan pesan, status, kode aplikasi, dan fieldErrors dari server */
+function toResponseError(res, json, unreadable) {
+  if (unreadable) {
+    return createApiError(INVALID_RESPONSE_MESSAGE, res.status, CLIENT_REQUEST_ERROR_CODE.INVALID_RESPONSE);
+  }
+  // Kode HTTP & kode aplikasi (constants/apiErrors) disertakan agar service bisa membedakan
+  // "tidak ditemukan" (404 / 400 INVALID_ID) dari gangguan lain; fieldErrors untuk error per field form
+  return createApiError(json.message ?? `HTTP ${res.status}`, res.status, json.code, { fieldErrors: json.fieldErrors });
 }
 
 /**
@@ -73,7 +114,7 @@ export async function apiClient(
   const snapshot = prepareRequestSession(method);
   const first = await send(path, { method, body, token: snapshot.token });
 
-  const { res, json, committedFor } = await settleResponse(first, snapshot, {
+  const { res, json, unreadable, committedFor } = await settleResponse(first, snapshot, {
     method,
     guestFallback,
     resend: (token) => send(path, { method, body, token }),
@@ -88,11 +129,9 @@ export async function apiClient(
     throw sessionError(CLIENT_ERROR_CODE.SESSION_CHANGED_COMMITTED);
   }
 
-  if (!res.ok) {
-    // Kode HTTP & kode aplikasi (constants/apiErrors) disertakan agar service bisa membedakan
-    // "tidak ditemukan" (404 / 400 INVALID_ID) dari gangguan lain
-    throw createApiError(json.message ?? `HTTP ${res.status}`, res.status, json.code);
-  }
+  if (!res.ok) throw toResponseError(res, json, unreadable);
+  // 2xx tanpa body JSON yang bisa dibaca: tidak dianggap sukses kosong (data tidak boleh diam-diam hilang)
+  if (unreadable) throw toResponseError(res, json, true);
   return json.data ?? json;
 }
 
