@@ -90,6 +90,16 @@ const FULFILLMENT_TYPE = Object.freeze({
 const PAYMENT_GROUP = Object.freeze({ QRIS: 'qris', EWALLET: 'ewallet', VA: 'va', STORE: 'store' });
 const PAY_AT_STORE_METHOD = 'pay_at_store';
 
+// Step 6.5 C4 · FR-14 · NFR-05 — hasil fungsi internal pemrosesan notifikasi payment gateway (paymentGateway.service.js).
+// Bukan kode HTTP: pemanggil (simulatePaid) menerjemahkannya ke kontrak rute.
+const GATEWAY_PAYMENT_REASON = Object.freeze({
+  NOT_PENDING: 'NOT_PENDING', // pesanan/pembayaran tidak lagi menunggu (lunas, dibatalkan, Bayar di Toko, …)
+  EXPIRED: 'EXPIRED', // expired_at < now (BR-06) — notifikasi terlambat ditolak
+  INVALID_NOTIFICATION: 'INVALID_NOTIFICATION', // gateway_ref / nominal / metode tidak cocok dengan data pembayaran
+});
+// Kelompok metode yang dibayar lewat payment gateway (Bayar di Toko tidak)
+const GATEWAY_PAYMENT_GROUPS = Object.freeze([PAYMENT_GROUP.QRIS, PAYMENT_GROUP.EWALLET, PAYMENT_GROUP.VA]);
+
 // Simulasi payment gateway (SPEC §10): prefiks payments.payment_code per kelompok (client PAYMENT_CODE_PREFIX)
 const PAYMENT_CODE_PREFIX = Object.freeze({
   [PAYMENT_GROUP.QRIS]: 'QRIS-SIM-',
@@ -141,6 +151,111 @@ const POINT_TX_TYPE = Object.freeze({
   REDEEM: 'redeem',
   REVIEW_BONUS: 'review_bonus',
   REFUND: 'refund',
+});
+
+// FR-18 · BR-007 · SPEC §4 — notifications.type (client constants/notification.js NOTIFICATION_TYPE)
+const NOTIFICATION_TYPE = Object.freeze({
+  ORDER_STATUS: 'order_status',
+  PROMO: 'promo',
+  POINTS: 'points',
+});
+
+// Judul & isi notifikasi perubahan status — SAMA PERSIS dengan client constants/notification.js ORDER_STATUS_NOTIFICATION.
+// `{order}` diganti nomor pesanan; Siap Diambil menambahkan kode pickup, Dibatalkan menambahkan alasan.
+const ORDER_STATUS_NOTIFICATION = Object.freeze({
+  [ORDER_STATUS.MENUNGGU_PEMBAYARAN]: Object.freeze({
+    title: 'Pesanan dibuat',
+    body: 'Pesanan {order} menunggu pembayaran. Selesaikan pembayaran sebelum batas waktu.',
+  }),
+  [ORDER_STATUS.DIKONFIRMASI]: Object.freeze({
+    title: 'Pesanan dikonfirmasi',
+    body: 'Pesanan {order} sudah kami terima dan akan segera diproses.',
+  }),
+  [ORDER_STATUS.SEDANG_DISIAPKAN]: Object.freeze({
+    title: 'Pesanan sedang disiapkan',
+    body: 'Pesanan {order} sedang disiapkan oleh tim dapur Oven & Co.',
+  }),
+  [ORDER_STATUS.SIAP_DIAMBIL]: Object.freeze({
+    title: 'Pesanan siap diambil',
+    body: 'Pesanan {order} siap diambil di toko. Tunjukkan kode pickup saat mengambil.',
+  }),
+  [ORDER_STATUS.DALAM_PENGIRIMAN]: Object.freeze({
+    title: 'Pesanan dalam pengiriman',
+    body: 'Pesanan {order} sedang diantar kurir ke alamatmu.',
+  }),
+  [ORDER_STATUS.SELESAI]: Object.freeze({
+    title: 'Pesanan selesai',
+    body: 'Pesanan {order} selesai. Terima kasih! Beri ulasan untuk mendapatkan bonus poin.',
+  }),
+  [ORDER_STATUS.DIBATALKAN]: Object.freeze({
+    title: 'Pesanan dibatalkan',
+    body: 'Pesanan {order} dibatalkan.',
+  }),
+});
+
+// Batas kolom notifications.title / body (SPEC §8)
+const NOTIFICATION_TITLE_MAX = 100;
+const NOTIFICATION_BODY_MAX = 255;
+
+// Alasan notifikasi poin (client mock: adminOrderWrites / reviewWrites / orderCancellation buildPointsNotification)
+const POINTS_NOTIFICATION_REASON = Object.freeze({
+  EARN: (orderNumber) => `pesanan ${orderNumber}`,
+  REVIEW_BONUS: (orderNumber) => `ulasan pesanan ${orderNumber}`,
+  REFUND: (orderNumber) => `pembatalan pesanan ${orderNumber}`,
+});
+
+// TF-14 (penyedia email belum ditentukan) · SPEC §10: salinan email notifikasi hanya dicetak ke console server,
+// sama seperti OTP ([DEV OTP] di auth.service).
+const NOTIFICATION_EMAIL_LOG_PREFIX = '[DEV EMAIL]';
+
+// FR-38 · BR-06 — pembatalan otomatis pembayaran online (Step 6.5 C2). Alasan = client constants/checkout.js
+// PAYMENT_TIMEOUT_CANCEL_REASON & seed. "30 menit" sesuai SPEC BR-06; payment_timeout_minutes tidak bisa diubah lewat
+// AD-11 (validator membuangnya), jadi teks ini tetap benar.
+const PAYMENT_TIMEOUT_CANCEL_REASON = 'Tidak dibayar dalam 30 menit (BR-06)';
+// Status baris payments saat batas bayar lewat (mock orderCancellation.js & seed: 'expired'); orders.payment_status tetap unpaid
+const AUTO_CANCEL_PAYMENT_STATUS = PAYMENT_TRANSACTION_STATUS.EXPIRED;
+
+// FR-38 · BR-07 — pembatalan otomatis Bayar di Toko yang tidak diambil sampai jam tutup (Step 6.5 C3). Alasan = teks seed
+// mock client (services/mock/seed/orderStateRules.js). Status baris payments sama dengan BR-06 (`expired`, keputusan H2).
+const PICKUP_CLOSE_CANCEL_REASON = 'Tidak diambil sampai jam tutup (BR-07)';
+// Status "belum diambil" yang dibatalkan BR-07 (keputusan D1); Selesai/Dibatalkan tidak pernah
+const PICKUP_AUTO_CANCEL_STATUSES = Object.freeze([
+  ORDER_STATUS.DIKONFIRMASI, ORDER_STATUS.SEDANG_DISIAPKAN, ORDER_STATUS.SIAP_DIAMBIL,
+]);
+
+// Step 6.5 C5 · FR-37 — audit log aktivitas admin (tabel audit_logs; keputusan K2/K3). `entity` = nama tabel yang diubah,
+// `entity_id` = primary key baris itu. Semua ≤ 50 karakter (VARCHAR(50)); tanpa nilai lama/baru & tanpa data sensitif.
+const AUDIT_ACTION = Object.freeze({
+  UPDATE_ORDER_STATUS: 'update_order_status',
+  MARK_ORDER_PAID: 'mark_order_paid',
+  UPDATE_PRODUCT_PRICE: 'update_product_price',
+  UPDATE_VARIANT_PRICE: 'update_variant_price',
+  UPDATE_CUSTOM_OPTION_PRICE: 'update_custom_option_price',
+  UPDATE_DAILY_STOCK_PLAN: 'update_daily_stock_plan',
+  CORRECT_RAW_MATERIAL_STOCK: 'correct_raw_material_stock',
+  RAW_MATERIAL_STOCK_IN: 'raw_material_stock_in',
+});
+const AUDIT_ENTITY = Object.freeze({
+  ORDERS: 'orders',
+  PRODUCTS: 'products',
+  PRODUCT_VARIANTS: 'product_variants',
+  CUSTOM_OPTIONS: 'custom_options',
+  DAILY_STOCKS: 'daily_stocks',
+  RAW_MATERIALS: 'raw_materials',
+});
+// Pesan 401 pelaku tidak ada / nonaktif — sama dengan middleware auth & adminStaffRules ACTOR_INACTIVE
+const AUDIT_ACTOR_INACTIVE_TEXT = 'Akun tidak ditemukan atau tidak aktif.';
+
+// Penjadwal pembatalan otomatis (jobs/autoCancelOrders.js; dipakai bersama BR-07 di C3)
+const AUTO_CANCEL_JOB = Object.freeze({
+  NAME: 'autoCancelOrders',
+  CRON: '* * * * *', // tiap menit
+  BATCH_SIZE: 100, // pesanan per putaran; sisanya diproses putaran berikutnya
+  // Batas eksekusi query kandidat (di luar transaksi) — MAX_EXECUTION_TIME MySQL, termasuk tunggu metadata lock
+  CANDIDATE_QUERY_TIMEOUT_MS: 5000,
+  // Shutdown menunggu putaran berjalan sampai SELESAI (tanpa batas yang memotong transaksi); setelah ini hanya dicatat
+  SHUTDOWN_LOG_AFTER_MS: 10000,
+  ENABLED_ENV: 'AUTO_CANCEL_ENABLED', // "false" → job tidak dijalankan
 });
 
 // BR-09 · TF-11: level member dari poin tahun kalender berjalan (client constants/storeConfig.js MEMBER_LEVEL)
@@ -298,6 +413,8 @@ module.exports = {
   FULFILLMENT_TYPE,
   PAYMENT_GROUP,
   PAY_AT_STORE_METHOD,
+  GATEWAY_PAYMENT_REASON,
+  GATEWAY_PAYMENT_GROUPS,
   PAYMENT_CODE_PREFIX,
   PAYMENT_CODE_DIGITS,
   GATEWAY_REF_PREFIX,
@@ -312,6 +429,20 @@ module.exports = {
   PAYMENT_METHOD_UNAVAILABLE_TEXT,
   ROLES,
   POINT_TX_TYPE,
+  NOTIFICATION_TYPE,
+  ORDER_STATUS_NOTIFICATION,
+  NOTIFICATION_TITLE_MAX,
+  NOTIFICATION_BODY_MAX,
+  POINTS_NOTIFICATION_REASON,
+  NOTIFICATION_EMAIL_LOG_PREFIX,
+  PAYMENT_TIMEOUT_CANCEL_REASON,
+  AUTO_CANCEL_PAYMENT_STATUS,
+  PICKUP_CLOSE_CANCEL_REASON,
+  PICKUP_AUTO_CANCEL_STATUSES,
+  AUTO_CANCEL_JOB,
+  AUDIT_ACTION,
+  AUDIT_ENTITY,
+  AUDIT_ACTOR_INACTIVE_TEXT,
   MEMBER_LEVEL,
   VOUCHER_STATE,
   API_ERROR_CODE,

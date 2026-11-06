@@ -32,7 +32,7 @@ router.post(
   '/',
   asyncHandler(async (req, res) => {
     const input = validateMaterialBody(req.body);
-    res.status(201).json({ status: 'success', data: await adminRawMaterialService.saveRawMaterial(null, input) });
+    res.status(201).json({ status: 'success', data: await adminRawMaterialService.saveRawMaterial(req.user.userId, null, input) });
   })
 );
 
@@ -42,7 +42,7 @@ router.put(
   asyncHandler(async (req, res) => {
     const materialId = validateMaterialId(req.params.id);
     const input = validateMaterialBody(req.body);
-    res.status(200).json({ status: 'success', data: await adminRawMaterialService.saveRawMaterial(materialId, input) });
+    res.status(200).json({ status: 'success', data: await adminRawMaterialService.saveRawMaterial(req.user.userId, materialId, input) });
   })
 );
 
@@ -52,7 +52,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const materialId = validateMaterialId(req.params.id);
     const { qty } = validateStockInBody(req.body);
-    res.status(200).json({ status: 'success', data: await adminRawMaterialService.recordStockIn(materialId, qty) });
+    res.status(200).json({ status: 'success', data: await adminRawMaterialService.recordStockIn(req.user.userId, materialId, qty) });
   })
 );
 

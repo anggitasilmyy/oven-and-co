@@ -55,7 +55,7 @@ router.post(
   productPhotoUpload,
   asyncHandler(async (req, res) => {
     const { input, photos } = readProductRequest(req);
-    res.status(201).json({ status: 'success', data: await saveProduct(null, input, photos) });
+    res.status(201).json({ status: 'success', data: await saveProduct(req.user.userId, null, input, photos) });
   })
 );
 
@@ -66,7 +66,7 @@ router.put(
   asyncHandler(async (req, res) => {
     const productId = validateProductId(req.params.id);
     const { input, photos } = readProductRequest(req);
-    res.status(200).json({ status: 'success', data: await saveProduct(productId, input, photos) });
+    res.status(200).json({ status: 'success', data: await saveProduct(req.user.userId, productId, input, photos) });
   })
 );
 

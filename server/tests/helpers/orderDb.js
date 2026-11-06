@@ -23,11 +23,11 @@ function baseTables(today, plusDays) {
 
   return {
     users: {
-      1: { userId: 1n, role: 'customer', isActive: true, name: 'Anisa Pelanggan' },
-      2: { userId: 2n, role: 'customer', isActive: true, name: 'Budi' },
-      3: { userId: 3n, role: 'staf', isActive: true },
-      4: { userId: 4n, role: 'owner', isActive: true },
-      5: { userId: 5n, role: 'customer', isActive: false },
+      1: { userId: 1n, role: 'customer', isActive: true, name: 'Anisa Pelanggan', email: 'anisa@example.com' },
+      2: { userId: 2n, role: 'customer', isActive: true, name: 'Budi', email: 'budi@example.com' },
+      3: { userId: 3n, role: 'staf', isActive: true, email: 'staf@example.com' },
+      4: { userId: 4n, role: 'owner', isActive: true, email: 'owner@example.com' },
+      5: { userId: 5n, role: 'customer', isActive: false, email: 'nonaktif@example.com' },
     },
     storeSetting: {
       settingId: 1, storeName: 'Oven & Co.', address: 'Jl. Toko 1', latitude: String(STORE.lat), longitude: String(STORE.lng),
@@ -88,6 +88,7 @@ function baseTables(today, plusDays) {
     orderItems: [],
     payments: [],
     statusHistories: [],
+    notifications: [], // Step 6.5 C1
     reviews: [],
     reviewPhotos: [],
   };
@@ -122,7 +123,7 @@ function installOrderDb(fakePrisma, dates) {
   const state = {
     t: baseTables(dates.today, dates.plusDays), locks: [], raw: [], ops: [], failOn: null, hooks: {}, committedElsewhere: [], reviewsCommittedElsewhere: [],
   };
-  let nextId = { order: 100n, item: 1000n, payment: 500n, history: 700n, point: 900n, review: 300n, photo: 400n };
+  let nextId = { order: 100n, item: 1000n, payment: 500n, history: 700n, point: 900n, review: 300n, photo: 400n, notification: 800n };
   const id = (key) => (nextId[key] += 1n);
   const fail = (op) => {
     if (state.failOn === op) throw Object.assign(new Error('Can\'t reach database server'), { code: 'P1001' });
@@ -158,7 +159,14 @@ function installOrderDb(fakePrisma, dates) {
   };
 
   Object.assign(fakePrisma, {
-    user: { findUnique: async ({ where }) => state.t.users[String(where.userId)] ?? null },
+    user: {
+      findUnique: async ({ where }) => state.t.users[String(where.userId)] ?? null,
+      // Salinan email notifikasi (orderStatusRecorder.logNotificationEmails) — dibaca setelah commit
+      findMany: async ({ where, select }) => {
+        state.ops.push('user.findMany');
+        return Object.values(state.t.users).filter((u) => matchesWhere(u, where)).map((u) => pick(u, select));
+      },
+    },
     storeSetting: { findFirst: async () => state.t.storeSetting },
     paymentMethod: {
       findMany: async ({ where }) => sortBy(state.t.paymentMethods.filter((m) => matchesWhere(m, where)), [{ methodGroup: 'asc' }]),
@@ -269,18 +277,26 @@ function installOrderDb(fakePrisma, dates) {
         state.t.orders.push(row);
         items.create.forEach((item) => state.t.orderItems.push({ orderItemId: id('item'), orderId: row.orderId, ...item }));
         state.t.payments.push({ paymentId: id('payment'), orderId: row.orderId, paidAt: null, ...payments.create });
-        state.t.statusHistories.push({ historyId: id('history'), orderId: row.orderId, note: null, ...statusHistories.create });
+        // Step 6.5 C1: riwayat ditulis lewat orderStatusRecorder (bukan nested create); bentuk lama tetap didukung
+        if (statusHistories) state.t.statusHistories.push({ historyId: id('history'), orderId: row.orderId, note: null, ...statusHistories.create });
         return pick(row, select);
       },
     },
     payment: {
+      // F-C3-1: pembatalan membaca id pembayaran pesanan lalu UPDATE berdasarkan primary key
+      findMany: async ({ where, select }) => {
+        state.ops.push('payment.findMany');
+        return state.t.payments.filter((p) => matchesWhere(p, where)).map((p) => pick(p, select));
+      },
       update: async ({ where, data }) => {
         fail('payment.update');
+        state.ops.push('payment.update'); // C4: urutan pernyataan pelunasan gateway (berdasarkan primary key)
         const row = state.t.payments.find((p) => p.paymentId === where.paymentId);
         Object.assign(row, data);
         return { ...row };
       },
       updateMany: async ({ where, data }) => {
+        state.ops.push('payment.updateMany'); // F-C1-1: urutan pernyataan pembatalan diperiksa uji
         const rows = state.t.payments.filter((p) => matchesWhere(p, where));
         rows.forEach((p) => Object.assign(p, data));
         return { count: rows.length };
@@ -329,14 +345,30 @@ function installOrderDb(fakePrisma, dates) {
     },
     orderStatusHistory: {
       create: async ({ data }) => {
+        fail('orderStatusHistory.create');
+        state.ops.push('orderStatusHistory.create');
         const row = { historyId: id('history'), note: null, ...data };
         state.t.statusHistories.push(row);
+        return row;
+      },
+    },
+    // Step 6.5 C1: notifikasi in-app (tabel notifications)
+    notification: {
+      create: async ({ data }) => {
+        fail('notification.create');
+        state.ops.push('notification.create');
+        const row = { notificationId: id('notification'), orderId: null, isRead: false, ...data };
+        state.t.notifications.push(row);
         return row;
       },
     },
     $queryRaw: async (strings, ...values) => {
       const sql = strings.join('?');
       state.locks.push({ sql, values });
+      if (/FROM users WHERE user_id = \? FOR SHARE/.test(sql)) {
+        state.ops.push('lock:users:S'); // BR-07 langkah 2 (Step 6.5 C3)
+        return [{ user_id: values[0] }];
+      }
       state.ops.push(/FOR UPDATE/.test(sql) ? `lock:${sql.match(/FROM (\w+)/)[1]}` : 'queryRaw');
       // T1: kunci store_settings — Owner yang memegang kunci (menyimpan pengaturan) commit lebih dulu, lalu checkout lanjut
       if (/FROM store_settings/.test(sql) && /FOR UPDATE/.test(sql)) state.hooks.whileWaitingSettingsLock?.();
@@ -355,6 +387,53 @@ function installOrderDb(fakePrisma, dates) {
         return row ? [{ order_id: row.orderId }] : [];
       }
       return [];
+    },
+    // Step 6.5 C2: query kandidat job BR-06 (jobs/autoCancelOrders.js) — dinilai dari tabel, bukan hanya bentuk SQL.
+    // Kait `candidateQuery` (async) dijalankan sebelum hasil dikembalikan: menahan query (shutdown di tengah query) atau
+    // melempar error (mis. ER 3024 MAX_EXECUTION_TIME).
+    $queryRawUnsafe: async (sql, ...values) => {
+      // Step 6.5 C3 · BR-07: snapshot jam operasional (preseleksi) & locking read jam hari tanggal siap (di transaksi)
+      if (/FROM operating_hours/.test(sql)) {
+        const locked = /FOR SHARE$/.test(sql);
+        state.ops.push(locked ? 'lock:operating_hours:S' : 'hoursQuery');
+        if (locked) await state.hooks.whileWaitingHoursLock?.(values[0]);
+        else await state.hooks.hoursQuery?.();
+        const toTime = (d) => (d == null ? null : `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`);
+        return state.t.operatingHours
+          .filter((h) => !locked || h.dayOfWeek === values[0])
+          .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+          .map((h) => ({ day_of_week: h.dayOfWeek, open_time: toTime(h.openTime), close_time: toTime(h.closeTime), is_open: h.isOpen ? 1 : 0 }));
+      }
+      if (/^SELECT \/\*\+ MAX_EXECUTION_TIME\(\d+\) \*\/ DISTINCT/.test(sql) && /o\.ready_date < \?/.test(sql)) {
+        state.ops.push('pickupCandidateQuery');
+        state.pickupCandidateSql = sql;
+        const [option, paymentStatus, s1, s2, s3, paymentRowStatus, before, today, todayPassed, limit] = values;
+        const key = (d) => d.toISOString().slice(0, 10);
+        const rows = state.t.orders
+          .filter((o) => o.paymentOption === option && o.paymentStatus === paymentStatus && [s1, s2, s3].includes(o.orderStatus))
+          .filter((o) => key(o.readyDate) < before || (key(o.readyDate) === today && todayPassed === 1))
+          .filter((o) => state.t.payments.some((p) => p.orderId === o.orderId && p.status === paymentRowStatus))
+          .sort((a, b) => (a.orderId < b.orderId ? -1 : 1))
+          .slice(0, limit)
+          .map((o) => ({ orderId: o.orderId, orderNumber: o.orderNumber, userId: o.userId }));
+        await state.hooks.pickupCandidateQuery?.();
+        return rows;
+      }
+      if (!/^SELECT \/\*\+ MAX_EXECUTION_TIME\(\d+\) \*\/ DISTINCT/.test(sql) || !/p\.expired_at < \?/.test(sql)) {
+        throw new Error(`orderDb: SQL tidak dikenal: ${sql}`);
+      }
+      state.ops.push('candidateQuery');
+      state.candidateSql = sql;
+      const [orderStatus, paymentOption, paymentStatus, paymentRowStatus, now, limit] = values;
+      const rows = state.t.orders
+        .filter((o) => o.orderStatus === orderStatus && o.paymentOption === paymentOption && o.paymentStatus === paymentStatus)
+        .filter((o) => state.t.payments.some((p) => p.orderId === o.orderId && p.status === paymentRowStatus
+          && p.expiredAt.getTime() < now.getTime()))
+        .sort((a, b) => (a.orderId < b.orderId ? -1 : 1))
+        .slice(0, limit)
+        .map((o) => ({ orderId: o.orderId, orderNumber: o.orderNumber, userId: o.userId }));
+      await state.hooks.candidateQuery?.();
+      return rows;
     },
     $executeRaw: async (strings, ...values) => {
       const sql = strings.join('?');

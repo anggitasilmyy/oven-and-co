@@ -73,7 +73,8 @@ test('PUT rencana: ubah baris ada, buat baris yang belum ada; kunci master data 
   assert.deepEqual([stockOf(9).qtyPlanned, stockOf(9).qtySold], [12, 0]);
   assert.deepEqual(res.json.data.rows.map((r) => [r.product_id, r.qty_planned, r.remaining, r.status]), [['1', 25, 20, 'tersedia'], ['2', 0, 0, 'belum_diisi'], ['9', 12, 12, 'tersedia']]);
   const begin = db.ops.lastIndexOf('tx:begin');
-  assert.equal(db.ops[begin + 1], 'lock:store_settings');
+  // Step 6.5 C5 (K5): kunci pelaku audit (users S) lalu kunci master data
+  assert.deepEqual(db.ops.slice(begin + 1, begin + 3), ['lock:users:S', 'lock:store_settings']);
   assert.deepEqual(db.raw.filter((r) => /FOR UPDATE/.test(r.sql) && /daily_stocks/.test(r.sql)).map((r) => String(r.values[0])), ['1', '9']);
 });
 
@@ -139,7 +140,7 @@ test('POST 201 / PUT 200 bahan baku; validasi → fieldErrors (pesan mock); 404 
   assert.deepEqual([res.status, res.json.data], [201, { material_id: '61', name: 'Gula Halus', unit: 'kg', stock: 12.5, min_stock: 3, status: 'aman' }]);
   res = await call('PUT', '/raw-materials/2', { name: 'Butter', unit: 'kg', stock: '6', min_stock: '5', expected_stock: '4.5' });
   assert.deepEqual([res.status, res.json.data.status, material(2).stock], [200, 'aman', '6']);
-  assert.equal(db.ops[db.ops.lastIndexOf('tx:begin') + 1], 'lock:store_settings');
+  assert.deepEqual(db.ops.slice(db.ops.lastIndexOf('tx:begin') + 1, db.ops.lastIndexOf('tx:begin') + 3), ['lock:users:S', 'lock:store_settings']); // C5 (K5)
 
   const before = dump();
   for (const [body, field, message] of [
@@ -170,7 +171,7 @@ test('POST 201 / PUT 200 bahan baku; validasi → fieldErrors (pesan mock); 404 
 test('stok masuk: bertambah tepat (desimal), status ikut berubah; validasi pesan mock; 404; baris dikunci dulu', async () => {
   let res = await call('POST', '/raw-materials/2/stock-in', { qty: '0.6' });
   assert.deepEqual([res.status, res.json.data.stock, res.json.data.status, material(2).stock], [200, 5.1, 'aman', '5.10']);
-  assert.equal(db.ops[db.ops.lastIndexOf('tx:begin') + 1], 'lock:raw_materials');
+  assert.deepEqual(db.ops.slice(db.ops.lastIndexOf('tx:begin') + 1, db.ops.lastIndexOf('tx:begin') + 3), ['lock:users:S', 'lock:raw_materials']); // C5 (K5)
   res = await call('POST', '/raw-materials/3/stock-in', { qty: 30 });
   assert.deepEqual([res.json.data.stock, res.json.data.status], [30, 'menipis']);
 
@@ -197,7 +198,7 @@ test('PUT bahan — edit informasi tidak menulis stok; koreksi wajib expected_st
   let res = await call('PUT', '/raw-materials/2', { name: 'Butter Prancis', unit: 'kg', stock: '4.5', min_stock: '5', expected_stock: '4.50' });
   assert.deepEqual([res.status, res.json.data.name, res.json.data.stock, material(2).stock], [200, 'Butter Prancis', 6.5, '6.50']);
   const ops = db.ops.slice(db.ops.lastIndexOf('tx:begin') + 1);
-  assert.deepEqual(ops.filter((o) => o.startsWith('lock:')), ['lock:store_settings', 'lock:raw_materials']);
+  assert.deepEqual(ops.filter((o) => o.startsWith('lock:')), ['lock:users:S', 'lock:store_settings', 'lock:raw_materials']); // C5 (K5)
   assert.equal(ops.indexOf('lock:raw_materials') < ops.indexOf('rawMaterial.findMany'), true);
   // Edit satuan tanpa field stock sama sekali → stok tetap; validasi memakai stok terkunci
   res = await call('PUT', '/raw-materials/2', { name: 'Butter Prancis', unit: 'gram', min_stock: '5' });

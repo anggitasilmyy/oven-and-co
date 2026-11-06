@@ -904,6 +904,330 @@ Catatan khusus:
       bersamaan dengan checkout di MySQL.
       Catatan: lock wait > 2 s (F-2) tetap 500 — checkout yang menunggu kunci store_settings lebih lama dari itu tidak
       menjadi 409.
+- 6.5 (C1–C5 selesai, di-commit & di-push; branch `feat/step-6.5-payment-notification-jobs` dari `origin/main`
+  `54d5532`, belum di-merge ke `main`):
+  C1 Notification System → C2 Auto-cancel Online Payment (BR-06) → C3 Auto-cancel Bayar di Toko (BR-07) → C4 Payment
+  Webhook (fungsi internal, bukan endpoint HTTP) → C5 Audit Log (FR-37). Pengujian & dokumentasi lintas checkpoint.
+  **C1 — Notification System (FR-18 · BR-007 · SPEC §4 · C-24) + perbaikan F-C1-1: selesai, di-commit & di-push
+  `a0c3c17`.**
+  - Aturan: setiap perubahan status = tepat 1 baris `order_status_histories` + 1 notifikasi `order_status` untuk PEMILIK
+    pesanan; transaksi poin `earn` (Selesai), `review_bonus`, `refund` (batal) = 1 notifikasi `points`; `redeem` tidak
+    dinotifikasi (sama dengan mock). Teks, tanda (+/−), format angka, dan pemotongan 100/255 karakter = client
+    `constants/notification.js` & `utils/rules/notification.js`. Notifikasi promo tidak dibuat (tidak ada pemicu di
+    SPEC/mock — keputusan D3).
+  - Transaksi: `recordOrderStatus(tx, …)` dan `recordPointsNotice(tx, …)` selalu di transaksi yang sama dengan perubahan
+    bisnisnya; hanya `logNotificationEmails` (salinan email ke console `[DEV EMAIL]`, TF-14 · SPEC §10) yang berjalan
+    setelah commit lewat `emailAfterCommit`. Rollback → tanpa riwayat, notifikasi, maupun email. Satu-satunya penulis
+    `order_status_histories` kini `orderStatusRecorder.service.js` (nested create di checkout diganti; jumlah riwayat per
+    transisi tidak berubah).
+  - Urutan kunci: INSERT notifikasi ditaruh di kelompok INSERT ber-FK `users` (setelah kunci `orders`, sebelum
+    `daily_stocks` / voucher / kunci S metode). Kunci baru: simulasi lunas & AD-04 status non-Selesai kini mengambil kunci S
+    baris pelanggan (FK notifikasi) setelah `orders` X — pola pembatalan pelanggan Step 6.3; bonus ulasan menambah kunci S
+    baris `orders` di akhir transaksi. Terbukti tanpa deadlock di N5/N6.
+  - **Perbaikan F-C1-1 (deadlock lama sejak Step 6.3, disetujui sebagai bagian C1):** batal pelanggan × checkout pelanggan
+    yang SAMA. Urutan lama `cancelMyOrder`: `orders` X → UPDATE `orders` → `payment.updateMany WHERE order_id` (next-key
+    lock indeks `payments_order_id_fkey`, sampai supremum bila pesanan ini entri terakhir) → INSERT poin/riwayat
+    (FK → `users` S, menunggu checkout) — sementara checkout (`users` X) INSERT `payments` pesanan baru menunggu gap itu →
+    siklus. Urutan baru: `orders` X → INSERT poin refund, riwayat, notifikasi (`users` S) → UPDATE `orders` → UPDATE
+    `payments` → `daily_stocks` → voucher. Satu transaksi; kontrak API & efek pembatalan tidak berubah.
+  - File baru: `server/src/services/notificationRules.service.js` (fungsi murni), `orderStatusRecorder.service.js`;
+    uji `server/tests/notificationRules.test.js`, `orderStatusRecorder.test.js`, `notificationPathsRoute.test.js`,
+    `server/tests-mysql/11-notifications.it.test.js` (N1–N6), `12-cancel-checkout-lock-order.it.test.js` (X1–X2). Diubah:
+    `utils/businessConstants.js` (tipe, teks, alasan poin, prefix email), `orderCreate.service.js`, `payment.service.js`,
+    `orderActions.service.js` (notifikasi + urutan F-C1-1), `adminOrderActions.service.js`, `review.service.js` (select
+    `orderId` untuk tautan notifikasi), helper uji `tests/helpers/orderDb.js` (tabel `notifications`, `user.findMany`, op
+    `payment.updateMany`), `tests/adminOrderActionsRoute.test.js` (+4 uji C1). `notification.service.js` tidak diubah.
+    Tanpa perubahan schema/migrasi, frontend, atau dependensi.
+  - **Terverifikasi:**
+    · `npm test` 638/638 (sebelum C1 609/609; +29 uji; uji batal kini juga memeriksa urutan pernyataan riwayat/notifikasi
+      → `payment.updateMany` → stok — urutan saja, bukan bukti locking). Mutasi: riwayat ganda → 19 uji gagal; email
+      dicetak sebelum commit → 5 uji gagal.
+    · MySQL 8.0.46, `npm run test:mysql` penuh pada container baru: **59/59 lulus, `lock_deadlocks` 0** (01–10 lama tetap
+      lulus; 11 N1–N6; 12 X1–X2).
+    · X1 deterministik × 5 (checkout memegang `users` X lalu INSERT orders + payments selagi batal asli menunggu `users`):
+      0 deadlock; batal tidak memegang kunci `payments` saat menunggu; stok ready kembali tepat, kuota voucher +1, klaim
+      bisa dipakai lagi, poin kembali tepat sekali, tepat 1 riwayat & 1 notifikasi Dibatalkan & 1 notifikasi poin.
+      Kontrol negatif: X1 dijalankan pada urutan LAMA → gagal "Deadlock found when trying to get lock" (kode dikembalikan
+      ke versi perbaikan sesudahnya). Reproduksi awal: 3/3 deadlock pada `54d5532` tanpa C1, 3/3 dengan C1 sebelum
+      perbaikan.
+    · X2 HTTP asli × 20 (checkout + batal pesanan terbaru pelanggan yang sama bersamaan): 20× 201 + 20× 200, 0 deadlock,
+      stok/voucher/poin konsisten.
+    · N6 beban campuran 3 rangkaian × 15 putaran setelah perbaikan: 0 deadlock tiap rangkaian, tanpa 5xx, jumlah riwayat =
+      notifikasi status untuk setiap pesanan (sebelum perbaikan: `cancel 500` pada 2 dari 3 rangkaian).
+    · N1 rollback (riwayat & notifikasi sudah di-INSERT — kunci IX `notifications` terlihat — lalu di-rollback, tanpa
+      email); N2 10× Selesai bersamaan → tepat 1 riwayat/notifikasi status/notifikasi poin/earn; N3 10× simulasi lunas →
+      1; N4 5× batal dengan poin → 1 refund & 1 notifikasi poin; N5 AD-04 menunggu kunci S pelanggan yang dipegang
+      checkout → 0 deadlock.
+  **C2 — Auto-cancel Online Payment (FR-38 · BR-06 · NFR-05): selesai, di-commit & di-push `0be9319`.**
+  - Aturan: kandidat = `menunggu_pembayaran` + `online` + `unpaid` + payment terbaru `pending` + `expired_at < now`
+    (batas ketat = komplemen penolakan pembayaran di `payment.service`). Efek: Dibatalkan + alasan
+    `Tidak dibayar dalam 30 menit (BR-06)` (teks mock & seed; K3: `payment_timeout_minutes` tidak bisa diubah lewat
+    AD-11 — validator membuangnya — dan SPEC BR-06 = 30 menit), `orders.payment_status` tetap `unpaid`, `payments.status`
+    `expired` (K2; batal pelanggan tetap `failed`), stok ready kembali (TF-12), klaim voucher dibuka & kuota +1, refund
+    poin, riwayat `changed_by` NULL (sistem) + catatan alasan, notifikasi status (+ poin) lewat recorder C1, email setelah
+    commit.
+  - Desain: `orderCancellation.service.js` `cancelOrderTx` = efek pembatalan bersama, diekstrak dari `cancelMyOrder`
+    TANPA mengubah urutan/perilaku (pelanggan: `changedBy` pelanggan, `failed`; job: NULL, `expired`). Job
+    `jobs/autoCancelOrders.js`: kandidat dibaca tanpa kunci (batch 100, urut `order_id`), lalu SATU transaksi per
+    pesanan: `lockMyOrder` (FOR UPDATE, pembacaan pertama) → `isOverdueOnlinePayment` diperiksa ULANG → `cancelOrderTx`.
+    Tidak memenuhi (sudah lunas / dibatalkan pelanggan / proses job lain / ganti ke Bayar di Toko) → dilewati tanpa
+    menulis. Error per pesanan dicatat (`describeError`: kode + pesan MySQL) dan pesanan lain tetap diproses; pesanan
+    itu dicoba lagi putaran berikutnya.
+  - Urutan kunci (sama dengan pembatalan pelanggan setelah F-C1-1): `orders` X → INSERT refund poin, riwayat,
+    notifikasi (`users` S) → UPDATE `orders` → UPDATE `payments` → `daily_stocks` X → `user_vouchers` / `vouchers`.
+    Tanpa kunci baru (`changed_by` NULL → tanpa kunci baris admin).
+  - Penjadwal (K1): `node-cron@4.6.0` (versi dipin, tanpa dependensi turunan) — SATU penjadwal `* * * * *` untuk semua
+    pembatalan otomatis; BR-07 (C3) ditambahkan ke `runAutoCancel` yang sama. Putaran pertama saat server start, flag
+    `inFlight` mencegah tumpang tindih dalam satu proses, antarproses dijamin kunci baris + pemeriksaan ulang. Nonaktif
+    bila `NODE_ENV=test` atau `AUTO_CANCEL_ENABLED=false`.
+  - Graceful shutdown (pemeriksaan tambahan sebelum persetujuan): versi awal menunggu putaran maks. 10 s lalu tetap
+    `prisma.$disconnect` dan terus memproses kandidat berikutnya → transaksi job bisa terputus. Kini
+    `stopAutoCancelJob`: hentikan cron → pasang flag `stopping` (tick tidak memulai putaran; `runAutoCancel` berhenti
+    SEBELUM kandidat berikutnya, `summary.stopped`) → tunggu putaran berjalan SAMPAI SELESAI (pesanan yang sedang
+    diproses commit/rollback + email) tanpa timeout pemotong (setelah 10 s hanya peringatan log). Penantian pasti
+    berakhir karena setiap transaksi dibatasi Prisma (timeout 15 s, maxWait 2 s, lock wait 2 s). `server.js` baru
+    memanggil `prisma.$disconnect` setelah itu.
+  - Query kandidat (pemeriksaan tambahan kedua): berada di LUAR transaksi interaktif, jadi timeout transaksi 15 s tidak
+    berlaku — consistent read tidak menunggu row lock, tetapi bisa menunggu metadata lock (LOCK TABLES / DDL pada
+    `orders`, `lock_wait_timeout` bawaan 1 tahun) atau memindai lama. Diganti dari `findMany` ke SELECT ber-parameter
+    dengan optimizer hint `/*+ MAX_EXECUTION_TIME(5000) */` (konstanta `AUTO_CANCEL_JOB.CANDIDATE_QUERY_TIMEOUT_MS`;
+    filter & hasil sama, tetap tanpa kunci). Dibuktikan di MySQL 8.0.46: hint menghentikan tunggu metadata lock (1,58 s
+    untuk batas 1,5 s, ER 3024) dan eksekusi lambat; `SET_VAR(lock_wait_timeout)` hanya menutup tunggu lock, jadi tidak
+    dipakai. Batas ditegakkan server (statement benar-benar berhenti), bukan `Promise.race` JS yang meninggalkan query
+    berjalan. Query gagal/timeout → `summary.queryError` + log `Query kandidat BR-06 gagal … P2010 (MySQL 3024): …`,
+    tanpa transaksi, dicoba lagi putaran berikutnya (`describeError` kini menyertakan `meta.code` MySQL).
+  - File baru: `server/src/jobs/autoCancelOrders.js`, `services/orderCancellation.service.js`,
+    `services/autoCancelRules.service.js`; uji `server/tests/autoCancelRules.test.js`, `autoCancelOrders.test.js`,
+    `server/tests-mysql/13-auto-cancel-online.it.test.js`. Diubah: `server.js`, `orderActions.service.js` (memanggil
+    `cancelOrderTx`), `utils/businessConstants.js` (`PAYMENT_TIMEOUT_CANCEL_REASON`, `AUTO_CANCEL_PAYMENT_STATUS`,
+    `AUTO_CANCEL_JOB`), `payment.service.js` (komentar), `package.json` & `package-lock.json` (`node-cron`),
+    `tests/helpers/orderDb.js` (`order.findMany` menilai `payments: { some }` & `take`). Tanpa perubahan schema/migrasi,
+    frontend, atau kontrak API.
+  - **Terverifikasi:** `npm test` 661/661 (C1 638; +23 uji: batas sebelum/tepat/sesudah `expired_at`, pesanan
+    lunas/dibatalkan/Bayar di Toko dilewati, efek lengkap, idempotensi, pemeriksaan ulang setelah kunci × 4, rollback per
+    pesanan & retry, batch, penjadwal, `describeError`, shutdown: menunggu melewati batas log, tanpa query bila sudah
+    berhenti, shutdown di tengah transaksi commit / rollback → urutan `tx:end` sebelum disconnect & kandidat berikutnya
+    tidak diproses; query kandidat: hint & parameter, gagal/ER 3024 dicatat tanpa transaksi, shutdown saat query berjalan
+    lalu selesai / timeout → disconnect setelah query berhenti & tanpa transaksi kandidat). MySQL 8.0.46 harness penuh
+    01–13 pada container baru: **74/74 lulus, `lock_deadlocks` 0** (`lock_timeouts` 10 = 9 skenario 1205 disengaja G/H/I
+    seperti run C1 + 1 disengaja di M9b). Run sebelumnya: 69/69 (sebelum perbaikan shutdown), 71/71 (sebelum batas query
+    kandidat); run 13 dengan M7 × 30: 10/10, 0 deadlock.
+    · M1 job normal (tepat pada `expired_at` belum dibatalkan; efek lengkap; idempoten). M2 job × simulate-paid dua
+      urutan antre kunci → yang antre pertama menang, yang lain 409 / dilewati (tidak pernah keduanya). M3 job × batal
+      pelanggan dua urutan → satu pembatalan (`expired` vs `failed`), refund sekali. M4 dua PROSES job: antre kunci yang
+      sama → 1 batal + 1 lewati; 10 pesanan bersamaan → masing-masing tepat sekali, stok/kuota/poin tepat. M5 job ×
+      checkout pelanggan yang sama (F-C1-1) × 3 → job menunggu `users` tanpa kunci `payments`, 0 deadlock. M6 rollback
+      (trigger MySQL menolak notifikasi poin satu pesanan) → pesanan itu utuh, pesanan lain dibatalkan, log
+      `MysqlError 1644`, putaran berikutnya berhasil. M7 beban × 15 (2 pelari job + simulasi lunas + batal + checkout):
+      tanpa 5xx, 0 pelanggaran (lunas XOR batal, riwayat = notifikasi, stok = jumlah item pesanan aktif), 0 deadlock.
+      M8 server asli `NODE_ENV=development`: putaran saat start membatalkan pesanan, email tercetak, SIGTERM exit 0.
+      M9a SIGTERM saat job memegang kunci `orders` X & transaksinya berjalan → proses & transaksi tetap hidup setelah
+      SIGTERM, pesanan itu commit utuh, 2 kandidat berikutnya tidak disentuh, exit 0. M9b sama tetapi kunci ditahan > 2 s →
+      rollback 1205 utuh (tanpa email), kandidat berikutnya tidak disentuh, exit 0. Kontrol negatif (kode dikembalikan
+      sesudahnya): tanpa pemeriksaan `stopping` → M9a gagal (kandidat berikutnya diproses); stop tanpa menunggu putaran →
+      M9a gagal (proses keluar saat transaksi job masih terbuka; MySQL me-rollback pesanan itu, hasil job hilang).
+      M10 metadata lock nyata (sesi mysql lain `LOCK TABLES orders WRITE`): M10a query kandidat berhenti 5006 ms (ER 3024)
+      selagi lock masih dipegang, dicatat, tanpa transaksi, putaran berikutnya normal. M10b SIGTERM saat query tertahan →
+      proses & query tetap hidup, query berhenti oleh MAX_EXECUTION_TIME, disconnect & exit 0 (5004 ms setelah SIGTERM,
+      SEBELUM pemegang lock melepas), pesanan tidak berubah. M10c SIGTERM lalu lock dilepas sebelum batas → query selesai,
+      kandidat tidak diproses (`Shutdown diminta — 1 kandidat tersisa`), exit 0. Kontrol negatif: tanpa hint → M10b gagal,
+      shutdown menunggu 11,7 s sampai pemegang lock melepas (di produksi bisa sampai `lock_wait_timeout`).
+  - Keterbatasan: (1) jeda hingga ±1 menit antara `expired_at` dan pembatalan (pembayaran sudah ditolak 409 sejak
+    batas lewat); (2) query kandidat memindai `orders` (tidak ada indeks status/`expired_at` di SPEC §8) — dibatasi
+    5 s per putaran; bila data tumbuh sampai pemindaian > 5 s, setiap putaran gagal ER 3024 (tercatat jelas) dan perlu
+    indeks lewat perubahan skema yang disetujui; (3) teks
+    alasan menyebut 30 menit — bila `payment_timeout_minutes` diubah langsung di database, teks tidak ikut berubah;
+    (4) pesanan contoh seed `menunggu_pembayaran` ikut dibatalkan saat server dev pertama berjalan; (5) shutdown
+    menunggu pesanan yang sedang diproses (maks. ±17 s per batas Prisma) — pengelola proses yang memaksa SIGKILL lebih
+    cepat tetap memutus transaksi itu (MySQL me-rollback utuh); kandidat yang tidak diproses dibatalkan putaran pertama
+    setelah server start lagi; gangguan jaringan pada tingkat soket (koneksi menggantung tanpa balasan server) tidak
+    tertutup MAX_EXECUTION_TIME — perolehan koneksi dari pool dibatasi `pool_timeout` Prisma (bawaan 10 s), tetapi
+    batas soket memerlukan parameter `socket_timeout` pada `DATABASE_URL` (konfigurasi deploy, belum diatur);
+    (6) di M4b proses pertama membatalkan kesepuluh pesanan dan proses kedua melewati semuanya (bukti antre per pesanan
+    ada di M4a deterministik).
+  **C3 — Auto-cancel Bayar di Toko (FR-38 · BR-07 · NFR-05) + perbaikan F-C3-1: selesai, di-commit & di-push
+  `f8085b3`.**
+  - Aturan (keputusan D1, H1–H6): kandidat = `pay_at_store` + `orders.payment_status = unpaid` + payment `pending` + status
+    Dikonfirmasi / Sedang Disiapkan / Siap Diambil + batas pengambilan pada `ready_date` (WIB) sudah lewat. Batas = jam
+    tutup dari `operating_hours` TERBARU (H4; bukan `payments.expired_at`, yang salah untuk pesanan hasil ganti metode —
+    sama dengan `pay_before_time` C-18), ketat `now > jam tutup`; hari tutup / `close_time` NULL (H1) → 00.00.00 WIB hari
+    berikutnya, eksklusif (`now >=`), dicatat di log; baris hari tidak ada → asumsi TF-10 07.00–20.00. Efek lewat
+    `cancelOrderTx` yang sama: alasan `Tidak diambil sampai jam tutup (BR-07)` (H3), `payments.status` `expired` (H2),
+    `orders.payment_status` tetap `unpaid`, stok ready (termasuk Sedang Disiapkan/Siap Diambil — H5, TF-12), klaim &
+    kuota voucher, refund poin, riwayat `changed_by` NULL, notifikasi status & poin (recorder C1), email setelah commit.
+  - Desain: job C2 diperluas jadi daftar aturan (BR-06 lalu BR-07) dalam SATU putaran & SATU penjadwal; `stopping`
+    diperiksa sebelum setiap aturan & pesanan; query kandidat gagal → putaran dihentikan, aturan berikutnya tidak di-query
+    (H6); entri `failed` membawa `rule`; log per aturan. Preseleksi BR-07: snapshot jam (SELECT dengan
+    `MAX_EXECUTION_TIME(5000)`) + SQL kandidat `ready_date < hari ini OR (ready_date = hari ini AND batas hari ini lewat)`
+    (jam tutup tidak pernah melewati tengah malam — validasi AD-11). Keputusan final di transaksi per pesanan dengan
+    urutan kunci K1: `orders` X (`lockMyOrder`) → syarat status/pembayaran → `users` S pelanggan (`FOR SHARE`) →
+    `operating_hours` S hari `ready_date` (`FOR SHARE`, versi commit terbaru; baris tidak ada → gap lock S) → keputusan →
+    `cancelOrderTx`. `users` S HARUS sebelum jam: urutan sebaliknya membentuk siklus job → checkout pelanggan yang sama
+    (`users` X → `store_settings` X) → AD-11 (`store_settings` X → jam X) → job. Job tidak mengunci `store_settings`
+    (siklus dengan checkout). Snapshot hanya preseleksi: diperpanjang → kandidat dilewati di transaksi; dimajukan →
+    dibatalkan putaran berikutnya (≤ 1 menit, tidak pernah terlalu awal).
+  - **Temuan F-C3-1 (ada sejak Step 6.3, terbukti, diperbaiki dengan persetujuan K2):** deadlock pembatalan × checkout
+    pelanggan LAIN yang memakai produk ready yang sama. `cancelOrderTx` `UPDATE payments WHERE order_id` memegang
+    next-key lock indeks `payments_order_id_fkey` sampai supremum (pesanan terbaru) lalu menunggu `daily_stocks` X; checkout
+    pelanggan lain memegang `daily_stocks` X lalu INSERT `payments` → siklus (kunci `users` tidak menyerialkan pelanggan
+    berbeda). Bukti pada kode lama (`0be9319`): Q1 (batal pelanggan) & Q2a (job BR-06) masing-masing 1 deadlock 1213,
+    checkout pelanggan lain menjadi korban; pembatalan memegang `payments_order_id_fkey` X pada `(10,10)` & supremum.
+    Perbaikan: id pembayaran dibaca tanpa kunci lalu `UPDATE … WHERE payment_id IN (…)` (PRIMARY KEY, `X,REC_NOT_GAP`
+    saja); urutan F-C1-1 tetap. Sesudah perbaikan Q1/Q2a/Q2b lulus (3 run berturut-turut + harness penuh), pembatalan hanya
+    memegang `payments:PRIMARY:X,REC_NOT_GAP`.
+  - File baru: `server/tests/autoCancelPickup.test.js`, `server/tests-mysql/14-auto-cancel-pay-at-store.it.test.js`,
+    `server/tests-mysql/helpers/autoCancelFixtures.js`. Diubah: `server/src/jobs/autoCancelOrders.js` (daftar aturan, BR-07),
+    `services/autoCancelRules.service.js` (`getPickupDeadline`, `isPickupDeadlinePassed`, `isUnpaidPayAtStorePending`,
+    `isPastPickupClose`), `services/orderCancellation.service.js` (F-C3-1), `utils/businessConstants.js`
+    (`PICKUP_CLOSE_CANCEL_REASON`, `PICKUP_AUTO_CANCEL_STATUSES`), `tests/autoCancelRules.test.js` (+4 uji BR-07),
+    `tests/helpers/orderDb.js` (SQL BR-07, jam, kunci users/jam, `payment.findMany`). Tanpa perubahan schema/migrasi,
+    frontend, kontrak API, atau dependensi; uji C1/C2 tidak diubah.
+  - **Terverifikasi:** `npm test` 679/679 (C2 661; +18 uji BR-07: batas sebelum/tepat/sesudah, hari & jam berbeda,
+    tanggal siap kemarin/hari ini/besok, WIB pergantian hari, fallback H1, status D1 vs lunas/Selesai/Dibatalkan/online,
+    efek & idempotensi, jam diperpanjang/dimajukan antara snapshot & kunci, urutan kunci orders → users S → jam S,
+    pemeriksaan ulang setelah kunci, BR-06 + BR-07 satu putaran, H6, shutdown di antara aturan, rollback per pesanan, SQL
+    ber-hint). MySQL 8.0.46 harness penuh 01–14 pada container baru: **100/100 lulus, `lock_deadlocks` 0**
+    (`lock_timeouts` 10 — sama dengan run C2; C3 tidak menambah). Tambahan run 14 dengan P8 & H4-h × 30: 26/26, 0 deadlock.
+    · P1 (tepat jam tutup belum; sesudahnya ketiga status dibatalkan; lunas/Selesai/tanggal siap mendatang tidak;
+      `payments.expired_at` sudah lewat tetapi tidak dipakai; idempoten), P1b (baris jam tidak ada → 20.00; hari ditutup →
+      23.59.59,999 belum, 00.00 berikutnya dibatalkan). P2 × tandai lunas, P3 × ubah status admin, P4 × batal pelanggan,
+      masing-masing dua urutan antre → satu hasil bisnis, refund sekali (P3: admin ke Sedang Disiapkan lebih dulu → tetap
+      dibatalkan sesuai D1). P5 dua proses job (antre kunci yang sama 1 batal + 1 lewati; 10 pesanan tepat sekali). P6 × checkout
+      pelanggan yang sama × 3 → job memegang `orders` X, belum `payments`/jam, 0 deadlock. P7 rollback trigger → utuh, lalu
+      pulih. P8 beban × 15 (BR-06 + BR-07 + tandai lunas + ubah status + batal + checkout): 0 pelanggaran (lunas XOR batal,
+      riwayat = notifikasi, stok = item pesanan aktif + penambahan peniru), 0 deadlock. P9 SIGTERM saat transaksi BR-07
+      memegang kunci → proses hidup, commit utuh, 2 kandidat berikutnya tidak disentuh, exit 0.
+    · H4-a jam diperpanjang (AD-11 asli) setelah snapshot → dilewati, dibatalkan setelah 22.00. H4-b AD-11 belum commit →
+      job (memegang `orders` X & `users` S) menunggu `operating_hours` S lalu membaca 22.00 → dilewati; H4-c rollback →
+      20.00 → dibatalkan; H4-b2 baris jam tidak ada & AD-11 INSERT → job menunggu → 22.00 → dilewati. H4-d job lebih dulu
+      memegang jam S → AD-11 asli menunggu (`X,REC_NOT_GAP ← S`) → job commit pembatalan → AD-11 200; H4-d2 baris jam tidak
+      ada → job gap S, AD-11 menunggu `X,INSERT_INTENTION ← S` → 200. H4-e jam dimajukan → tidak terlalu awal, dibatalkan
+      tepat setelah 20.00; dimajukan ke 19.00 selagi job menunggu → dibatalkan. H4-f hari ditutup lewat AD-11 → fallback.
+      H4-g siklus tiga pihak (job × checkout × AD-11) → semua commit, 0 deadlock, job membaca 22.00. H4-h beban × 15
+      (AD-11 bolak-balik): AD-11 200 semua, 0 pelanggaran, 0 deadlock; checkout 409 = aturan T1 Step 6.4.10 (jam berubah
+      selagi checkout), bukan 5xx.
+    · Kontrol negatif (kode dikembalikan & diverifikasi identik): `UPDATE payments WHERE order_id` → Q1/Q2a/Q2b gagal;
+      keputusan dari snapshot per putaran → H4-a & H4-b gagal; jam dibaca tanpa kunci di transaksi → H4-b & H4-d gagal
+      (H4-a lulus — membuktikan locking read yang menentukan); kunci jam sebelum `users` → H4-g deadlock nyata (AD-11
+      menjadi korban, job membatalkan dengan jam lama 20.00).
+  - Keterbatasan: (1) AD-11 menyimpan jam bisa menunggu selama sisa transaksi job setelah kunci jam (K3; tertahan > 2 s →
+    1205/500 sesuai F-2 — tidak terjadi pada uji normal/beban); (2) pesanan Bayar di Toko yang tanggal siapnya hari ini
+    baru diperiksa setelah batas menurut snapshot lewat → bila jam dimajukan, pembatalan paling lambat satu putaran (± 1
+    menit) setelah batas baru; (3) `now` keputusan = waktu mulai putaran (tidak pernah lebih awal dari waktu nyata);
+    (4) stok dikembalikan ke tanggal pesanan dibuat (TF-12) walau tanggal siap berbeda; (5) pesanan contoh seed Bayar di
+    Toko (id 8) dibatalkan setelah jam tutup hari seed; (6) `jobs/autoCancelOrders.js` kini 321 baris (> batas lunak ±150,
+    sudah 219 setelah C2) — pemecahan menunggu persetujuan karena menyentuh kode C2.
+  **C4 — Payment Webhook sebagai FUNGSI INTERNAL (FR-14 · NFR-05 · SPEC §10): selesai, di-commit & di-push
+  `5d6a5f0`.** Bukan webhook HTTP: SPEC §10 mensimulasikan gateway (tombol "Simulasikan
+  Lunas", hanya development) dan tidak ada dokumen yang mewajibkan URL callback — TIDAK ada endpoint publik baru.
+  - Desain (keputusan W1–W3): `services/paymentGateway.service.js` `applyGatewayPayment(tx, order, { gatewayRef, amount,
+    now })` — pemanggil sudah mengunci `orders` X; hasil terstruktur `{ applied: true, notices }` /
+    `{ applied: false, reason }` dengan `reason` = `NOT_PENDING` / `EXPIRED` / `INVALID_NOTIFICATION` (konstanta
+    `GATEWAY_PAYMENT_REASON`), bukan respons HTTP. Urutan evaluasi: status (masih menunggu) → keabsahan notifikasi
+    (`gateway_ref` = `payments.gateway_ref`, nominal = `payments.amount` dengan `Prisma.Decimal` — presisi DECIMAL, bukan
+    float; metode kelompok gateway QRIS/e-wallet/VA & opsi online) → batas `expired_at < now` (ketat, sama dengan BR-06).
+    Berlaku → UPDATE `payments` (PRIMARY KEY) → UPDATE `orders` → riwayat & notifikasi lewat recorder C1 (sistem).
+    `simulatePaid` kini hanya urusan pelanggan: production 403 (sebelum transaksi), `lockMyOrder` (kepemilikan → 404 &
+    kunci), panggil fungsi gateway dengan `gateway_ref`/nominal dari baris pembayaran sendiri (bukan dari klien), lalu
+    terjemahkan: `NOT_PENDING`/`EXPIRED` → 409 dengan pesan LAMA, `INVALID_NOTIFICATION` → 409 "Notifikasi pembayaran
+    tidak valid." Email setelah commit (emailAfterCommit). Rute, respons, dan frontend tidak berubah.
+  - Urutan kunci TIDAK berubah dari C1–C3: `orders` X → `payments` (PK, `X,REC_NOT_GAP`) → `orders` → INSERT riwayat &
+    notifikasi (`users` S pelanggan; `changed_by` NULL → tanpa kunci admin). Interaksi: BR-06 (lunas XOR batal, kunci
+    `orders` sama), BR-07 (tidak beririsan — Bayar di Toko bukan jalur gateway), batal pelanggan & ganti metode
+    (berurutan di `orders` X), checkout pelanggan yang sama (tanpa kunci indeks `payments_order_id_fkey`).
+  - File baru: `server/src/services/paymentGateway.service.js`, `server/tests/paymentGateway.test.js`,
+    `server/tests-mysql/15-payment-gateway.it.test.js`. Diubah: `services/payment.service.js` (`simulatePaid`),
+    `utils/businessConstants.js` (`GATEWAY_PAYMENT_REASON`, `GATEWAY_PAYMENT_GROUPS`), `tests/helpers/orderDb.js` (op
+    `payment.update`). Tanpa perubahan rute, frontend, schema/migrasi, atau dependensi; uji lama (`paymentRoute`,
+    `paymentMethodStale`, C1–C3) lulus tanpa diubah.
+  - **Terverifikasi:** `npm test` 691/691 (C3 679; +12 uji: batas sebelum/tepat/sesudah `expired_at`, NOT_PENDING (lunas,
+    dibatalkan, Bayar di Toko, payment paid/expired/failed/refunded), INVALID_NOTIFICATION (`gateway_ref`, nominal,
+    nominal bukan angka/NaN, metode Bayar di Toko, opsi bukan online), presisi DECIMAL (56500 = 56500.00; nilai yang sama
+    menurut `Number` ditolak), tanpa penulisan saat tidak berlaku, urutan orders → payments (PK) → orders → riwayat →
+    notifikasi, idempoten (409 pesan lama), 409 EXPIRED, production 403 tanpa transaksi, 404 pelanggan lain, nominal dari
+    klien diabaikan, rollback, status berubah selagi menunggu kunci). Kontrol negatif unit: perbandingan `Number` → 1
+    gagal; tanpa cek `expired_at` → 4 gagal; tanpa cek `gateway_ref` → 1 gagal; tanpa cek metode → 2 gagal.
+    MySQL 8.0.46 harness penuh 01–15 pada container baru: **113/113 lulus, `lock_deadlocks` 0** (`lock_timeouts` 10 — sama
+    dengan run C3).
+    · G1 normal (1 riwayat sistem, 1 notifikasi, email setelah commit) & EXPIRED 409 tanpa perubahan. G2 × job BR-06 dua
+      urutan antre → yang pertama menang, lunas XOR batal. G3 × batal pelanggan dua urutan (lunas lalu batal → `refunded`;
+      batal lalu 409), refund poin sekali. G4 × ganti metode dua urutan: ke VA (gateway_ref tetap → lunas) & ke Bayar di
+      Toko (→ simulasi 409). G5 10 simulasi lewat 2 proses server → 200 × 1 + 409 × 9, satu riwayat Dikonfirmasi. G6a ×
+      checkout pelanggan yang sama × 3 → simulasi memegang `orders` X tanpa kunci `payments_order_id_fkey`, 0 deadlock; G6b
+      simulasi + 2 checkout × 10 → semua 200/201, 0 deadlock. G7 rollback trigger → 500, payment tetap `pending`, lalu
+      pulih. G8 server `NODE_ENV=production` → 403 tanpa perubahan. G9 beban × 15 (simulasi + job BR-06/BR-07 + batal +
+      ganti metode + checkout, 2 server): tanpa 5xx, 0 pelanggaran, 0 deadlock.
+    · Kontrol negatif MySQL (kode dikembalikan & diverifikasi identik): tanpa kunci pesanan → G5 200 × 8, riwayat &
+      notifikasi 9 (ganda); `UPDATE payments WHERE order_id` → G6a deadlock nyata (memegang `payments_order_id_fkey` X);
+      tanpa penolakan production → G8 gagal; tanpa cek `expired_at` → G1 gagal.
+  - Keterbatasan: (1) notifikasi yang diproses setelah `expired_at` ditolak (W3) — bila gateway sungguhan melunasi tepat
+    sebelum batas tetapi notifikasinya terlambat, pesanan tetap dibatalkan BR-06 dan dana perlu dikembalikan manual
+    (SPEC §10: refund hanya dicatat; tidak ada refund otomatis); (2) belum ada callback HTTP sungguhan — rancangan bila
+    kelak diperlukan: rute terpisah tanpa auth pelanggan, verifikasi tanda tangan HMAC dengan secret gateway, kunci pesanan
+    berdasarkan `gateway_ref`, lalu `applyGatewayPayment` (idempoten lewat hasil `NOT_PENDING`); (3) metode yang
+    dinonaktifkan AD-11 setelah pesanan dibuat tetap dianggap sah untuk notifikasi (sah = kelompok gateway, bukan
+    `is_active`), karena pelanggan sudah menerima kode bayarnya.
+  **C5 — Audit Log (FR-37): selesai, di-commit & di-push `773a476`** (keputusan K1–K5 & B1–B5 saat audit).
+  - Tabel `audit_logs` apa adanya (tanpa perubahan schema/migrasi): `user_id` = admin pelaku, `action` (≤ 50 karakter,
+    konstanta `AUDIT_ACTION`), `entity` = nama tabel (`AUDIT_ENTITY`), `entity_id` = primary key, `created_at` = `now`
+    dibulatkan KE BAWAH ke detik penuh (`toAuditTime`; kolom DATETIME(0) — MySQL sendiri membulatkan ke detik terdekat,
+    terbukti di A0: `…30.987` mentah tersimpan `…31`). Tanpa nilai lama/baru, tanpa data sensitif, tanpa endpoint/layar baca.
+  - Service baru `services/auditLog.service.js`: `lockAuditActor(tx, actorId)` (`SELECT user_id, is_active FROM users …
+    FOR SHARE`; tidak ada / nonaktif → 401 `SESSION_INVALID` "Akun tidak ditemukan atau tidak aktif." tanpa menulis apa
+    pun), `recordAudit(tx, …)` di transaksi bisnis yang sama (rollback = tanpa audit; INSERT audit gagal = perubahan
+    bisnis ikut batal), `decimalChanged` (Prisma.Decimal, 56500 = 56500.00).
+  - Titik audit: AD-04 ubah status (`update_order_status`, `orders`/order_id), tandai lunas (`mark_order_paid`,
+    `orders`/order_id), harga produk (`update_product_price`, `products`), harga varian yang sudah ada
+    (`update_variant_price`, `product_variants`; dibandingkan dengan nilai tersimpan SEBELUM penulisan), harga opsi custom
+    cake (`update_custom_option_price`, `custom_options`), rencana stok harian (`update_daily_stock_plan`,
+    `daily_stocks`/stock_id; per baris yang `qty_planned`-nya benar-benar berubah), koreksi stok bahan
+    (`correct_raw_material_stock`, `raw_materials`; hanya bila kolom `stock` ditulis), stok masuk (`raw_material_stock_in`,
+    `raw_materials`/material_id). Tidak dicatat: nilai sama, data baru, edit nama/satuan/minimum bahan, 400/404/409/403/401,
+    job sistem & aksi pelanggan.
+  - Urutan kunci (K4/K5): master data → `users` pelaku S SEBELUM `store_settings` X; stok masuk → pelaku S → baris bahan X;
+    AD-04 & tandai lunas → `orders` X → pelaku S → validasi → tulis → audit; `markOrderPaid(adminId, …)` membaca id
+    pembayaran tanpa kunci lalu UPDATE `payments` berdasarkan PRIMARY KEY. `actorId` dari `req.user.userId`; rute, respons,
+    dan frontend tidak berubah.
+  - File baru: `server/src/services/auditLog.service.js`, `server/tests/auditLog.test.js`,
+    `server/tests-mysql/16-audit-log.it.test.js`. Diubah: `utils/businessConstants.js`, `services/adminOrderActions.service.js`,
+    `adminProductSave.service.js`, `adminCustomOption.service.js`, `adminDailyStock.service.js`,
+    `adminRawMaterial.service.js`, rute admin `order`, `product`, `customOption`, `stock`, `rawMaterial` (meneruskan
+    `req.user.userId`), uji `tests/helpers/catalogDb.js`, `adminOrderActionsRoute`, `adminCustomOptionRoute`,
+    `adminProductRoute`, `adminStockRoute` (urutan kunci yang diharapkan kini diawali kunci pelaku), dan
+    `tests-mysql/04-staff-deadlock.it.test.js` (lihat perubahan perilaku di bawah).
+  - **Perubahan perilaku yang disengaja (B2), tercatat di uji lama:** di `04` D2-kontrol & D2a, PATCH menonaktifkan Staf
+    commit lebih dulu lalu AD-04 Staf yang sama memperoleh FOR SHARE → kini 401 `SESSION_INVALID` tanpa perubahan pesanan
+    (sebelum C5: 200 dengan `changed_by` admin yang sudah nonaktif). Asersi 0 deadlock & tanpa kunci tertinggal tetap.
+  - **Terverifikasi:** `npm test` 707/707 (C4 691; +16: `auditLog.test.js` 10, `adminOrderActionsRoute` +6). Kontrol
+    negatif unit (kode dikembalikan & diverifikasi identik): `is_active` diabaikan → 3 gagal; `created_at` tanpa pembulatan
+    → 8 gagal; tanpa audit tandai lunas → 3 gagal; kunci pelaku sesudah `store_settings` → 2 gagal; entity stok masuk salah
+    → 1 gagal. MySQL 8.0.46 harness penuh 01–16 pada container baru: **125/125 lulus, `lock_deadlocks` 0**
+    (`lock_timeouts` 10 — sama dengan run C3/C4, semuanya skenario timeout yang disengaja).
+    · A0 `created_at` = detik ke bawah. A1 8 titik audit (Staf & Owner) dengan isi baris tepat; nilai sama / data baru /
+      400 / 409 → 0 audit. A2 trigger menolak INSERT `audit_logs` → 7 jenis operasi 500, data bisnis & riwayat tidak
+      berubah. A3 dua admin bersamaan dengan nilai BERBEDA (harga 41000/42000, rencana 90061/90062, stok masuk 1.25/2.75) →
+      2 audit per pasangan dengan pelaku masing-masing, nilai akhir = audit terakhir, stok = jumlah, 0 deadlock. A4 10×
+      Selesai (Staf & Owner) → 200 × 1 + 409 × 9, tepat 1 audit dengan pelaku = `changed_by` pemenang.
+    · A5 (deterministik): harness memegang `users` X pelaku + `UPDATE is_active = 0`; request admin menunggu kunci
+      `S,REC_NOT_GAP` baris pelaku — commit → 401 `SESSION_INVALID` tanpa perubahan/audit; rollback → 200 + 1 audit
+      (harga produk, AD-04, tandai lunas). A6 (deterministik): transaksi admin sudah memegang S pelaku (ditahan di
+      `store_settings` / baris pelanggan) → PATCH nonaktif ASLI menunggu `X` baris pelaku → transaksi admin commit + audit →
+      PATCH 200 → request berikutnya 401 (master data & AD-04).
+    · A7 master data × ubah status akun (`users` X → `store_settings` X) × 3 → semua commit, 0 deadlock. A8 tiga pihak
+      tandai lunas × ubah status akun × checkout pelanggan lain × 3 → semua commit, 0 deadlock; saat menunggu pelaku,
+      tandai lunas belum memegang kunci `payments`. A9 pelanggan 403, tanpa token 401, admin nonaktif 401 → 0 audit. A10
+      beban × 15 (harga ×2, rencana & tandai lunas oleh admin yang dinonaktifkan/diaktifkan bergantian lewat PATCH asli,
+      stok masuk, AD-04, checkout, simulasi C4, job C2/C3): 401 hanya untuk admin yang sedang nonaktif (7 + 7), tanpa 5xx,
+      audit = perubahan berhasil, 0 deadlock, tanpa kunci tertinggal.
+    · Kontrol negatif MySQL (dijalankan terpisah per skenario, kode dikembalikan & diverifikasi identik): kunci pelaku
+      SESUDAH `store_settings` → A7 deadlock nyata (`lock_deadlocks` 1: simpan produk memegang `store_settings` X & menunggu
+      S pelaku; ubah status akun memegang X pelaku & menunggu `store_settings`); tanpa kunci pelaku di awal + `UPDATE
+      payments WHERE order_id` → A8 deadlock nyata tiga pihak (`lock_deadlocks` 1: tandai lunas memegang next-key
+      `payments_order_id_fkey` X & menunggu S pelaku saat INSERT audit; ubah status akun memegang X pelaku & menunggu
+      `store_settings`; checkout memegang `store_settings` & menunggu insert intention `payments_order_id_fkey`).
+  - Keterbatasan: (1) audit tidak menyimpan nilai lama/baru (kolom tidak ada di SPEC §8); (2) admin yang dinonaktifkan
+    setelah transaksinya memperoleh kunci pelaku tetap menyelesaikan transaksi itu (A6) — penonaktifan berlaku untuk
+    request berikutnya; (3) tidak ada layar/endpoint baca audit (FR-37 tanpa layar).
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

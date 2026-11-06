@@ -5,15 +5,18 @@
 // Pembatalan: status Dibatalkan + alasan, lunas → refunded (TF-09: hanya dicatat), stok ready kembali pada tanggal
 // pesanan dibuat, klaim voucher bisa dipakai lagi (kuota +1), poin yang ditukar dikembalikan (refund), riwayat status.
 // Pesan Lagi hanya MENGHITUNG item untuk keranjang — tidak membuat pesanan atau pembayaran.
+// Step 6.5 C1: riwayat + notifikasi "Pesanan dibatalkan" dan notifikasi poin refund ditulis di transaksi yang sama
+// (mock orderCancellation.js cancelOrderInTables); salinan email dicetak setelah commit.
+// Step 6.5 C2: efek pembatalan dipindahkan ke orderCancellation.service.js (cancelOrderTx, dipakai juga job BR-06)
+// tanpa mengubah urutan maupun perilaku.
 
 const prisma = require('../lib/prisma');
-const {
-  AVAILABILITY_TYPE, ORDER_STATUS, PAYMENT_STATUS, PAYMENT_TRANSACTION_STATUS, POINT_TX_TYPE,
-} = require('../utils/businessConstants');
-const { getJakartaDateKey, dateKeyToDbDate } = require('../utils/jakartaDate');
+const { AVAILABILITY_TYPE, ORDER_STATUS, PAYMENT_TRANSACTION_STATUS } = require('../utils/businessConstants');
 const { canCancelOrder } = require('./orderTracking.service');
 const { lockMyOrder } = require('./order.service');
 const { toItemLine, findMyOrderDetailRow } = require('./myOrders.service');
+const { emailAfterCommit } = require('./orderStatusRecorder.service');
+const { cancelOrderTx } = require('./orderCancellation.service');
 
 const MESSAGES = Object.freeze({
   NOT_CANCELLABLE: 'Pesanan sudah disiapkan sehingga tidak bisa dibatalkan',
@@ -35,20 +38,6 @@ function httpError(statusCode, message) {
   return Object.assign(new Error(message), { statusCode });
 }
 
-/** Stok ready dikembalikan pada tanggal pesanan dibuat (TF-12); tidak pernah di bawah 0 */
-async function returnReadyStock(tx, order) {
-  const totals = new Map();
-  order.items
-    .filter((item) => item.product.availabilityType === AVAILABILITY_TYPE.READY)
-    .forEach((item) => totals.set(item.productId, (totals.get(item.productId) ?? 0) + item.quantity));
-  const stockDate = dateKeyToDbDate(getJakartaDateKey(order.createdAt));
-
-  for (const [productId, quantity] of [...totals.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
-    await tx.$executeRaw`UPDATE daily_stocks SET qty_sold = GREATEST(qty_sold - ${quantity}, 0)
-      WHERE product_id = ${productId} AND stock_date = ${stockDate}`;
-  }
-}
-
 /**
  * PATCH /api/orders/:orderNumber/cancel — BR-08: hanya sebelum Sedang Disiapkan.
  * Pesanan dikunci lalu dibaca: klik ganda / tab lain / admin yang bersamaan diproses berurutan, sehingga stok,
@@ -57,50 +46,20 @@ async function returnReadyStock(tx, order) {
 async function cancelMyOrder(userId, orderNumber, reason, now = new Date()) {
   const owner = BigInt(userId);
 
-  return prisma.$transaction(async (tx) => {
+  return emailAfterCommit(prisma.$transaction(async (tx) => {
     // Kunci = pembacaan pertama transaksi (lihat lockMyOrder)
     const order = await lockMyOrder(tx, userId, orderNumber);
 
     if (order.orderStatus === ORDER_STATUS.DIBATALKAN) throw httpError(409, MESSAGES.ALREADY_CANCELLED);
     if (!canCancelOrder({ order_status: order.orderStatus })) throw httpError(409, MESSAGES.NOT_CANCELLABLE);
 
-    const paid = order.paymentStatus === PAYMENT_STATUS.PAID;
-    await tx.order.update({
-      where: { orderId: order.orderId },
-      data: {
-        orderStatus: ORDER_STATUS.DIBATALKAN,
-        cancelReason: reason,
-        paymentStatus: paid ? PAYMENT_STATUS.REFUNDED : order.paymentStatus,
-      },
-    });
-    await tx.payment.updateMany({
-      where: { orderId: order.orderId },
-      data: { status: paid ? PAYMENT_TRANSACTION_STATUS.REFUNDED : UNPAID_CANCEL_PAYMENT_STATUS },
-    });
-    // Integrasi MySQL 8 (C4): INSERT poin & riwayat (FK user_id/changed_by → kunci S baris pelanggan) dijalankan SEBELUM
-    // stok & voucher dikembalikan. Urutan lama (daily_stocks X → users S) membentuk deadlock nyata dengan checkout
-    // pelanggan yang sama (users X → … → daily_stocks X); kini keduanya mengambil kunci users sebelum daily_stocks.
-    if (order.pointsUsed > 0) {
-      await tx.pointTransaction.create({
-        data: { userId: owner, type: POINT_TX_TYPE.REFUND, points: order.pointsUsed, orderId: order.orderId, createdAt: now },
-      });
-    }
-    await tx.orderStatusHistory.create({
-      data: { orderId: order.orderId, status: ORDER_STATUS.DIBATALKAN, changedBy: owner, note: reason, changedAt: now },
+    // Efek & urutan kunci (C4 + F-C1-1): lihat orderCancellation.service.js cancelOrderTx
+    const notices = await cancelOrderTx(tx, order, {
+      reason, changedBy: owner, unpaidPaymentStatus: UNPAID_CANCEL_PAYMENT_STATUS, now,
     });
 
-    await returnReadyStock(tx, order);
-
-    if (order.voucherId != null) {
-      await tx.userVoucher.updateMany({
-        where: { userId: owner, voucherId: order.voucherId },
-        data: { usedAt: null },
-      });
-      await tx.voucher.update({ where: { voucherId: order.voucherId }, data: { quota: { increment: 1 } } });
-    }
-
-    return { order_number: orderNumber };
-  });
+    return { result: { order_number: orderNumber }, notices };
+  }));
 }
 
 /**

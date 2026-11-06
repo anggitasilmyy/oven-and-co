@@ -14,9 +14,10 @@
 //     Urutan kunci PUT: master data → baris bahan; stok masuk: baris bahan saja (tidak bisa saling menunggu silang).
 
 const prisma = require('../lib/prisma');
-const { CATALOG_FIELD_MAX, MAX_MATERIAL_QTY } = require('../utils/businessConstants');
+const { CATALOG_FIELD_MAX, MAX_MATERIAL_QTY, AUDIT_ACTION, AUDIT_ENTITY } = require('../utils/businessConstants');
 const { getMaterialStatus, validateMaterial, validateStockIn } = require('./stockRules.service');
 const { lockAdminMasterData } = require('./adminMasterDataLock.service');
+const { lockAuditActor, recordAudit } = require('./auditLog.service');
 
 const NOT_FOUND_MESSAGE = 'Bahan baku tidak ditemukan.';
 const STOCK_CHANGED = 'Stok bahan sudah berubah (ada stok masuk atau perubahan lain). Muat ulang data lalu ulangi koreksi stok.';
@@ -68,9 +69,14 @@ function resolveStockUpdate(input, lockedStock) {
 /**
  * POST /api/admin/raw-materials (materialId null) & PUT /api/admin/raw-materials/:id — nama, satuan, stok, minimum.
  * POST: stok awal wajib. PUT: `stock` opsional (lihat resolveStockUpdate). Error per field → 400 { message, fieldErrors }.
+ * Step 6.5 C5 (FR-37, K2d): audit `correct_raw_material_stock` HANYA bila kolom stock benar-benar ditulis pada bahan
+ * yang sudah ada (koreksi stok ≠ stok terkunci); bahan baru & edit nama/satuan/minimum tidak dicatat.
+ * Urutan kunci: pelaku users S → store_settings X → baris bahan X → tulis → audit.
+ * @param {string|number|bigint} actorId — req.user.userId
  */
-async function saveRawMaterial(materialId, input) {
+async function saveRawMaterial(actorId, materialId, input, now = new Date()) {
   return prisma.$transaction(async (tx) => {
+    await lockAuditActor(tx, actorId); // C5 (K5): pelaku S SEBELUM store_settings X
     await lockAdminMasterData(tx);
     // PUT: kunci baris bahan sebelum membaca apa pun (sama dengan stok masuk) → stok terkunci = nilai terbaru
     const [locked] = materialId == null
@@ -96,13 +102,24 @@ async function saveRawMaterial(materialId, input) {
     const saved = existing
       ? await tx.rawMaterial.update({ where: { materialId: BigInt(existing.material_id) }, data })
       : await tx.rawMaterial.create({ data });
+    if (existing && stock != null) {
+      await recordAudit(tx, {
+        actorId, action: AUDIT_ACTION.CORRECT_RAW_MATERIAL_STOCK, entity: AUDIT_ENTITY.RAW_MATERIALS, entityId: existing.material_id, now,
+      });
+    }
     return mapMaterial(saved);
   });
 }
 
-/** POST /api/admin/raw-materials/:id/stock-in { qty } — "Catat Stok Masuk": stok bertambah sejumlah barang diterima */
-async function recordStockIn(materialId, qty) {
+/**
+ * POST /api/admin/raw-materials/:id/stock-in { qty } — "Catat Stok Masuk": stok bertambah sejumlah barang diterima.
+ * Step 6.5 C5: audit `raw_material_stock_in` (entity raw_materials, entity_id material_id) setiap stok masuk berhasil.
+ * Urutan kunci: pelaku users S → baris bahan X → UPDATE → audit.
+ * @param {string|number|bigint} actorId — req.user.userId
+ */
+async function recordStockIn(actorId, materialId, qty, now = new Date()) {
   return prisma.$transaction(async (tx) => {
+    await lockAuditActor(tx, actorId); // C5 (K5): pelaku S sebelum kunci baris bahan & INSERT audit
     const id = BigInt(materialId);
     const [locked] = await tx.$queryRaw`SELECT stock FROM raw_materials WHERE material_id = ${id} FOR UPDATE`;
     if (!locked) throw httpError(404, NOT_FOUND_MESSAGE);
@@ -111,6 +128,7 @@ async function recordStockIn(materialId, qty) {
 
     await tx.$executeRaw`UPDATE raw_materials SET stock = stock + CAST(${String(qty).trim()} AS DECIMAL(10,2))
       WHERE material_id = ${id}`;
+    await recordAudit(tx, { actorId, action: AUDIT_ACTION.RAW_MATERIAL_STOCK_IN, entity: AUDIT_ENTITY.RAW_MATERIALS, entityId: id, now });
     return mapMaterial(await tx.rawMaterial.findUnique({ where: { materialId: id } }));
   });
 }

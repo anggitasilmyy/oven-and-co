@@ -122,7 +122,8 @@ test('POST JSON: 201 { product_id }, kolom & varian tersimpan; kunci master data
   );
   assert.deepEqual(db.t.variants.filter((v) => v.productId === BigInt(id)).map((v) => [v.name, v.extraPrice, v.isActive]), [['Ekstra Keju', 4000, true]]);
   const begin = db.ops.lastIndexOf('tx:begin');
-  assert.equal(db.ops[begin + 1], 'lock:store_settings');
+  // Step 6.5 C5 (K5): kunci pelaku audit (users S) lalu kunci master data — keduanya locking read sebelum pembacaan biasa
+  assert.deepEqual(db.ops.slice(begin + 1, begin + 3), ['lock:users:S', 'lock:store_settings']);
 });
 
 test('validasi produk → 400 fieldErrors dengan pesan & kunci sama dengan mock; tidak ada yang tersimpan', async () => {

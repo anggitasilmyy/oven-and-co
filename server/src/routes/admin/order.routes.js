@@ -80,7 +80,7 @@ router.patch(
   '/:orderNumber/mark-paid',
   asyncHandler(async (req, res) => {
     const orderNumber = validateOrderNumberParam(req.params.orderNumber);
-    const result = await adminOrderActions.markOrderPaid(orderNumber);
+    const result = await adminOrderActions.markOrderPaid(req.user.userId, orderNumber);
 
     return res.status(200).json({ status: 'success', data: result });
   })

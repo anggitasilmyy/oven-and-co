@@ -11,6 +11,9 @@
 // D2 deterministik: tiga request ASLI (PATCH, checkout, AD-04 Selesai) disusun pada urutan yang dulu membentuk siklus →
 //    dibuktikan dengan metrik lock_deadlocks, log error MySQL (innodb_print_all_deadlocks), dan LATEST DETECTED DEADLOCK.
 //    D2-kontrol: urutan sama tanpa langkah Selesai (tanpa kunci pelanggan).
+//    Sejak Step 6.5 C5 (B2): AD-04 mengunci baris admin pelaku dengan FOR SHARE (lockAuditActor) tepat setelah orders X.
+//    Di D2 PATCH menonaktifkan Staf yang sama dan commit lebih dulu → AD-04 Staf melihat akun nonaktif → 401
+//    SESSION_INVALID tanpa perubahan (sebelum C5: 200 dengan changed_by admin yang sudah nonaktif). Tetap 0 deadlock.
 // D3 beban campuran acak (checkout + AD-04 + PATCH Staf/Owner) — dihitung lewat metrik InnoDB, bukan status HTTP.
 
 const test = require('node:test');
@@ -115,6 +118,7 @@ async function threeWay(withCompletion) {
     withCompletion,
     waitsBeforeRelease,
     statuses: { patch: patchRes.status, checkout: coRes.status, ad04: ad04Res.status },
+    ad04Code: ad04Res.body.code,
     bodies: { patch: patchRes.body.message, checkout: coRes.body.message, ad04: ad04Res.body.message },
     ids: { owner, staff, customer, order: order.orderNumber },
     deadlocks: after.lock_deadlocks - before.lock_deadlocks,
@@ -132,7 +136,10 @@ test('D2-kontrol: PATCH + checkout + AD-04 (bukan Selesai) dengan urutan sama �
   const { result } = await threeWay(false);
   record(FILE, 'D2-control', result);
   assert.equal(result.deadlocks, 0);
-  assert.deepEqual(result.statuses, { patch: 200, checkout: 201, ad04: 200 });
+  // C5 B2: Staf sudah dinonaktifkan (PATCH commit) sebelum AD-04 memperoleh FOR SHARE baris Staf
+  assert.deepEqual(result.statuses, { patch: 200, checkout: 201, ad04: 401 });
+  assert.equal(result.ad04Code, 'SESSION_INVALID');
+  assert.equal(result.orderStatus, ORDER_STATUS.DIKONFIRMASI, 'AD-04 ditolak tanpa perubahan');
 });
 
 test('D2a H0 memegang store_settings; PATCH, checkout C, dan AD-04 Selesai (pesanan C) antre bersamaan → tanpa deadlock', async () => {
@@ -141,7 +148,10 @@ test('D2a H0 memegang store_settings; PATCH, checkout C, dan AD-04 Selesai (pesa
   record(FILE, 'D2a', { ...result, serverLogDeadlock: deadlockLog });
   assert.deepEqual(result.leftoverLocks, [], 'tidak ada kunci tertinggal');
   assert.equal(result.deadlocks, 0);
-  assert.deepEqual(result.statuses, { patch: 200, checkout: 201, ad04: 200 });
+  // C5 B2: Staf sudah dinonaktifkan (PATCH commit) sebelum AD-04 memperoleh FOR SHARE baris Staf
+  assert.deepEqual(result.statuses, { patch: 200, checkout: 201, ad04: 401 });
+  assert.equal(result.ad04Code, 'SESSION_INVALID');
+  assert.equal(result.orderStatus, ORDER_STATUS.SIAP_DIAMBIL, 'AD-04 ditolak tanpa perubahan');
 });
 
 // Urutan yang tercatat di dump deadlock D3: checkout sudah memegang baris pelanggan C, AD-04 Selesai (asli) antre di C

@@ -4,7 +4,8 @@
 // Semua harga, diskon, ongkir, dan total dihitung ulang dari database (cart.service + checkoutRules.service);
 // nilai finansial dari klien tidak pernah dipakai. Efek saat pesanan DIBUAT (SPEC §5 TF-12 & mock): stok ready
 // hari ini berkurang, klaim voucher ditandai terpakai + kuota −1, poin yang ditukar dicatat `redeem`, status awal
-// dicatat di order_status_histories. Notifikasi status (SPEC §4) ditulis di Step 6.5; /me/notifications (baca) sudah ada (6.3).
+// dicatat di order_status_histories. Step 6.5 C1: status awal dicatat lewat recordOrderStatus (riwayat + notifikasi
+// "Pesanan dibuat/dikonfirmasi" dalam transaksi yang sama); salinan email dicetak setelah commit.
 
 const prisma = require('../lib/prisma');
 const {
@@ -22,6 +23,7 @@ const { nextOrderNumber, formatOrderNumber, paymentCodeFor, gatewayRefFor, gener
 const { mapStoreSetting, mapAddress, mapPaymentMethod, mapOperatingHour, mapVoucher, mapClaim } =
   require('./checkout.service');
 const { changedCheckoutSettings } = require('./checkoutSettingsRules.service');
+const { recordOrderStatus, emailAfterCommit } = require('./orderStatusRecorder.service');
 
 const ORDER_NUMBER_ATTEMPTS = 3; // jaring pengaman bila nomor tetap bentrok (UNIQUE) — penomoran sudah diserialkan lockRows
 
@@ -213,6 +215,7 @@ async function writeOrder(tx, { owner, input, context, quote, voucherId, now }) 
   });
   const orderNumber = nextOrderNumber(existing.map((row) => row.orderNumber), todayKey);
   const status = payAtStore ? ORDER_STATUS.DIKONFIRMASI : ORDER_STATUS.MENUNGGU_PEMBAYARAN;
+  const pickupCode = input.fulfillment === FULFILLMENT_TYPE.PICKUP ? generatePickupCode() : null;
 
   const created = await tx.order.create({
     select: { orderId: true },
@@ -238,7 +241,7 @@ async function writeOrder(tx, { owner, input, context, quote, voucherId, now }) 
       paymentOption: payAtStore ? PAYMENT_OPTION.PAY_AT_STORE : PAYMENT_OPTION.ONLINE,
       paymentStatus: PAYMENT_STATUS.UNPAID,
       orderStatus: status,
-      pickupCode: input.fulfillment === FULFILLMENT_TYPE.PICKUP ? generatePickupCode() : null,
+      pickupCode,
       createdAt: now,
       items: {
         create: lines.map((line) => ({
@@ -260,11 +263,18 @@ async function writeOrder(tx, { owner, input, context, quote, voucherId, now }) 
           expiredAt,
         },
       },
-      statusHistories: { create: { status, changedBy: owner, changedAt: now } },
     },
   });
 
-  return { orderId: created.orderId, orderNumber, paymentOption: payAtStore ? PAYMENT_OPTION.PAY_AT_STORE : PAYMENT_OPTION.ONLINE };
+  // Satu riwayat + satu notifikasi status awal. Baris users pemilik sudah dikunci X (lockRows), jadi FK riwayat &
+  // notifikasi tidak menambah kunci baru.
+  const notice = await recordOrderStatus(tx, { orderId: created.orderId, orderNumber, userId: owner, pickupCode }, status, {
+    changedBy: owner, now,
+  });
+
+  return {
+    orderId: created.orderId, orderNumber, paymentOption: payAtStore ? PAYMENT_OPTION.PAY_AT_STORE : PAYMENT_OPTION.ONLINE, notice,
+  };
 }
 
 /**
@@ -281,7 +291,8 @@ async function createOrder(userId, input, now = new Date()) {
 
   for (let attempt = 1; ; attempt += 1) {
     try {
-      const result = await prisma.$transaction(async (tx) => {
+      // Email hanya setelah commit; percobaan yang gagal/di-rollback (termasuk P2002 lalu diulang) tidak mencetak email
+      const result = await emailAfterCommit(prisma.$transaction(async (tx) => {
         await lockRows(tx, owner, designIds);
         await assertSettingsUnchanged(tx, context, input);
         await assertMethodStillActive(tx, context);
@@ -317,8 +328,8 @@ async function createOrder(userId, input, now = new Date()) {
           });
         }
 
-        return order;
-      });
+        return { result: order, notices: [order.notice] };
+      }));
 
       return { order_number: result.orderNumber, payment_option: result.paymentOption };
     } catch (error) {
