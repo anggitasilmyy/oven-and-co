@@ -904,11 +904,12 @@ Catatan khusus:
       bersamaan dengan checkout di MySQL.
       Catatan: lock wait > 2 s (F-2) tetap 500 — checkout yang menunggu kunci store_settings lebih lama dari itu tidak
       menjadi 409.
-- 6.5 (berjalan per checkpoint, branch `feat/step-6.5-payment-notification-jobs` dari `origin/main` `54d5532`):
+- 6.5 (C1–C5 selesai, di-commit & di-push; branch `feat/step-6.5-payment-notification-jobs` dari `origin/main`
+  `54d5532`, belum di-merge ke `main`):
   C1 Notification System → C2 Auto-cancel Online Payment (BR-06) → C3 Auto-cancel Bayar di Toko (BR-07) → C4 Payment
   Webhook (fungsi internal, bukan endpoint HTTP) → C5 Audit Log (FR-37). Pengujian & dokumentasi lintas checkpoint.
-  **C1 — Notification System (FR-18 · BR-007 · SPEC §4 · C-24) + perbaikan F-C1-1: implementasi & uji selesai, belum
-  di-commit** (menunggu persetujuan commit/push).
+  **C1 — Notification System (FR-18 · BR-007 · SPEC §4 · C-24) + perbaikan F-C1-1: selesai, di-commit & di-push
+  `a0c3c17`.**
   - Aturan: setiap perubahan status = tepat 1 baris `order_status_histories` + 1 notifikasi `order_status` untuk PEMILIK
     pesanan; transaksi poin `earn` (Selesai), `review_bonus`, `refund` (batal) = 1 notifikasi `points`; `redeem` tidak
     dinotifikasi (sama dengan mock). Teks, tanda (+/−), format angka, dan pemotongan 100/255 karakter = client
@@ -957,9 +958,7 @@ Catatan khusus:
       email); N2 10× Selesai bersamaan → tepat 1 riwayat/notifikasi status/notifikasi poin/earn; N3 10× simulasi lunas →
       1; N4 5× batal dengan poin → 1 refund & 1 notifikasi poin; N5 AD-04 menunggu kunci S pelanggan yang dipegang
       checkout → 0 deadlock.
-  **C1 di-commit & di-push: `a0c3c17`.**
-  **C2 — Auto-cancel Online Payment (FR-38 · BR-06 · NFR-05): implementasi & uji selesai, belum di-commit** (menunggu
-  persetujuan commit/push).
+  **C2 — Auto-cancel Online Payment (FR-38 · BR-06 · NFR-05): selesai, di-commit & di-push `0be9319`.**
   - Aturan: kandidat = `menunggu_pembayaran` + `online` + `unpaid` + payment terbaru `pending` + `expired_at < now`
     (batas ketat = komplemen penolakan pembayaran di `payment.service`). Efek: Dibatalkan + alasan
     `Tidak dibayar dalam 30 menit (BR-06)` (teks mock & seed; K3: `payment_timeout_minutes` tidak bisa diubah lewat
@@ -1046,9 +1045,8 @@ Catatan khusus:
     batas soket memerlukan parameter `socket_timeout` pada `DATABASE_URL` (konfigurasi deploy, belum diatur);
     (6) di M4b proses pertama membatalkan kesepuluh pesanan dan proses kedua melewati semuanya (bukti antre per pesanan
     ada di M4a deterministik).
-  **C2 di-commit & di-push: `0be9319`.**
-  **C3 — Auto-cancel Bayar di Toko (FR-38 · BR-07 · NFR-05) + perbaikan F-C3-1: implementasi & uji selesai, belum
-  di-commit** (menunggu persetujuan commit/push).
+  **C3 — Auto-cancel Bayar di Toko (FR-38 · BR-07 · NFR-05) + perbaikan F-C3-1: selesai, di-commit & di-push
+  `f8085b3`.**
   - Aturan (keputusan D1, H1–H6): kandidat = `pay_at_store` + `orders.payment_status = unpaid` + payment `pending` + status
     Dikonfirmasi / Sedang Disiapkan / Siap Diambil + batas pengambilan pada `ready_date` (WIB) sudah lewat. Batas = jam
     tutup dari `operating_hours` TERBARU (H4; bukan `payments.expired_at`, yang salah untuk pesanan hasil ganti metode —
@@ -1119,7 +1117,6 @@ Catatan khusus:
     (4) stok dikembalikan ke tanggal pesanan dibuat (TF-12) walau tanggal siap berbeda; (5) pesanan contoh seed Bayar di
     Toko (id 8) dibatalkan setelah jam tutup hari seed; (6) `jobs/autoCancelOrders.js` kini 321 baris (> batas lunak ±150,
     sudah 219 setelah C2) — pemecahan menunggu persetujuan karena menyentuh kode C2.
-  **C3 di-commit & di-push: `f8085b3`.**
   **C4 — Payment Webhook sebagai FUNGSI INTERNAL (FR-14 · NFR-05 · SPEC §10): selesai, di-commit & di-push
   `5d6a5f0`.** Bukan webhook HTTP: SPEC §10 mensimulasikan gateway (tombol "Simulasikan
   Lunas", hanya development) dan tidak ada dokumen yang mewajibkan URL callback — TIDAK ada endpoint publik baru.
@@ -1170,8 +1167,7 @@ Catatan khusus:
     berdasarkan `gateway_ref`, lalu `applyGatewayPayment` (idempoten lewat hasil `NOT_PENDING`); (3) metode yang
     dinonaktifkan AD-11 setelah pesanan dibuat tetap dianggap sah untuk notifikasi (sah = kelompok gateway, bukan
     `is_active`), karena pelanggan sudah menerima kode bayarnya.
-  **C5 — Audit Log (FR-37): implementasi & uji selesai, belum di-commit** (menunggu persetujuan commit/push; keputusan
-  K1–K5 & B1–B5 saat audit).
+  **C5 — Audit Log (FR-37): selesai, di-commit & di-push `773a476`** (keputusan K1–K5 & B1–B5 saat audit).
   - Tabel `audit_logs` apa adanya (tanpa perubahan schema/migrasi): `user_id` = admin pelaku, `action` (≤ 50 karakter,
     konstanta `AUDIT_ACTION`), `entity` = nama tabel (`AUDIT_ENTITY`), `entity_id` = primary key, `created_at` = `now`
     dibulatkan KE BAWAH ke detik penuh (`toAuditTime`; kolom DATETIME(0) — MySQL sendiri membulatkan ke detik terdekat,
