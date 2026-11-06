@@ -378,6 +378,26 @@ function installOrderDb(fakePrisma, dates) {
       }
       return [];
     },
+    // Step 6.5 C2: query kandidat job BR-06 (jobs/autoCancelOrders.js) — dinilai dari tabel, bukan hanya bentuk SQL.
+    // Kait `candidateQuery` (async) dijalankan sebelum hasil dikembalikan: menahan query (shutdown di tengah query) atau
+    // melempar error (mis. ER 3024 MAX_EXECUTION_TIME).
+    $queryRawUnsafe: async (sql, ...values) => {
+      if (!/^SELECT \/\*\+ MAX_EXECUTION_TIME\(\d+\) \*\/ DISTINCT/.test(sql) || !/p\.expired_at < \?/.test(sql)) {
+        throw new Error(`orderDb: SQL tidak dikenal: ${sql}`);
+      }
+      state.ops.push('candidateQuery');
+      state.candidateSql = sql;
+      const [orderStatus, paymentOption, paymentStatus, paymentRowStatus, now, limit] = values;
+      const rows = state.t.orders
+        .filter((o) => o.orderStatus === orderStatus && o.paymentOption === paymentOption && o.paymentStatus === paymentStatus)
+        .filter((o) => state.t.payments.some((p) => p.orderId === o.orderId && p.status === paymentRowStatus
+          && p.expiredAt.getTime() < now.getTime()))
+        .sort((a, b) => (a.orderId < b.orderId ? -1 : 1))
+        .slice(0, limit)
+        .map((o) => ({ orderId: o.orderId, orderNumber: o.orderNumber, userId: o.userId }));
+      await state.hooks.candidateQuery?.();
+      return rows;
+    },
     $executeRaw: async (strings, ...values) => {
       const sql = strings.join('?');
       state.raw.push({ sql, values });

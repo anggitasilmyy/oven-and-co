@@ -2,8 +2,9 @@
 // FR-14 · FR-15 · BR-05 · BR-06 · C-15 — pembayaran pesanan pelanggan: simulasi lunas & ganti metode.
 // Port server dari client/src/services/orderService.js (simulatePaymentPaid, changePaymentMethod).
 // SIMULASI prototype (SPEC §10) — tidak ada payment gateway sungguhan; nominal & status tidak pernah dari klien.
-// Mock membatalkan pesanan kedaluwarsa setiap kali dibaca; di server job autoCancelOrders baru ada di Step 6.5,
-// jadi pembayaran yang batas waktunya sudah lewat DITOLAK di sini (tidak dianggap lunas, tidak diganti metode).
+// Mock membatalkan pesanan kedaluwarsa setiap kali dibaca; di server job autoCancelOrders (Step 6.5 C2) membatalkannya
+// tiap menit, dan pembayaran yang batas waktunya sudah lewat (`expired_at < now`) DITOLAK di sini sejak awal (tidak
+// dianggap lunas, tidak diganti metode) — syarat yang sama dengan autoCancelRules.isOverdueOnlinePayment.
 // Step 6.5 C1: perubahan status dicatat lewat recordOrderStatus (riwayat + notifikasi, transaksi yang sama); salinan
 // email dicetak setelah commit (emailAfterCommit).
 

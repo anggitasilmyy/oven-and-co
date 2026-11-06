@@ -957,6 +957,95 @@ Catatan khusus:
       email); N2 10× Selesai bersamaan → tepat 1 riwayat/notifikasi status/notifikasi poin/earn; N3 10× simulasi lunas →
       1; N4 5× batal dengan poin → 1 refund & 1 notifikasi poin; N5 AD-04 menunggu kunci S pelanggan yang dipegang
       checkout → 0 deadlock.
+  **C1 di-commit & di-push: `a0c3c17`.**
+  **C2 — Auto-cancel Online Payment (FR-38 · BR-06 · NFR-05): implementasi & uji selesai, belum di-commit** (menunggu
+  persetujuan commit/push).
+  - Aturan: kandidat = `menunggu_pembayaran` + `online` + `unpaid` + payment terbaru `pending` + `expired_at < now`
+    (batas ketat = komplemen penolakan pembayaran di `payment.service`). Efek: Dibatalkan + alasan
+    `Tidak dibayar dalam 30 menit (BR-06)` (teks mock & seed; K3: `payment_timeout_minutes` tidak bisa diubah lewat
+    AD-11 — validator membuangnya — dan SPEC BR-06 = 30 menit), `orders.payment_status` tetap `unpaid`, `payments.status`
+    `expired` (K2; batal pelanggan tetap `failed`), stok ready kembali (TF-12), klaim voucher dibuka & kuota +1, refund
+    poin, riwayat `changed_by` NULL (sistem) + catatan alasan, notifikasi status (+ poin) lewat recorder C1, email setelah
+    commit.
+  - Desain: `orderCancellation.service.js` `cancelOrderTx` = efek pembatalan bersama, diekstrak dari `cancelMyOrder`
+    TANPA mengubah urutan/perilaku (pelanggan: `changedBy` pelanggan, `failed`; job: NULL, `expired`). Job
+    `jobs/autoCancelOrders.js`: kandidat dibaca tanpa kunci (batch 100, urut `order_id`), lalu SATU transaksi per
+    pesanan: `lockMyOrder` (FOR UPDATE, pembacaan pertama) → `isOverdueOnlinePayment` diperiksa ULANG → `cancelOrderTx`.
+    Tidak memenuhi (sudah lunas / dibatalkan pelanggan / proses job lain / ganti ke Bayar di Toko) → dilewati tanpa
+    menulis. Error per pesanan dicatat (`describeError`: kode + pesan MySQL) dan pesanan lain tetap diproses; pesanan
+    itu dicoba lagi putaran berikutnya.
+  - Urutan kunci (sama dengan pembatalan pelanggan setelah F-C1-1): `orders` X → INSERT refund poin, riwayat,
+    notifikasi (`users` S) → UPDATE `orders` → UPDATE `payments` → `daily_stocks` X → `user_vouchers` / `vouchers`.
+    Tanpa kunci baru (`changed_by` NULL → tanpa kunci baris admin).
+  - Penjadwal (K1): `node-cron@4.6.0` (versi dipin, tanpa dependensi turunan) — SATU penjadwal `* * * * *` untuk semua
+    pembatalan otomatis; BR-07 (C3) ditambahkan ke `runAutoCancel` yang sama. Putaran pertama saat server start, flag
+    `inFlight` mencegah tumpang tindih dalam satu proses, antarproses dijamin kunci baris + pemeriksaan ulang. Nonaktif
+    bila `NODE_ENV=test` atau `AUTO_CANCEL_ENABLED=false`.
+  - Graceful shutdown (pemeriksaan tambahan sebelum persetujuan): versi awal menunggu putaran maks. 10 s lalu tetap
+    `prisma.$disconnect` dan terus memproses kandidat berikutnya → transaksi job bisa terputus. Kini
+    `stopAutoCancelJob`: hentikan cron → pasang flag `stopping` (tick tidak memulai putaran; `runAutoCancel` berhenti
+    SEBELUM kandidat berikutnya, `summary.stopped`) → tunggu putaran berjalan SAMPAI SELESAI (pesanan yang sedang
+    diproses commit/rollback + email) tanpa timeout pemotong (setelah 10 s hanya peringatan log). Penantian pasti
+    berakhir karena setiap transaksi dibatasi Prisma (timeout 15 s, maxWait 2 s, lock wait 2 s). `server.js` baru
+    memanggil `prisma.$disconnect` setelah itu.
+  - Query kandidat (pemeriksaan tambahan kedua): berada di LUAR transaksi interaktif, jadi timeout transaksi 15 s tidak
+    berlaku — consistent read tidak menunggu row lock, tetapi bisa menunggu metadata lock (LOCK TABLES / DDL pada
+    `orders`, `lock_wait_timeout` bawaan 1 tahun) atau memindai lama. Diganti dari `findMany` ke SELECT ber-parameter
+    dengan optimizer hint `/*+ MAX_EXECUTION_TIME(5000) */` (konstanta `AUTO_CANCEL_JOB.CANDIDATE_QUERY_TIMEOUT_MS`;
+    filter & hasil sama, tetap tanpa kunci). Dibuktikan di MySQL 8.0.46: hint menghentikan tunggu metadata lock (1,58 s
+    untuk batas 1,5 s, ER 3024) dan eksekusi lambat; `SET_VAR(lock_wait_timeout)` hanya menutup tunggu lock, jadi tidak
+    dipakai. Batas ditegakkan server (statement benar-benar berhenti), bukan `Promise.race` JS yang meninggalkan query
+    berjalan. Query gagal/timeout → `summary.queryError` + log `Query kandidat BR-06 gagal … P2010 (MySQL 3024): …`,
+    tanpa transaksi, dicoba lagi putaran berikutnya (`describeError` kini menyertakan `meta.code` MySQL).
+  - File baru: `server/src/jobs/autoCancelOrders.js`, `services/orderCancellation.service.js`,
+    `services/autoCancelRules.service.js`; uji `server/tests/autoCancelRules.test.js`, `autoCancelOrders.test.js`,
+    `server/tests-mysql/13-auto-cancel-online.it.test.js`. Diubah: `server.js`, `orderActions.service.js` (memanggil
+    `cancelOrderTx`), `utils/businessConstants.js` (`PAYMENT_TIMEOUT_CANCEL_REASON`, `AUTO_CANCEL_PAYMENT_STATUS`,
+    `AUTO_CANCEL_JOB`), `payment.service.js` (komentar), `package.json` & `package-lock.json` (`node-cron`),
+    `tests/helpers/orderDb.js` (`order.findMany` menilai `payments: { some }` & `take`). Tanpa perubahan schema/migrasi,
+    frontend, atau kontrak API.
+  - **Terverifikasi:** `npm test` 661/661 (C1 638; +23 uji: batas sebelum/tepat/sesudah `expired_at`, pesanan
+    lunas/dibatalkan/Bayar di Toko dilewati, efek lengkap, idempotensi, pemeriksaan ulang setelah kunci × 4, rollback per
+    pesanan & retry, batch, penjadwal, `describeError`, shutdown: menunggu melewati batas log, tanpa query bila sudah
+    berhenti, shutdown di tengah transaksi commit / rollback → urutan `tx:end` sebelum disconnect & kandidat berikutnya
+    tidak diproses; query kandidat: hint & parameter, gagal/ER 3024 dicatat tanpa transaksi, shutdown saat query berjalan
+    lalu selesai / timeout → disconnect setelah query berhenti & tanpa transaksi kandidat). MySQL 8.0.46 harness penuh
+    01–13 pada container baru: **74/74 lulus, `lock_deadlocks` 0** (`lock_timeouts` 10 = 9 skenario 1205 disengaja G/H/I
+    seperti run C1 + 1 disengaja di M9b). Run sebelumnya: 69/69 (sebelum perbaikan shutdown), 71/71 (sebelum batas query
+    kandidat); run 13 dengan M7 × 30: 10/10, 0 deadlock.
+    · M1 job normal (tepat pada `expired_at` belum dibatalkan; efek lengkap; idempoten). M2 job × simulate-paid dua
+      urutan antre kunci → yang antre pertama menang, yang lain 409 / dilewati (tidak pernah keduanya). M3 job × batal
+      pelanggan dua urutan → satu pembatalan (`expired` vs `failed`), refund sekali. M4 dua PROSES job: antre kunci yang
+      sama → 1 batal + 1 lewati; 10 pesanan bersamaan → masing-masing tepat sekali, stok/kuota/poin tepat. M5 job ×
+      checkout pelanggan yang sama (F-C1-1) × 3 → job menunggu `users` tanpa kunci `payments`, 0 deadlock. M6 rollback
+      (trigger MySQL menolak notifikasi poin satu pesanan) → pesanan itu utuh, pesanan lain dibatalkan, log
+      `MysqlError 1644`, putaran berikutnya berhasil. M7 beban × 15 (2 pelari job + simulasi lunas + batal + checkout):
+      tanpa 5xx, 0 pelanggaran (lunas XOR batal, riwayat = notifikasi, stok = jumlah item pesanan aktif), 0 deadlock.
+      M8 server asli `NODE_ENV=development`: putaran saat start membatalkan pesanan, email tercetak, SIGTERM exit 0.
+      M9a SIGTERM saat job memegang kunci `orders` X & transaksinya berjalan → proses & transaksi tetap hidup setelah
+      SIGTERM, pesanan itu commit utuh, 2 kandidat berikutnya tidak disentuh, exit 0. M9b sama tetapi kunci ditahan > 2 s →
+      rollback 1205 utuh (tanpa email), kandidat berikutnya tidak disentuh, exit 0. Kontrol negatif (kode dikembalikan
+      sesudahnya): tanpa pemeriksaan `stopping` → M9a gagal (kandidat berikutnya diproses); stop tanpa menunggu putaran →
+      M9a gagal (proses keluar saat transaksi job masih terbuka; MySQL me-rollback pesanan itu, hasil job hilang).
+      M10 metadata lock nyata (sesi mysql lain `LOCK TABLES orders WRITE`): M10a query kandidat berhenti 5006 ms (ER 3024)
+      selagi lock masih dipegang, dicatat, tanpa transaksi, putaran berikutnya normal. M10b SIGTERM saat query tertahan →
+      proses & query tetap hidup, query berhenti oleh MAX_EXECUTION_TIME, disconnect & exit 0 (5004 ms setelah SIGTERM,
+      SEBELUM pemegang lock melepas), pesanan tidak berubah. M10c SIGTERM lalu lock dilepas sebelum batas → query selesai,
+      kandidat tidak diproses (`Shutdown diminta — 1 kandidat tersisa`), exit 0. Kontrol negatif: tanpa hint → M10b gagal,
+      shutdown menunggu 11,7 s sampai pemegang lock melepas (di produksi bisa sampai `lock_wait_timeout`).
+  - Keterbatasan: (1) jeda hingga ±1 menit antara `expired_at` dan pembatalan (pembayaran sudah ditolak 409 sejak
+    batas lewat); (2) query kandidat memindai `orders` (tidak ada indeks status/`expired_at` di SPEC §8) — dibatasi
+    5 s per putaran; bila data tumbuh sampai pemindaian > 5 s, setiap putaran gagal ER 3024 (tercatat jelas) dan perlu
+    indeks lewat perubahan skema yang disetujui; (3) teks
+    alasan menyebut 30 menit — bila `payment_timeout_minutes` diubah langsung di database, teks tidak ikut berubah;
+    (4) pesanan contoh seed `menunggu_pembayaran` ikut dibatalkan saat server dev pertama berjalan; (5) shutdown
+    menunggu pesanan yang sedang diproses (maks. ±17 s per batas Prisma) — pengelola proses yang memaksa SIGKILL lebih
+    cepat tetap memutus transaksi itu (MySQL me-rollback utuh); kandidat yang tidak diproses dibatalkan putaran pertama
+    setelah server start lagi; gangguan jaringan pada tingkat soket (koneksi menggantung tanpa balasan server) tidak
+    tertutup MAX_EXECUTION_TIME — perolehan koneksi dari pool dibatasi `pool_timeout` Prisma (bawaan 10 s), tetapi
+    batas soket memerlukan parameter `socket_timeout` pada `DATABASE_URL` (konfigurasi deploy, belum diatur);
+    (6) di M4b proses pertama membatalkan kesepuluh pesanan dan proses kedua melewati semuanya (bukti antre per pesanan
+    ada di M4a deterministik).
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

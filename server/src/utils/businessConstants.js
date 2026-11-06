@@ -198,6 +198,25 @@ const POINTS_NOTIFICATION_REASON = Object.freeze({
 // sama seperti OTP ([DEV OTP] di auth.service).
 const NOTIFICATION_EMAIL_LOG_PREFIX = '[DEV EMAIL]';
 
+// FR-38 · BR-06 — pembatalan otomatis pembayaran online (Step 6.5 C2). Alasan = client constants/checkout.js
+// PAYMENT_TIMEOUT_CANCEL_REASON & seed. "30 menit" sesuai SPEC BR-06; payment_timeout_minutes tidak bisa diubah lewat
+// AD-11 (validator membuangnya), jadi teks ini tetap benar.
+const PAYMENT_TIMEOUT_CANCEL_REASON = 'Tidak dibayar dalam 30 menit (BR-06)';
+// Status baris payments saat batas bayar lewat (mock orderCancellation.js & seed: 'expired'); orders.payment_status tetap unpaid
+const AUTO_CANCEL_PAYMENT_STATUS = PAYMENT_TRANSACTION_STATUS.EXPIRED;
+
+// Penjadwal pembatalan otomatis (jobs/autoCancelOrders.js; dipakai bersama BR-07 di C3)
+const AUTO_CANCEL_JOB = Object.freeze({
+  NAME: 'autoCancelOrders',
+  CRON: '* * * * *', // tiap menit
+  BATCH_SIZE: 100, // pesanan per putaran; sisanya diproses putaran berikutnya
+  // Batas eksekusi query kandidat (di luar transaksi) — MAX_EXECUTION_TIME MySQL, termasuk tunggu metadata lock
+  CANDIDATE_QUERY_TIMEOUT_MS: 5000,
+  // Shutdown menunggu putaran berjalan sampai SELESAI (tanpa batas yang memotong transaksi); setelah ini hanya dicatat
+  SHUTDOWN_LOG_AFTER_MS: 10000,
+  ENABLED_ENV: 'AUTO_CANCEL_ENABLED', // "false" → job tidak dijalankan
+});
+
 // BR-09 · TF-11: level member dari poin tahun kalender berjalan (client constants/storeConfig.js MEMBER_LEVEL)
 const MEMBER_LEVEL = Object.freeze({
   SILVER: Object.freeze({ key: 'silver', label: 'Silver Member', badge: 'silver' }),
@@ -373,6 +392,9 @@ module.exports = {
   NOTIFICATION_BODY_MAX,
   POINTS_NOTIFICATION_REASON,
   NOTIFICATION_EMAIL_LOG_PREFIX,
+  PAYMENT_TIMEOUT_CANCEL_REASON,
+  AUTO_CANCEL_PAYMENT_STATUS,
+  AUTO_CANCEL_JOB,
   MEMBER_LEVEL,
   VOUCHER_STATE,
   API_ERROR_CODE,
