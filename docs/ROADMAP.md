@@ -1298,6 +1298,13 @@ Catatan khusus:
       pekerjaan ini.
     Tetap tercatat sebagai asumsi prototype (6.3): JWT di localStorage dan tanpa pencabutan token saat keluar/ganti
     sandi.
+  **Hotfix N1 — `data: null` (temuan audit CP3, terpisah dari CP3): selesai.** `apiClient` mengembalikan
+  `json.data ?? json`, sehingga respons sah `{ status: 'success', data: null }` (`GET /api/products/:id/reviews` untuk
+  produk tidak ada/nonaktif) berubah menjadi seluruh body respons dan C-10 `/produk/999999/ulasan` crash di mode API
+  ("reading 'filter'"); mode mock menampilkan "Produk tidak ditemukan". Kini properti `data` yang ADA dikembalikan apa
+  adanya (termasuk null/false/0); body tanpa `data` (forgot/reset password) tetap utuh. Uji: 5 regresi di
+  `apiClient.test.mjs` (kode lama: kasus null gagal), client unit 191/191, browser API & mock 390/1440 px tanpa error
+  halaman dan tanpa request API di mode mock. Id tidak valid (400 `INVALID_ID`) di ulasan tetap pekerjaan G11/CP7.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

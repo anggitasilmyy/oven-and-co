@@ -308,3 +308,50 @@ test('CP1 #9: FormData tetap terkirim apa adanya bersama Authorization; error 40
   assert.equal(calls[0].init.headers.Authorization, 'Bearer jwt-lama');
   assert.deepEqual(error.fieldErrors, { photos: 'Maksimal 5 foto.' });
 });
+
+// ── Step 6.6 · hotfix N1: ekstraksi `data` — nilai `data` apa pun (termasuk null/false/0) dikembalikan apa adanya ──
+// Dulu `json.data ?? json`: `{ status: 'success', data: null }` (mis. GET /products/:id/reviews untuk produk yang
+// tidak ada) mengembalikan SELURUH body respons → UlasanProdukPage crash ("reading 'filter'").
+
+test('N1: data object & array dikembalikan apa adanya', async () => {
+  responses = [
+    { status: 200, body: { status: 'success', data: { product_id: '1', name: 'Croissant' } } },
+    { status: 200, body: { status: 'success', data: [{ category_id: 1 }, { category_id: 2 }] } },
+  ];
+  assert.deepEqual(await apiClient('/products/1'), { product_id: '1', name: 'Croissant' });
+  assert.deepEqual(await apiClient('/categories'), [{ category_id: 1 }, { category_id: 2 }]);
+});
+
+test('N1: data null dikembalikan sebagai null (bukan seluruh body respons)', async () => {
+  responses = [{ status: 200, body: { status: 'success', data: null } }];
+  assert.equal(await apiClient('/products/999999/reviews'), null);
+});
+
+test('N1: data false, 0, dan string kosong dikembalikan apa adanya', async () => {
+  responses = [
+    { status: 200, body: { status: 'success', data: false } },
+    { status: 200, body: { status: 'success', data: 0 } },
+    { status: 200, body: { status: 'success', data: '' } },
+  ];
+  assert.equal(await apiClient('/x'), false);
+  assert.equal(await apiClient('/x'), 0);
+  assert.equal(await apiClient('/x'), '');
+});
+
+test('N1: respons tanpa properti data → seluruh body (perilaku lama, mis. forgot/reset password)', async () => {
+  const body = { status: 'success', message: 'Kata sandi berhasil diubah.' };
+  responses = [{ status: 200, body }];
+  assert.deepEqual(await apiClient('/auth/reset-password', { method: 'POST', body: {} }), body);
+});
+
+test('N1: error HTTP & fieldErrors CP1 tidak berubah walau body membawa data: null', async () => {
+  responses = [
+    { status: 400, body: { status: 'error', message: 'Maksimal 2 angka desimal', fieldErrors: { price: 'Maksimal 2 angka desimal' }, data: null } },
+    { status: 404, body: { status: 'error', message: 'Produk tidak ditemukan.' } },
+  ];
+  const invalid = await apiClient('/admin/products/1', { method: 'PUT', body: {} }).catch((e) => e);
+  assert.ok(invalid instanceof Error);
+  assert.equal(invalid.status, 400);
+  assert.deepEqual(invalid.fieldErrors, { price: 'Maksimal 2 angka desimal' });
+  await assert.rejects(apiClient('/products/999999'), { status: 404, message: 'Produk tidak ditemukan.' });
+});

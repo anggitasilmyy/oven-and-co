@@ -67,6 +67,16 @@ async function send(path, { method, body, token }) {
   return { res, json: {}, unreadable: true };
 }
 
+/**
+ * Step 6.6 · hotfix N1: isi respons sukses. Bila body punya properti `data`, nilainya dikembalikan apa adanya —
+ * termasuk null/false/0 (mis. ulasan produk yang tidak ada: `{ status: 'success', data: null }`). Body tanpa `data`
+ * (mis. forgot/reset password: `{ status, message }`) tetap dikembalikan utuh. `hasOwnProperty.call` dipakai karena
+ * tersedia di semua target browser tanpa polyfill.
+ */
+function unwrapData(json) {
+  return Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json;
+}
+
 /** Respons HTTP gagal → error terstruktur dengan pesan, status, kode aplikasi, dan fieldErrors dari server */
 function toResponseError(res, json, unreadable) {
   if (unreadable) {
@@ -122,7 +132,7 @@ export async function apiClient(
 
   if (committedFor !== undefined) {
     try {
-      reconcileOwner?.(json.data ?? json, committedFor);
+      reconcileOwner?.(unwrapData(json), committedFor);
     } catch {
       // Rekonsiliasi lokal gagal (mis. penyimpanan penuh) tidak mengubah fakta bahwa transaksi sudah tersimpan
     }
@@ -132,7 +142,7 @@ export async function apiClient(
   if (!res.ok) throw toResponseError(res, json, unreadable);
   // 2xx tanpa body JSON yang bisa dibaca: tidak dianggap sukses kosong (data tidak boleh diam-diam hilang)
   if (unreadable) throw toResponseError(res, json, true);
-  return json.data ?? json;
+  return unwrapData(json);
 }
 
 export { USE_MOCK };
