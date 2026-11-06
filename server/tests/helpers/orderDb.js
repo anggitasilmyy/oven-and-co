@@ -290,6 +290,7 @@ function installOrderDb(fakePrisma, dates) {
       },
       update: async ({ where, data }) => {
         fail('payment.update');
+        state.ops.push('payment.update'); // C4: urutan pernyataan pelunasan gateway (berdasarkan primary key)
         const row = state.t.payments.find((p) => p.paymentId === where.paymentId);
         Object.assign(row, data);
         return { ...row };

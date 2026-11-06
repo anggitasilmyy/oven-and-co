@@ -1119,6 +1119,75 @@ Catatan khusus:
     (4) stok dikembalikan ke tanggal pesanan dibuat (TF-12) walau tanggal siap berbeda; (5) pesanan contoh seed Bayar di
     Toko (id 8) dibatalkan setelah jam tutup hari seed; (6) `jobs/autoCancelOrders.js` kini 321 baris (> batas lunak ±150,
     sudah 219 setelah C2) — pemecahan menunggu persetujuan karena menyentuh kode C2.
+  **C3 di-commit & di-push: `f8085b3`.**
+  **C4 — Payment Webhook sebagai FUNGSI INTERNAL (FR-14 · NFR-05 · SPEC §10): implementasi & uji selesai, belum
+  di-commit** (menunggu persetujuan commit/push). Bukan webhook HTTP: SPEC §10 mensimulasikan gateway (tombol "Simulasikan
+  Lunas", hanya development) dan tidak ada dokumen yang mewajibkan URL callback — TIDAK ada endpoint publik baru.
+  - Desain (keputusan W1–W3): `services/paymentGateway.service.js` `applyGatewayPayment(tx, order, { gatewayRef, amount,
+    now })` — pemanggil sudah mengunci `orders` X; hasil terstruktur `{ applied: true, notices }` /
+    `{ applied: false, reason }` dengan `reason` = `NOT_PENDING` / `EXPIRED` / `INVALID_NOTIFICATION` (konstanta
+    `GATEWAY_PAYMENT_REASON`), bukan respons HTTP. Urutan evaluasi: status (masih menunggu) → keabsahan notifikasi
+    (`gateway_ref` = `payments.gateway_ref`, nominal = `payments.amount` dengan `Prisma.Decimal` — presisi DECIMAL, bukan
+    float; metode kelompok gateway QRIS/e-wallet/VA & opsi online) → batas `expired_at < now` (ketat, sama dengan BR-06).
+    Berlaku → UPDATE `payments` (PRIMARY KEY) → UPDATE `orders` → riwayat & notifikasi lewat recorder C1 (sistem).
+    `simulatePaid` kini hanya urusan pelanggan: production 403 (sebelum transaksi), `lockMyOrder` (kepemilikan → 404 &
+    kunci), panggil fungsi gateway dengan `gateway_ref`/nominal dari baris pembayaran sendiri (bukan dari klien), lalu
+    terjemahkan: `NOT_PENDING`/`EXPIRED` → 409 dengan pesan LAMA, `INVALID_NOTIFICATION` → 409 "Notifikasi pembayaran
+    tidak valid." Email setelah commit (emailAfterCommit). Rute, respons, dan frontend tidak berubah.
+  - Urutan kunci TIDAK berubah dari C1–C3: `orders` X → `payments` (PK, `X,REC_NOT_GAP`) → `orders` → INSERT riwayat &
+    notifikasi (`users` S pelanggan; `changed_by` NULL → tanpa kunci admin). Interaksi: BR-06 (lunas XOR batal, kunci
+    `orders` sama), BR-07 (tidak beririsan — Bayar di Toko bukan jalur gateway), batal pelanggan & ganti metode
+    (berurutan di `orders` X), checkout pelanggan yang sama (tanpa kunci indeks `payments_order_id_fkey`).
+  - File baru: `server/src/services/paymentGateway.service.js`, `server/tests/paymentGateway.test.js`,
+    `server/tests-mysql/15-payment-gateway.it.test.js`. Diubah: `services/payment.service.js` (`simulatePaid`),
+    `utils/businessConstants.js` (`GATEWAY_PAYMENT_REASON`, `GATEWAY_PAYMENT_GROUPS`), `tests/helpers/orderDb.js` (op
+    `payment.update`). Tanpa perubahan rute, frontend, schema/migrasi, atau dependensi; uji lama (`paymentRoute`,
+    `paymentMethodStale`, C1–C3) lulus tanpa diubah.
+  - **Terverifikasi:** `npm test` 691/691 (C3 679; +12 uji: batas sebelum/tepat/sesudah `expired_at`, NOT_PENDING (lunas,
+    dibatalkan, Bayar di Toko, payment paid/expired/failed/refunded), INVALID_NOTIFICATION (`gateway_ref`, nominal,
+    nominal bukan angka/NaN, metode Bayar di Toko, opsi bukan online), presisi DECIMAL (56500 = 56500.00; nilai yang sama
+    menurut `Number` ditolak), tanpa penulisan saat tidak berlaku, urutan orders → payments (PK) → orders → riwayat →
+    notifikasi, idempoten (409 pesan lama), 409 EXPIRED, production 403 tanpa transaksi, 404 pelanggan lain, nominal dari
+    klien diabaikan, rollback, status berubah selagi menunggu kunci). Kontrol negatif unit: perbandingan `Number` → 1
+    gagal; tanpa cek `expired_at` → 4 gagal; tanpa cek `gateway_ref` → 1 gagal; tanpa cek metode → 2 gagal.
+    MySQL 8.0.46 harness penuh 01–15 pada container baru: **113/113 lulus, `lock_deadlocks` 0** (`lock_timeouts` 10 — sama
+    dengan run C3).
+    · G1 normal (1 riwayat sistem, 1 notifikasi, email setelah commit) & EXPIRED 409 tanpa perubahan. G2 × job BR-06 dua
+      urutan antre → yang pertama menang, lunas XOR batal. G3 × batal pelanggan dua urutan (lunas lalu batal → `refunded`;
+      batal lalu 409), refund poin sekali. G4 × ganti metode dua urutan: ke VA (gateway_ref tetap → lunas) & ke Bayar di
+      Toko (→ simulasi 409). G5 10 simulasi lewat 2 proses server → 200 × 1 + 409 × 9, satu riwayat Dikonfirmasi. G6a ×
+      checkout pelanggan yang sama × 3 → simulasi memegang `orders` X tanpa kunci `payments_order_id_fkey`, 0 deadlock; G6b
+      simulasi + 2 checkout × 10 → semua 200/201, 0 deadlock. G7 rollback trigger → 500, payment tetap `pending`, lalu
+      pulih. G8 server `NODE_ENV=production` → 403 tanpa perubahan. G9 beban × 15 (simulasi + job BR-06/BR-07 + batal +
+      ganti metode + checkout, 2 server): tanpa 5xx, 0 pelanggaran, 0 deadlock.
+    · Kontrol negatif MySQL (kode dikembalikan & diverifikasi identik): tanpa kunci pesanan → G5 200 × 8, riwayat &
+      notifikasi 9 (ganda); `UPDATE payments WHERE order_id` → G6a deadlock nyata (memegang `payments_order_id_fkey` X);
+      tanpa penolakan production → G8 gagal; tanpa cek `expired_at` → G1 gagal.
+  - Keterbatasan: (1) notifikasi yang diproses setelah `expired_at` ditolak (W3) — bila gateway sungguhan melunasi tepat
+    sebelum batas tetapi notifikasinya terlambat, pesanan tetap dibatalkan BR-06 dan dana perlu dikembalikan manual
+    (SPEC §10: refund hanya dicatat; tidak ada refund otomatis); (2) belum ada callback HTTP sungguhan — rancangan bila
+    kelak diperlukan: rute terpisah tanpa auth pelanggan, verifikasi tanda tangan HMAC dengan secret gateway, kunci pesanan
+    berdasarkan `gateway_ref`, lalu `applyGatewayPayment` (idempoten lewat hasil `NOT_PENDING`); (3) metode yang
+    dinonaktifkan AD-11 setelah pesanan dibuat tetap dianggap sah untuk notifikasi (sah = kelompok gateway, bukan
+    `is_active`), karena pelanggan sudah menerima kode bayarnya.
+  **C5 — Audit Log (FR-37): RENCANA, belum diimplementasikan** (keputusan K1–K5 & B1–B5 saat audit; checkpoint tetap C5).
+  - Tabel `audit_logs` apa adanya (`log_id`, `user_id` FK `users` NOT NULL = admin pelaku, `action` VARCHAR(50),
+    `entity` = nama tabel, `entity_id` = primary key entitas, `created_at`); tanpa nilai lama/baru, tanpa data sensitif.
+    Service `auditLog.service.js`: `lockAuditActor(tx, actorId)` (`SELECT user_id, is_active FROM users … FOR SHARE`;
+    nonaktif → 401 SESSION_INVALID) & `recordAudit(tx, …)` di transaksi bisnis yang sama (rollback ikut batal).
+  - Cakupan (K2): ubah status pesanan (`update_order_status`, `orders`), tandai lunas (`mark_order_paid`, `orders`/order_id),
+    harga produk (`update_product_price`, `products`), harga varian (`update_variant_price`, `product_variants`), harga opsi
+    custom cake (`update_custom_option_price`, `custom_options`), rencana stok harian (`update_daily_stock_plan`,
+    `daily_stocks`/stock_id), koreksi stok bahan (`correct_raw_material_stock`, `raw_materials`), stok masuk
+    (`raw_material_stock_in`, `raw_materials`/material_id). Hanya bila nilai benar-benar berubah; pembuatan data baru dan
+    edit nama/satuan/minimum bahan tanpa perubahan stok tidak dicatat; job sistem & pelanggan tidak dicatat.
+  - Kunci (K4/K5): master data → `actor S` SEBELUM `store_settings` X (mencegah siklus dengan AD-11 ubah status akun:
+    `users` X → `store_settings` X); AD-04 → `orders` X lalu `actor S`, sebelum UPDATE `payments` & INSERT audit;
+    `markOrderPaid` juga UPDATE `payments` berdasarkan PRIMARY KEY. `actorId` dari `req.user.userId` (kontrak HTTP sama).
+  - Uji yang direncanakan: unit per titik audit (isi baris, tanpa log saat sama/400/409/rollback/akses ditolak, urutan
+    kunci) dan MySQL `16-audit-log` (isi & pelaku, rollback trigger, konkurensi dua admin, pelaku dinonaktifkan selagi
+    transaksi berjalan → 401, deadlock master data × ubah status akun & `markOrderPaid` tiga pihak dengan kontrol negatif,
+    beban campuran).
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

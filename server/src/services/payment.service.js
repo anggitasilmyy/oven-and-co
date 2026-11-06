@@ -7,23 +7,35 @@
 // dianggap lunas, tidak diganti metode) — syarat yang sama dengan autoCancelRules.isOverdueOnlinePayment.
 // Step 6.5 C1: perubahan status dicatat lewat recordOrderStatus (riwayat + notifikasi, transaksi yang sama); salinan
 // email dicetak setelah commit (emailAfterCommit).
+// Step 6.5 C4: logika pelunasan gateway dipindahkan ke paymentGateway.service applyGatewayPayment (fungsi internal,
+// hasil terstruktur). simulatePaid hanya menangani urusan pelanggan (production 403, kepemilikan & kunci pesanan) lalu
+// menerjemahkan hasilnya ke kontrak HTTP yang sama (200 / 409 dengan pesan lama). Tanpa endpoint publik baru.
 
 const prisma = require('../lib/prisma');
 const {
   ORDER_STATUS, PAYMENT_STATUS, PAYMENT_OPTION, PAYMENT_TRANSACTION_STATUS, PAY_AT_STORE_METHOD, PAY_AT_STORE_DISABLED_TEXT,
-  PAYMENT_METHOD_UNAVAILABLE_TEXT,
+  PAYMENT_METHOD_UNAVAILABLE_TEXT, GATEWAY_PAYMENT_REASON,
 } = require('../utils/businessConstants');
 const { isPayAtStoreAllowed, resolvePaymentMethod, PAYMENT_METHOD_ERROR } = require('./checkoutRules.service');
 const { paymentCodeFor, gatewayRefFor } = require('./orderRules.service');
 const { mapPaymentMethod } = require('./checkout.service');
 const { lockMyOrder } = require('./order.service');
 const { recordOrderStatus, emailAfterCommit } = require('./orderStatusRecorder.service');
+const { applyGatewayPayment } = require('./paymentGateway.service');
 
 const MESSAGES = Object.freeze({
   DEV_ONLY: 'Simulasi hanya tersedia di mode development',
   NOT_PENDING: 'Pesanan tidak lagi menunggu pembayaran.',
   EXPIRED: 'Batas waktu pembayaran sudah lewat.',
   METHOD: 'Pilih metode pembayaran.',
+  INVALID_NOTIFICATION: 'Notifikasi pembayaran tidak valid.',
+});
+
+// Hasil fungsi gateway → pesan 409 rute simulasi (NOT_PENDING & EXPIRED = pesan lama, kontrak tidak berubah)
+const GATEWAY_REASON_MESSAGE = Object.freeze({
+  [GATEWAY_PAYMENT_REASON.NOT_PENDING]: MESSAGES.NOT_PENDING,
+  [GATEWAY_PAYMENT_REASON.EXPIRED]: MESSAGES.EXPIRED,
+  [GATEWAY_PAYMENT_REASON.INVALID_NOTIFICATION]: MESSAGES.INVALID_NOTIFICATION,
 });
 
 function httpError(statusCode, message) {
@@ -50,27 +62,25 @@ async function lockPendingOrder(tx, userId, orderNumber, now) {
   return { order, payment };
 }
 
-/** POST /api/payments/:orderNumber/simulate-paid — webhook "lunas" simulasi: Lunas → Dikonfirmasi (SPEC §4) */
+/**
+ * POST /api/payments/:orderNumber/simulate-paid — simulasi notifikasi gateway "lunas" (SPEC §10): Lunas → Dikonfirmasi.
+ * Nominal & gateway_ref diambil dari baris pembayaran pesanan itu sendiri (tidak pernah dari klien).
+ */
 async function simulatePaid(userId, orderNumber, now = new Date()) {
   if (process.env.NODE_ENV === 'production') throw httpError(403, MESSAGES.DEV_ONLY);
 
-  return emailAfterCommit(prisma.$transaction(async (tx) => {
-    const { order, payment } = await lockPendingOrder(tx, userId, orderNumber, now);
-
-    await tx.payment.update({
-      where: { paymentId: payment.paymentId },
-      data: { status: PAYMENT_TRANSACTION_STATUS.PAID, paidAt: now },
+  const outcome = await emailAfterCommit(prisma.$transaction(async (tx) => {
+    // Kepemilikan + kunci orders X (pembacaan pertama transaksi); pesanan orang lain = 404
+    const order = await lockMyOrder(tx, userId, orderNumber);
+    const payment = order.payments[0] ?? null;
+    const applied = await applyGatewayPayment(tx, order, {
+      gatewayRef: payment?.gatewayRef ?? null, amount: payment?.amount ?? null, now,
     });
-    await tx.order.update({
-      where: { orderId: order.orderId },
-      data: { paymentStatus: PAYMENT_STATUS.PAID, orderStatus: ORDER_STATUS.DIKONFIRMASI },
-    });
-    // Webhook payment gateway = sistem (changed_by kosong). INSERT notifikasi (FK users → kunci S baris pelanggan)
-    // diambil SETELAH kunci orders — pola yang sama dengan pembatalan pelanggan (orders X → users S).
-    const notice = await recordOrderStatus(tx, order, ORDER_STATUS.DIKONFIRMASI, { changedBy: null, now });
-
-    return { result: { order_number: orderNumber }, notices: [notice] };
+    return { result: applied, notices: applied.applied ? applied.notices : [] };
   }));
+
+  if (!outcome.applied) throw httpError(409, GATEWAY_REASON_MESSAGE[outcome.reason]);
+  return { order_number: orderNumber };
 }
 
 /**

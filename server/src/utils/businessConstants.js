@@ -90,6 +90,16 @@ const FULFILLMENT_TYPE = Object.freeze({
 const PAYMENT_GROUP = Object.freeze({ QRIS: 'qris', EWALLET: 'ewallet', VA: 'va', STORE: 'store' });
 const PAY_AT_STORE_METHOD = 'pay_at_store';
 
+// Step 6.5 C4 · FR-14 · NFR-05 — hasil fungsi internal pemrosesan notifikasi payment gateway (paymentGateway.service.js).
+// Bukan kode HTTP: pemanggil (simulatePaid) menerjemahkannya ke kontrak rute.
+const GATEWAY_PAYMENT_REASON = Object.freeze({
+  NOT_PENDING: 'NOT_PENDING', // pesanan/pembayaran tidak lagi menunggu (lunas, dibatalkan, Bayar di Toko, …)
+  EXPIRED: 'EXPIRED', // expired_at < now (BR-06) — notifikasi terlambat ditolak
+  INVALID_NOTIFICATION: 'INVALID_NOTIFICATION', // gateway_ref / nominal / metode tidak cocok dengan data pembayaran
+});
+// Kelompok metode yang dibayar lewat payment gateway (Bayar di Toko tidak)
+const GATEWAY_PAYMENT_GROUPS = Object.freeze([PAYMENT_GROUP.QRIS, PAYMENT_GROUP.EWALLET, PAYMENT_GROUP.VA]);
+
 // Simulasi payment gateway (SPEC §10): prefiks payments.payment_code per kelompok (client PAYMENT_CODE_PREFIX)
 const PAYMENT_CODE_PREFIX = Object.freeze({
   [PAYMENT_GROUP.QRIS]: 'QRIS-SIM-',
@@ -380,6 +390,8 @@ module.exports = {
   FULFILLMENT_TYPE,
   PAYMENT_GROUP,
   PAY_AT_STORE_METHOD,
+  GATEWAY_PAYMENT_REASON,
+  GATEWAY_PAYMENT_GROUPS,
   PAYMENT_CODE_PREFIX,
   PAYMENT_CODE_DIGITS,
   GATEWAY_REF_PREFIX,
