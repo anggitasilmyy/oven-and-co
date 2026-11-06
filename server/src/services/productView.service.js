@@ -39,13 +39,16 @@ function averageOf(ratings) {
   };
 }
 
-/** Map product_id → {average, count} dari ulasan yang tidak disembunyikan */
-async function getProductRatings(productIds) {
+/**
+ * Map product_id → {average, count} dari ulasan yang tidak disembunyikan.
+ * `db` opsional (Step 6.4.6): klien transaksi agar ikut snapshot baca Dashboard; default Prisma global.
+ */
+async function getProductRatings(productIds, db = prisma) {
   const ratings = new Map();
 
   if (productIds.length === 0) return ratings;
 
-  const reviews = await prisma.review.findMany({
+  const reviews = await db.review.findMany({
     where: {
       isHidden: false,
       orderItem: { is: { productId: { in: productIds } } },
@@ -73,10 +76,11 @@ async function getProductRatings(productIds) {
 /**
  * Jumlah terjual per produk dari pesanan lunas & tidak dibatalkan yang dibuat pada rentang tanggal WIB
  * (sama dengan utils/rules/sales.js isSalesOrder + getBestSellerTotals).
+ * `db` opsional (Step 6.4.6): klien transaksi snapshot baca Dashboard; default Prisma global.
  * @returns {Promise<Map<string, number>>}
  */
-async function getSalesTotals(startKey, endKey) {
-  const orders = await prisma.order.findMany({
+async function getSalesTotals(startKey, endKey, db = prisma) {
+  const orders = await db.order.findMany({
     where: {
       paymentStatus: PAYMENT_STATUS.PAID,
       orderStatus: { not: ORDER_STATUS.DIBATALKAN },

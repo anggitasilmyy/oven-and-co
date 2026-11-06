@@ -8,6 +8,7 @@
 const prisma = require('../lib/prisma');
 const {
   ORDER_STATUS, PAYMENT_STATUS, PAYMENT_OPTION, PAYMENT_TRANSACTION_STATUS, PAY_AT_STORE_METHOD, PAY_AT_STORE_DISABLED_TEXT,
+  PAYMENT_METHOD_UNAVAILABLE_TEXT,
 } = require('../utils/businessConstants');
 const { isPayAtStoreAllowed, resolvePaymentMethod, PAYMENT_METHOD_ERROR } = require('./checkoutRules.service');
 const { paymentCodeFor, gatewayRefFor } = require('./orderRules.service');
@@ -70,6 +71,16 @@ async function simulatePaid(userId, orderNumber, now = new Date()) {
 }
 
 /**
+ * T2 (ROADMAP 6.4.10): kunci baris metode tujuan (FOR SHARE = locking read → melihat commit terbaru) lalu pastikan masih
+ * aktif. Kunci S ini menahan AD-11 menonaktifkan metode yang sama sampai transaksi ini selesai; mode kunci yang sama
+ * memang diambil pemeriksaan FK saat payments.method_code diubah — hanya diambil lebih awal, SEBELUM menulis pembayaran.
+ */
+async function lockActiveMethod(tx, methodCode) {
+  const rows = await tx.$queryRaw`SELECT method_code, is_active FROM payment_methods WHERE method_code = ${methodCode} FOR SHARE`;
+  if (rows.length === 0 || !rows[0].is_active) throw httpError(409, PAYMENT_METHOD_UNAVAILABLE_TEXT);
+}
+
+/**
  * PATCH /api/orders/:orderNumber/payment — ganti metode selama Menunggu Pembayaran.
  * Bayar di Toko (BR-05: pickup + semua item ready) → pesanan langsung Dikonfirmasi. expired_at awal dipertahankan
  * (orderRules.getPaymentDeadline: mengganti metode tidak menghitung batas baru).
@@ -88,15 +99,10 @@ async function changePaymentMethod(userId, orderNumber, methodCode, now = new Da
     if (!method) throw httpError(400, MESSAGES.METHOD);
 
     const payAtStore = method.method_code === PAY_AT_STORE_METHOD;
-    await tx.payment.update({
-      where: { paymentId: payment.paymentId },
-      data: {
-        methodCode: method.method_code,
-        paymentCode: paymentCodeFor(method, orderNumber),
-        gatewayRef: gatewayRefFor(method, orderNumber),
-      },
-    });
-
+    // Urutan kunci (T2): pesanan X → [Bayar di Toko: riwayat — kunci S baris pelanggan lewat FK] → metode S → pembayaran.
+    // Riwayat ditulis SEBELUM kunci metode: selama memegang kunci metode transaksi ini tidak lagi menunggu baris pelanggan,
+    // sehingga tidak ada siklus dengan checkout pelanggan yang sama (pelanggan X → store_settings) dan AD-11
+    // (store_settings X → metode X). Metode nonaktif → 409 dan semua tulisan di atas di-rollback.
     if (payAtStore) {
       await tx.order.update({
         where: { orderId: order.orderId },
@@ -106,6 +112,16 @@ async function changePaymentMethod(userId, orderNumber, methodCode, now = new Da
         data: { orderId: order.orderId, status: ORDER_STATUS.DIKONFIRMASI, changedBy: BigInt(userId), changedAt: now },
       });
     }
+
+    await lockActiveMethod(tx, method.method_code);
+    await tx.payment.update({
+      where: { paymentId: payment.paymentId },
+      data: {
+        methodCode: method.method_code,
+        paymentCode: paymentCodeFor(method, orderNumber),
+        gatewayRef: gatewayRefFor(method, orderNumber),
+      },
+    });
 
     return { order_number: orderNumber, payment_option: payAtStore ? PAYMENT_OPTION.PAY_AT_STORE : PAYMENT_OPTION.ONLINE };
   });

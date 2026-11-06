@@ -128,6 +128,8 @@ const OPERATING_HOURS_DEFAULT = Object.freeze({ open_time: '07:00', close_time: 
 // Teks validation rule Pembayaran & Voucher (SPEC §6)
 const PAY_AT_STORE_DISABLED_TEXT = 'Tidak tersedia untuk pre-order dan delivery';
 const VOUCHER_INVALID_TEXT = 'Voucher tidak berlaku untuk pesanan ini';
+// T2 (ROADMAP 6.4.10): metode bayar dinonaktifkan Owner (AD-11) selagi checkout / ganti metode berjalan → 409 + rollback
+const PAYMENT_METHOD_UNAVAILABLE_TEXT = 'Metode pembayaran baru saja dinonaktifkan. Pilih metode lain lalu coba lagi.';
 
 const ROLES = Object.freeze({
   CUSTOMER: 'customer',
@@ -229,6 +231,58 @@ const SALES_WINDOW_DAYS = 7;
 // FR-09: cuplikan ulasan di Detail Produk (client constants/productDetail.js)
 const REVIEW_PREVIEW_LIMIT = 2;
 
+// Step 6.4 · FR-27 · AD-02 Dashboard (client constants/dashboard.js & constants/orderStatus.js)
+const BEST_SELLER_LIMIT = 5;
+const RECENT_ORDERS_LIMIT = 5;
+const NEEDS_PROCESSING_STATUSES = Object.freeze([ORDER_STATUS.DIKONFIRMASI, ORDER_STATUS.SEDANG_DISIAPKAN]);
+
+// Step 6.4.7 · FR-33 · AD-08 Laporan Penjualan (client constants/report.js). Periode = A-08 (harian/mingguan/bulanan)
+// + rentang khusus (UI/UX Spec). Asumsi prototype: mingguan = 7 hari terakhir, bulanan = bulan berjalan s.d. hari ini,
+// rentang maks. 92 hari & tidak melewati hari ini.
+const REPORT_PERIOD = Object.freeze({ HARIAN: 'harian', MINGGUAN: 'mingguan', BULANAN: 'bulanan', RENTANG: 'rentang' });
+const REPORT_WEEK_DAYS = 7;
+const REPORT_MAX_RANGE_DAYS = 92;
+const REPORT_BEST_SELLER_LIMIT = 5;
+
+// Step 6.4.8 · FR-35 · AD-10 Pelanggan & Ulasan (client constants/adminCustomer.js). Asumsi prototype: balasan admin
+// maks. 500 karakter (reviews.admin_reply bertipe TEXT); filter rating 'semua' atau bintang tepat 1–5.
+const ADMIN_REPLY_MAX = 500;
+const ADMIN_REVIEW_RATING_ALL = 'semua';
+
+// Step 6.4.9 · FR-34 · BR-09 · BR-10 · AD-09 Promo & Loyalty (client constants/adminPromo.js). Batas panjang = SPEC §8
+// (vouchers.code VARCHAR(20), title VARCHAR(100)). Asumsi prototype: kuota 0–100.000, persen 1–100, batas aturan loyalty.
+const DISCOUNT_TYPE = Object.freeze({ PERCENT: 'percent', AMOUNT: 'amount' });
+const VOUCHER_FIELD_MAX = Object.freeze({ code: 20, title: 100 });
+const VOUCHER_CODE_PATTERN = /^[A-Z0-9]+$/;
+const VOUCHER_MAX_QUOTA = 100000;
+const VOUCHER_MAX_PERCENT = 100;
+const ADMIN_VOUCHER_STATUS = Object.freeze({
+  AKTIF: 'aktif', TERJADWAL: 'terjadwal', KUOTA_HABIS: 'kuota_habis', BERAKHIR: 'berakhir', NONAKTIF: 'nonaktif',
+});
+// review_bonus_points tidak diatur di AD-09 (UI/UX Spec AD-09 hanya aturan dapat/tukar poin & ambang level)
+const LOYALTY_FIELDS = Object.freeze(['earn_amount_per_point', 'redeem_points_unit', 'redeem_value', 'gold_min_points', 'platinum_min_points']);
+const LOYALTY_MAX = Object.freeze({ amount: 10000000, points: 1000000 });
+
+// Step 6.4.10 · FR-36 · UC-30 · AD-11 Pengaturan — kontrak client constants/settings.js & mock settingsAdmin.js
+// Field profil yang dibaca/diubah AD-11 (mock PROFILE_FIELDS). Koordinat toko (OI-01), payment_timeout_minutes, dan
+// review_bonus_points TIDAK termasuk (bukan isi A-11 / UI/UX Spec AD-11); aturan loyalty milik AD-09.
+const STORE_PROFILE_FIELDS = Object.freeze([
+  'store_name', 'address', 'whatsapp_number', 'preorder_cutoff_time', 'delivery_radius_km', 'delivery_fee_per_km',
+]);
+const STORE_FIELD_MAX = Object.freeze({
+  storeName: 100, // store_settings.store_name VARCHAR(100)
+  address: 255, // asumsi prototype client (kolom TEXT) agar alamat ringkas di struk
+  whatsapp: 20, // store_settings.whatsapp_number VARCHAR(20)
+  userName: 100, // users.name VARCHAR(100)
+  email: 150, // users.email VARCHAR(150)
+});
+const MAX_DELIVERY_RADIUS_KM = 999.99; // DECIMAL(5,2)
+const MAX_DELIVERY_FEE_PER_KM = 1000000; // asumsi prototype client
+const DAYS_OF_WEEK = Object.freeze([1, 2, 3, 4, 5, 6, 7]); // operating_hours.day_of_week: 1 Senin – 7 Minggu
+// Peran akun yang dapat dibuat/diatur Owner (PRD Batch 7: "staff accounts with roles (Owner, Staf)")
+const ADMIN_ACCOUNT_ROLES = Object.freeze(['staf', 'owner']);
+const OWNER_ROLE = 'owner';
+
 module.exports = {
   AVAILABILITY_TYPE,
   ORDER_STATUS,
@@ -255,6 +309,7 @@ module.exports = {
   OPERATING_HOURS_DEFAULT,
   PAY_AT_STORE_DISABLED_TEXT,
   VOUCHER_INVALID_TEXT,
+  PAYMENT_METHOD_UNAVAILABLE_TEXT,
   ROLES,
   POINT_TX_TYPE,
   MEMBER_LEVEL,
@@ -269,6 +324,30 @@ module.exports = {
   CART_REQUEST_MAX_ITEMS,
   SALES_WINDOW_DAYS,
   REVIEW_PREVIEW_LIMIT,
+  BEST_SELLER_LIMIT,
+  RECENT_ORDERS_LIMIT,
+  NEEDS_PROCESSING_STATUSES,
+  REPORT_PERIOD,
+  REPORT_WEEK_DAYS,
+  REPORT_MAX_RANGE_DAYS,
+  REPORT_BEST_SELLER_LIMIT,
+  ADMIN_REPLY_MAX,
+  ADMIN_REVIEW_RATING_ALL,
+  DISCOUNT_TYPE,
+  VOUCHER_FIELD_MAX,
+  VOUCHER_CODE_PATTERN,
+  VOUCHER_MAX_QUOTA,
+  VOUCHER_MAX_PERCENT,
+  ADMIN_VOUCHER_STATUS,
+  LOYALTY_FIELDS,
+  LOYALTY_MAX,
+  STORE_PROFILE_FIELDS,
+  STORE_FIELD_MAX,
+  MAX_DELIVERY_RADIUS_KM,
+  MAX_DELIVERY_FEE_PER_KM,
+  DAYS_OF_WEEK,
+  ADMIN_ACCOUNT_ROLES,
+  OWNER_ROLE,
   CUSTOM_CAKE_CATEGORY_NAME,
   CATALOG_FIELD_MAX,
   MAX_PRICE,

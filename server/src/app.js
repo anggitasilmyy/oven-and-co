@@ -20,6 +20,14 @@ const adminCustomOptionRoutes = require('./routes/admin/customOption.routes');
 const adminStockRoutes = require('./routes/admin/stock.routes');
 const adminRawMaterialRoutes = require('./routes/admin/rawMaterial.routes');
 const paymentMethodRoutes = require('./routes/admin/paymentMethod.routes');
+const adminDashboardRoutes = require('./routes/admin/dashboard.routes');
+const adminReportRoutes = require('./routes/admin/report.routes');
+const adminCustomerRoutes = require('./routes/admin/customer.routes');
+const adminReviewRoutes = require('./routes/admin/review.routes');
+const adminPromoRoutes = require('./routes/admin/promo.routes');
+const adminSettingsRoutes = require('./routes/admin/settings.routes');
+const adminPaymentMethodRoutes = require('./routes/admin/paymentMethodAdmin.routes');
+const adminStaffRoutes = require('./routes/admin/staff.routes');
 
 const errorHandler = require('./middlewares/errorHandler');
 const { getReferencePhotoDir } = require('./utils/referencePhotoStorage');
@@ -86,6 +94,14 @@ app.use('/api/admin/products', adminProductRoutes);
 app.use('/api/admin/custom-options', adminCustomOptionRoutes);
 app.use('/api/admin/stocks', adminStockRoutes);
 app.use('/api/admin/raw-materials', adminRawMaterialRoutes);
+app.use('/api/admin/dashboard', adminDashboardRoutes);
+app.use('/api/admin/reports', adminReportRoutes);
+app.use('/api/admin/customers', adminCustomerRoutes);
+app.use('/api/admin/reviews', adminReviewRoutes);
+app.use('/api/admin/settings', adminSettingsRoutes);
+app.use('/api/admin/payment-methods', adminPaymentMethodRoutes);
+app.use('/api/admin/staff', adminStaffRoutes);
+app.use('/api/admin', adminPromoRoutes);
 app.use('/api/payment-methods', paymentMethodRoutes);
 
 // 404 handler

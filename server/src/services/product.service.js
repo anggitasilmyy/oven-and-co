@@ -258,11 +258,13 @@ async function getFreshFromOvenToday(query = {}) {
 /**
  * FR-05 · FR-27 — GET /api/products/best-sellers
  * Penjualan dari pesanan lunas & tidak dibatalkan, tujuh hari kalender WIB terakhir termasuk hari ini.
+ * `now` & `db` opsional (Step 6.4.6): Dashboard AD-02 memakai waktu yang sama dan klien transaksi snapshot bacanya
+ * (semua query di fungsi ini lewat `db`); pemanggil lain memakai default (jam sekarang, Prisma global).
  */
-async function getBestSellers(query = {}) {
+async function getBestSellers(query = {}, now = new Date(), db = prisma) {
   const limit = parseLimit(query.limit, 5);
-  const { todayKey, todayDate } = getTodayContext();
-  const totals = await getSalesTotals(addDaysToDateKey(todayKey, -(SALES_WINDOW_DAYS - 1)), todayKey);
+  const { todayKey, todayDate } = getTodayContext(now);
+  const totals = await getSalesTotals(addDaysToDateKey(todayKey, -(SALES_WINDOW_DAYS - 1)), todayKey, db);
 
   const ranked = [...totals.entries()]
     .map(([productId, quantity]) => ({ productId: BigInt(productId), quantity }))
@@ -275,7 +277,7 @@ async function getBestSellers(query = {}) {
 
   // Produk nonaktif disaring SEBELUM dipotong ke `limit`, agar posisinya diisi produk terlaris berikutnya.
   // Langkah 1 hanya mengambil id produk aktif; relasi (foto, stok) baru dimuat untuk `limit` produk teratas.
-  const activeRows = await prisma.product.findMany({
+  const activeRows = await db.product.findMany({
     where: { isActive: true, productId: { in: ranked.map((item) => item.productId) } },
     select: { productId: true },
   });
@@ -284,7 +286,7 @@ async function getBestSellers(query = {}) {
 
   if (topItems.length === 0) return [];
 
-  const products = await prisma.product.findMany({
+  const products = await db.product.findMany({
     where: { isActive: true, productId: { in: topItems.map((item) => item.productId) } },
     include: productCardInclude(todayDate),
   });
@@ -294,7 +296,7 @@ async function getBestSellers(query = {}) {
     .map((item) => ({ item, product: productById.get(String(item.productId)) }))
     .filter((entry) => entry.product);
 
-  const ratings = await getProductRatings(top.map((entry) => entry.product.productId));
+  const ratings = await getProductRatings(top.map((entry) => entry.product.productId), db);
 
   return top.map(({ item, product }) => ({ ...toProductView(product, ratings), quantity_sold: item.quantity }));
 }

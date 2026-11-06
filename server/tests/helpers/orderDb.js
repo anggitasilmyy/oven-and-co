@@ -162,6 +162,11 @@ function installOrderDb(fakePrisma, dates) {
     storeSetting: { findFirst: async () => state.t.storeSetting },
     paymentMethod: {
       findMany: async ({ where }) => sortBy(state.t.paymentMethods.filter((m) => matchesWhere(m, where)), [{ methodGroup: 'asc' }]),
+      // T2: checkout membaca ulang metode terpilih setelah kunci store_settings
+      findUnique: async ({ where }) => {
+        state.ops.push('paymentMethod.findUnique');
+        return state.t.paymentMethods.find((m) => m.methodCode === where.methodCode) ?? null;
+      },
     },
     operatingHour: { findMany: async () => state.t.operatingHours },
     address: { findFirst: async ({ where }) => state.t.addresses.find((a) => matchesWhere(a, where)) ?? null },
@@ -333,6 +338,15 @@ function installOrderDb(fakePrisma, dates) {
       const sql = strings.join('?');
       state.locks.push({ sql, values });
       state.ops.push(/FOR UPDATE/.test(sql) ? `lock:${sql.match(/FROM (\w+)/)[1]}` : 'queryRaw');
+      // T1: kunci store_settings — Owner yang memegang kunci (menyimpan pengaturan) commit lebih dulu, lalu checkout lanjut
+      if (/FROM store_settings/.test(sql) && /FOR UPDATE/.test(sql)) state.hooks.whileWaitingSettingsLock?.();
+      // T2: kunci S baris metode tujuan (payment.service lockActiveMethod) — Owner yang menonaktifkan metode bisa commit
+      // lebih dulu (kait whileWaitingMethodLock), lalu baris TERBARU dikembalikan seperti SELECT … FOR SHARE
+      if (/FROM payment_methods WHERE method_code = \? FOR SHARE/.test(sql)) {
+        state.hooks.whileWaitingMethodLock?.();
+        const row = state.t.paymentMethods.find((m) => m.methodCode === values[0]);
+        return row ? [{ method_code: row.methodCode, is_active: row.isActive ? 1 : 0 }] : [];
+      }
       // Kunci baris pesanan (order.service lockMyOrder): request lain yang memegang kunci selesai lebih dulu
       // (dijalankan saat "menunggu" kunci), lalu baris yang ada dikembalikan seperti SELECT … FOR UPDATE
       if (/FROM orders WHERE order_number = \? FOR UPDATE/.test(sql)) {
@@ -372,6 +386,8 @@ function installOrderDb(fakePrisma, dates) {
         state.t = snapshot;
         // Baris yang di-commit transaksi LAIN (pesanan bersamaan) tidak ikut dibatalkan
         state.t.orders.push(...state.committedElsewhere.splice(0));
+        // Perubahan lain yang di-commit transaksi LAIN selama transaksi ini (mis. Owner menyimpan pengaturan — T1)
+        (state.afterRollback ?? []).splice(0).forEach((apply) => apply(state.t));
         state.t.reviews.push(...state.reviewsCommittedElsewhere.splice(0));
         throw error;
       }

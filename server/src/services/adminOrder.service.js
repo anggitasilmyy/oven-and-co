@@ -35,6 +35,16 @@ function buildFilterWhere({ search, dateFrom, dateTo, fulfillment, methodCode })
   return where;
 }
 
+/** Relasi untuk toAdminOrderRow — dipakai juga "Pesanan Terbaru" Dashboard AD-02 (Step 6.4.6) */
+const ADMIN_ORDER_ROW_INCLUDE = Object.freeze({
+  user: { select: { name: true } },
+  payments: { orderBy: { paymentId: 'desc' }, take: 1, include: { method: { select: { name: true } } } },
+  items: {
+    orderBy: { orderItemId: 'asc' },
+    select: { quantity: true, product: { select: { name: true } } },
+  },
+});
+
 /** Baris tabel/kartu AD-03 (bentuk client mock/orderViews.js getAdminOrderRows) */
 function toAdminOrderRow(order) {
   const payment = order.payments[0] ?? null;
@@ -85,14 +95,7 @@ async function getOrders(query = {}) {
     orderBy: [{ createdAt: 'desc' }, { orderId: 'desc' }],
     skip: (page - 1) * pageSize,
     take: pageSize,
-    include: {
-      user: { select: { name: true } },
-      payments: { orderBy: { paymentId: 'desc' }, take: 1, include: { method: { select: { name: true } } } },
-      items: {
-        orderBy: { orderItemId: 'asc' },
-        select: { quantity: true, product: { select: { name: true } } },
-      },
-    },
+    include: ADMIN_ORDER_ROW_INCLUDE,
   });
 
   return { rows: orders.map(toAdminOrderRow), tabCounts, totalFiltered, page, totalPages, pageSize };
@@ -182,4 +185,6 @@ async function getOrderByNumber(orderNumber, now = new Date()) {
 module.exports = {
   getOrders,
   getOrderByNumber,
+  ADMIN_ORDER_ROW_INCLUDE,
+  toAdminOrderRow,
 };

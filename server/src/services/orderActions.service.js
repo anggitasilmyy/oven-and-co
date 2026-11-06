@@ -77,6 +77,18 @@ async function cancelMyOrder(userId, orderNumber, reason, now = new Date()) {
       where: { orderId: order.orderId },
       data: { status: paid ? PAYMENT_TRANSACTION_STATUS.REFUNDED : UNPAID_CANCEL_PAYMENT_STATUS },
     });
+    // Integrasi MySQL 8 (C4): INSERT poin & riwayat (FK user_id/changed_by → kunci S baris pelanggan) dijalankan SEBELUM
+    // stok & voucher dikembalikan. Urutan lama (daily_stocks X → users S) membentuk deadlock nyata dengan checkout
+    // pelanggan yang sama (users X → … → daily_stocks X); kini keduanya mengambil kunci users sebelum daily_stocks.
+    if (order.pointsUsed > 0) {
+      await tx.pointTransaction.create({
+        data: { userId: owner, type: POINT_TX_TYPE.REFUND, points: order.pointsUsed, orderId: order.orderId, createdAt: now },
+      });
+    }
+    await tx.orderStatusHistory.create({
+      data: { orderId: order.orderId, status: ORDER_STATUS.DIBATALKAN, changedBy: owner, note: reason, changedAt: now },
+    });
+
     await returnReadyStock(tx, order);
 
     if (order.voucherId != null) {
@@ -86,14 +98,6 @@ async function cancelMyOrder(userId, orderNumber, reason, now = new Date()) {
       });
       await tx.voucher.update({ where: { voucherId: order.voucherId }, data: { quota: { increment: 1 } } });
     }
-    if (order.pointsUsed > 0) {
-      await tx.pointTransaction.create({
-        data: { userId: owner, type: POINT_TX_TYPE.REFUND, points: order.pointsUsed, orderId: order.orderId, createdAt: now },
-      });
-    }
-    await tx.orderStatusHistory.create({
-      data: { orderId: order.orderId, status: ORDER_STATUS.DIBATALKAN, changedBy: owner, note: reason, changedAt: now },
-    });
 
     return { order_number: orderNumber };
   });

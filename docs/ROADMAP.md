@@ -181,12 +181,28 @@ Catatan khusus:
 | 6.4 | API admin: pesanan & status, kalender, produk, stok, pelanggan, dashboard, laporan, promo, pengaturan | `routes/admin/*` |
 | 6.5 | Payment simulasi + webhook, job `autoCancelOrders` (BR-06, BR-07), notifikasi, riwayat status, audit log | `services/paymentService.js`, `jobs/` |
 | 6.6 | Ganti `VITE_USE_MOCK=false`, sesuaikan service frontend, uji semua layar | `client/src/services/*` |
+| 6.7 | Inventory & Recipe Management: master bahan baku, komposisi bahan per produk (recipe/BOM), satuan, kebutuhan bahan otomatis, stok tersedia & dialokasikan | lihat "Step 6.7 – 6.10" di bawah (file ditetapkan setelah CR disetujui) |
+| 6.8 | Supplier & Purchasing Management: master supplier, supplier ↔ bahan baku, purchase order, penerimaan bahan, riwayat pembelian | idem |
+| 6.9 | Manufacturing Management: perencanaan produksi, kebutuhan bahan, work order, pemakaian bahan, hasil produksi & produk selesai | idem |
+| 6.10 | Advanced Reporting: omzet, penggunaan bahan baku, pembelian, produksi, analisis penjualan & kebutuhan produksi | idem |
 
-**Hasil:** aplikasi berjalan penuh dengan MySQL; data tersimpan setelah server restart; Prisma Studio bisa dipakai saat presentasi.
+**Hasil (target akhir Step 6):** aplikasi berjalan penuh dengan MySQL; data tersimpan setelah server restart; Prisma Studio
+bisa dipakai saat presentasi. Setelah 6.7 – 6.10: bahan baku, resep, pengadaan, dan produksi tercatat di database dan
+saling terhubung; laporan terintegrasi (penjualan, bahan, pembelian, produksi) dapat ditampilkan melalui antarmuka admin
+sesuai hak akses yang ditetapkan dalam CR.
+**Sudah terverifikasi (per `5b74ba6`):** migrasi & seed pada MySQL 8.0.46 lewat harness `tests-mysql/run.sh`, integrasi
+51/51 (lihat catatan 6.1). **Belum terverifikasi:** aplikasi penuh di mode API (6.6), data tetap ada setelah server
+restart, dan pemeriksaan Prisma Studio.
 
 Catatan khusus:
-- 6.1: Status: skema & seed selesai; **penerapan migrasi pada MySQL 8 sungguhan belum diverifikasi** (lingkungan cloud
-  tanpa MySQL — jalankan `npm run db:migrate && npm run db:seed` di lokal lalu cek di Prisma Studio). Prisma dipin 6.19.3
+- 6.1: Status: skema & seed selesai; **harness migrasi & seed berhasil dijalankan pada MySQL 8.0.46** dengan hasil
+  integrasi **51/51 pada commit `5b74ba6`** (sebelumnya 42/42 pada `b53296a`). Harness `server/tests-mysql/run.sh`
+  dijalankan langsung lewat Git Bash (`bash tests-mysql/run.sh` dari folder `server/`): container MySQL 8 baru (tmpfs)
+  → `prisma migrate deploy` (migrasi repo apa adanya) → `prisma db seed` pada database kosong → seluruh skenario
+  integrasi. **Bukan** lewat npm script: `npm run test:mysql` dari PowerShell sebelumnya gagal karena Node.js tidak
+  ditemukan di WSL, jadi keberhasilan npm script tersebut belum diverifikasi. Uji 6.3/6.4 sebelumnya juga memakai MySQL 8
+  sementara dengan migrasi + seed. Belum tercatat: `npm run db:migrate` (`migrate dev`) di database lokal pengembang dan
+  pemeriksaan Prisma Studio (dibutuhkan untuk presentasi, lihat "Hasil" Step 6). Prisma dipin 6.19.3
   (`prisma` & `@prisma/client`; Prisma 7+ butuh driver adapter & `prisma.config.ts`), bcrypt 6.0.0 untuk hash sandi demo.
   Migrasi awal `prisma/migrations/20261017000000_init` dibuat dengan `prisma migrate diff`; `npm run db:check-spec`
   membandingkannya dengan SPEC §8 (29 tabel, 206 kolom, 40 FK). Keputusan: `@default` hanya untuk id auto-increment,
@@ -410,6 +426,484 @@ Catatan khusus:
     (setelah kunci pengguna, sebelum desain & stok — urutan sama dengan transaksi admin); 4/8/12 bersamaan × 20 putaran
     → semua 201, nomor unik & berurutan. Diuji bersama Kelompok 2 (worktree sementara): AD-07 dengan 8 checkout 15/15,
     AD-06 10/10, hotfix #19 8/8, Kelompok 1 13/13, tanpa deadlock.
+  **Kelompok 3 — 6.4.6 AD-02 Dashboard: selesai** (commit `5300bf9`, branch `feat/step-6.4-admin-api-groups-3-4`).
+  **6.4.7 AD-08: selesai** (commit `e39b5be`). **6.4.8 AD-10: selesai** (commit `2532a10`). **Kelompok 4 — 6.4.9 AD-09:
+  selesai** (commit `39d4081`; perbaikan klaim voucher basi hasil audit di commit `6890692`). 6.4.10 AD-11: butir di
+  bawah. Promo pesanan besar (minimum quantity, diskon bertingkat — saran dosen "Mini ERP Bakery") **tidak ada di
+  dokumen sumber** dan butuh kolom baru → diajukan sebagai CR-02 terpisah; schema & kontrak API tidak diubah sebelum
+  CR-02 disetujui.
+  - Endpoint: `GET /api/admin/dashboard` — **hanya Owner** (Staf 403, SPEC §2). Kontrak = mock
+    `services/dashboardService.js`: `{todayKey, kpi{revenueToday, revenueChange, ordersToday, needsProcessing,
+    rating{average,count}}, salesChart, statusCounts, totalOrders, recentOrders, bestSellers, lowStock}`. Tanpa input,
+    jadi tanpa skema zod; "hari ini" = WIB.
+  - Aturan murni `services/salesRules.service.js` (port `utils/rules/sales.js`, dipakai lagi AD-08): penjualan = lunas &
+    tidak dibatalkan per tanggal WIB `created_at`, dijumlah dalam sen; 8 hari diambil (hari pertama hanya pembanding omzet
+    kemarin). Pesanan hari ini = semua status (sama dengan mock). Perlu diproses & donut dari satu `groupBy`. Rating =
+    SUM/COUNT ulasan tidak disembunyikan, 1 desimal. Pesanan terbaru = baris AD-03 (`toAdminOrderRow`).
+  - **Snapshot baca (hasil audit konsistensi):** versi awal menjalankan 7 bagian paralel tanpa transaksi — ±21 statement
+    autocommit di hingga 7 koneksi pool (relasi `include` & produk terlaris = SELECT terpisah), masing-masing dengan read
+    view sendiri, sehingga satu respons bisa berisi angka dari waktu berbeda (mis. "Perlu Diproses" sudah naik, omzet
+    belum). Kini `services/readSnapshot.service.js` `runInReadSnapshot()` = transaksi interaktif Prisma
+    `isolationLevel: RepeatableRead` (maxWait 5 s, timeout 10 s); semua query Dashboard berjalan **berurutan lewat `tx`**,
+    termasuk produk terlaris (`getBestSellers(query, now, db)`, `getSalesTotals(…, db)`, `getProductRatings(…, db)` —
+    parameter `db` opsional, default Prisma global), dengan satu `now`. Consistent read InnoDB: satu read view untuk semua
+    SELECT, tanpa kunci baris (tanpa FOR UPDATE/FOR SHARE), tidak menahan checkout/pembayaran. Bukan READ COMMITTED
+    (read view per statement) dan bukan SERIALIZABLE (SELECT menjadi locking read). Helper dipakai lagi oleh AD-08.
+  - **Keputusan 6.4.6 — produk terlaris** memakai aturan server `GET /api/products/best-sellers` (produk nonaktif
+    dikecualikan, posisinya diisi produk berikutnya). Mock `computeBestSellers` masih ikut menghitung produk nonaktif —
+    disesuaikan/diterima di Step 6.6.
+  - **Keputusan 6.4.6 — stok menipis** = bahan baku `stock ≤ min_stock` (FR-32, sama dengan mock & AD-07). **Berbeda dari
+    traceability BR-018** (PDF: AD-02 ↔ `orders, order_items, reviews, daily_stocks`): `daily_stocks` hanya punya
+    `qty_planned`/`qty_sold` tanpa batas minimum, sehingga "stok menipis" tidak bisa didefinisikan dari tabel itu tanpa
+    menambah kolom (dilarang SPEC §8); FR-27 & UI/UX Spec AD-02 ("peringatan stok menipis", aksi "membuka stok")
+    dipenuhi oleh bahan baku dengan batas minimum.
+  - Perubahan kecil pada fitur selesai (kompatibel, tanpa ubah perilaku): `adminOrder.service.js` mengekspor
+    `ADMIN_ORDER_ROW_INCLUDE` & `toAdminOrderRow` (include diekstrak dari `getOrders`); `product.service.js`
+    `getBestSellers(query, now = new Date(), db = prisma)`, `productView.service.js` `getSalesTotals(start, end, db)` &
+    `getProductRatings(ids, db)` — parameter opsional; pemanggil lain (Beranda, katalog, wishlist, AD-06) tidak berubah.
+  - **Koreksi klaim uji sebelumnya:** "5 checkout + 20 Dashboard bersamaan … tiap snapshot konsisten" tidak membuktikan
+    konsistensi. Pemeriksaannya (`totalOrders = Σ statusCounts`, perlu diproses = dikonfirmasi + disiapkan) berasal dari
+    satu `groupBy` sehingga tidak mungkin gagal, dan checkout belum lunas tidak menyentuh omzet; uji itu hanya
+    membuktikan tanpa error/500/deadlock. Diganti uji konsistensi silang di bawah.
+  - Uji: `server/tests/salesRules.test.js`, `adminDashboardRoute.test.js` (Prisma dipalsukan; `$transaction` palsu
+    mencatat opsi, model Prisma global dipasang sebagai penjaga yang gagal bila dipakai, klien `tx` mendeteksi query
+    tumpang tindih) — server 400/400 (baseline 382 + 18). Sensitivitas: service versi lama → 10 test gagal; varian `tx` +
+    `Promise.all` → hanya test "berurutan" gagal.
+  - MySQL 8 sementara (Docker, InnoDB untuk 30 tabel, default REPEATABLE-READ, migrasi + seed `SEED_ANCHOR_DATE` = hari
+    ini) lewat HTTP:
+    · General log satu request: baru = `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`, `BEGIN`, 21 SELECT di **satu**
+      koneksi, `COMMIT`; lama = SELECT autocommit di 7 koneksi. Keduanya tanpa locking read.
+    · **Konsistensi saat pelunasan bersamaan** (5 putaran × 30 pesanan pre-order identik dilunasi berurutan lewat
+      `simulate-paid`, 8 pekerja Dashboard terus-menerus; invarian per respons dengan k = jumlah lunas dari omzet:
+      dikonfirmasi, menunggu pembayaran, perlu diproses, transaksi grafik hari ini, total/pesanan hari ini, jumlah lunas
+      di Pesanan Terbaru, terjual di Produk Terlaris). **Kontrol negatif (implementasi lama): 158 dari 1.244 respons
+      melanggar** (dikonfirmasi/menunggu/perlu diproses 112, terlaris 97, pesanan terbaru 22). **Implementasi baru: 0 dari
+      715.**
+    · Latensi (bergantian, data sama, 4 vCPU): diam p50 35 ms / p95 46 ms (lama 23/30 — query kini berurutan); 8 request
+      paralel p50 96 / p95 117 ms (lama 87/103). Pool: satu request memakai 1 koneksi selama ±35 ms (lama hingga 7
+      koneksi bersamaan, pool default Prisma = 2 × CPU + 1).
+    · Skenario fungsional 10/10 (setiap angka = SQL independen): auth/peran, data seed, checkout sungguhan, simulasi
+      lunas, batal oleh pelanggan, ulasan disembunyikan, stok bahan = minimum lalu stok masuk AD-07, produk terlaris
+      dinonaktifkan lewat AD-06, batas hari WIB 23.59/00.00, 5 checkout + 20 Dashboard bersamaan (hanya bukti tanpa 500).
+    · Regresi: 22 endpoint (best sellers berbagai `limit` termasuk 400, fresh-today, katalog, detail & ulasan produk,
+      kategori, wishlist, daftar & detail AD-03/AD-04, produk AD-06, kalender) **identik dengan `main`** (server `HEAD`
+      dan versi ini pada data yang sama); best sellers Beranda = Dashboard; 5 baris pertama AD-03 = Pesanan Terbaru.
+  - Browser mode API (1440 & 390 px): login Owner → Dashboard tanpa error halaman/konsol, semua panel terisi; Staf yang
+    membuka `/admin/dashboard` diarahkan ke Pesanan.
+  **6.4.7 AD-08 Laporan Penjualan (FR-33 · UC-27 · UC-28 · A-08 · BR-019)**
+  - Endpoint: `GET /api/admin/reports/sales?period=harian|mingguan|bulanan|rentang&from=YYYY-MM-DD&to=YYYY-MM-DD` —
+    **hanya Owner** (SPEC §2 "laporan & ekspor"; Staf 403). Kontrak = mock `services/reportService.js` /
+    `mock/reportViews.js`: `{todayKey, store_name, period, from, to, kpi{revenue, transactions, average, itemsSold}, daily,
+    bestSellers, paymentMethods, transactions}`. **Tidak ada endpoint ekspor**: Export Excel/PDF (UC-28, A-08) dibuat di
+    peramban dari respons yang sama (`client/utils/reportExport.js`), jadi isi file = isi layar.
+  - Periode (asumsi prototype dari client `constants/report.js`, dipindah ke `utils/businessConstants.js`): harian = hari
+    ini, mingguan = 7 hari terakhir (default bila `period` kosong), bulanan = bulan berjalan s.d. hari ini, rentang = maks.
+    92 hari dan tidak melewati hari ini; tanggal = WIB `created_at`. Validasi: zod `validators/adminReport.validator.js`
+    (periode tidak dikenal/ganda → 400 "Periode laporan tidak valid." — **berbeda dari mock** yang diam-diam memakai
+    mingguan), aturan rentang di `services/reportRules.service.js` dengan pesan mock (tanggal tidak sah termasuk
+    2026-02-30, mulai > selesai, melewati hari ini, > 92 hari → 400). Validasi dilakukan sebelum transaksi dibuka;
+    `from`/`to` diabaikan untuk periode selain rentang (sama dengan mock).
+  - Aturan murni `services/reportRules.service.js` (port `utils/rules/report.js`, memakai `isSalesOrder` &
+    `aggregateDailySales` dari `salesRules.service.js`): transaksi = lunas & tidak dibatalkan; rupiah dijumlah dalam sen;
+    rata-rata dibulatkan ke rupiah; metode = pembayaran terbaru (cadangan `payment_option` bila tidak ada baris payments),
+    nama/kelompok dari `payment_methods`; terlaris urut jumlah lalu id numerik (5); transaksi terbaru dulu (seri waktu →
+    id terbesar). **Keputusan 6.4.7 — produk terlaris laporan menyertakan produk yang kini nonaktif** (penjualan
+    historis, sama dengan mock, dan jumlahnya tetap cocok dengan "Produk Terjual"), berbeda dari Dashboard/Beranda.
+  - Snapshot: `services/salesReport.service.js` memakai `runInReadSnapshot` (REPEATABLE READ); urutan query lewat `tx`:
+    nama toko, metode bayar, pesanan penjualan (+ relasi user, pembayaran terbaru, item), nama produk. Semua bagian
+    laporan dihitung dari SATU hasil query pesanan, jadi omzet = Σ per hari = Σ metode = Σ tabel. Tanpa locking read.
+  - Keterbatasan (tanpa ubah schema): `orders.created_at` tidak ber-index → filter rentang memindai tabel `orders`
+    (sama dengan AD-02/AD-03); tabel transaksi dikirim lengkap (paginasi di client, sama dengan mock). Jam di kolom
+    "Tanggal" diformat client dengan zona waktu peramban (uji browser UTC menampilkan 03.43 untuk 10.43 WIB) — Step 6.6.
+  - Uji: `server/tests/reportRules.test.js` (7), `adminReportRoute.test.js` (8; penjaga Prisma global, `$transaction`
+    palsu mencatat isolation level, deteksi query tumpang tindih) — server 415/415. Sensitivitas: nama produk lewat
+    Prisma global → 6 test gagal; `Promise.all` di dalam transaksi → test "berurutan" gagal.
+  - MySQL 8 sementara (Docker, InnoDB 30 tabel) lewat HTTP:
+    · General log satu request: `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`, `BEGIN`, 7 SELECT (termasuk relasi users,
+      payments, order_items) di satu koneksi, `COMMIT`; tanpa locking read.
+    · Fungsional 10/10, setiap bagian (KPI, per hari, terlaris, metode, transaksi) = SQL independen untuk 5 periode
+      (harian, mingguan, bulanan, rentang 92 hari, rentang lampau): hak akses (tamu 401, pelanggan/Staf 403), default &
+      400 dengan pesan mock, rentang kosong, batas 23.59.59/00.00 WIB, Bayar di Toko lewat alur AD-04 (disiapkan → siap
+      diambil → tandai lunas → metode "Bayar di Toko"), online simulasi lunas lalu batal pelanggan (keluar), produk
+      dinonaktifkan via AD-06 (tetap di laporan, hilang dari Dashboard), omzet harian & 7 hari = Dashboard AD-02.
+    · Konsistensi saat pelunasan bersamaan (5 putaran × 30 pelunasan, 8 pekerja laporan harian; 10 invarian: KPI = Σ per
+      hari = Σ metode = Σ tabel, omzet = baseline + k·T, produk terjual, k pesanan terlama di tabel, QRIS, terlaris):
+      **implementasi 0 dari 1.185 respons**. Kontrol negatif buatan (KPI dari `order.aggregate` terpisah di luar snapshot;
+      identik saat diam) **1.084 dari 1.087 respons melanggar** — uji mampu mendeteksi angka antarbagian yang tidak cocok.
+    · Latensi diam (311 pesanan, 4 vCPU): harian p50 37 ms, mingguan 38 ms, rentang 92 hari 40 ms (p95 ≤ 50 ms).
+    · Regresi: 30 endpoint (termasuk Dashboard Owner/Staf/tamu, Beranda, katalog, AD-03/04/05/06/07, checkout context
+      dengan `now` dinormalisasi) **identik dengan commit `5300bf9`** pada data yang sama; AD-02 fungsional 10/10 dan
+      konsistensi AD-02 0 dari 411 respons.
+  - Browser mode API (1440 & 390 px): Owner → Laporan harian/mingguan/bulanan/rentang (semua dari API, 200), Export Excel
+    (.xlsx, omzet di file = layar) & Export PDF terunduh, tanpa error halaman/konsol; Staf yang membuka `/admin/laporan`
+    diarahkan ke Pesanan.
+  **6.4.8 AD-10 Pelanggan & Ulasan (FR-35 · UC-25 · A-10 · BR-021 · BR-11)**
+  - Endpoint (Staf & Owner, SPEC §2; pelanggan 403, tamu 401): `GET /api/admin/customers`, `GET /api/admin/reviews?rating=
+    semua|1..5`, `PUT /api/admin/reviews/:id/reply {admin_reply}`, `PATCH /api/admin/reviews/:id/hidden {is_hidden}`.
+    Kontrak = mock `services/adminCustomerService.js` / `mock/customerAdmin.js`; aturan diport ke
+    `services/adminCustomerRules.service.js`, validasi zod `validators/adminCustomer.validator.js` (id via
+    `validateIdParam` yang kini diekspor `adminCatalog.validator.js` → 400 `INVALID_ID`).
+  - Pelanggan: hanya role customer (termasuk akun nonaktif); total pesanan = tidak dibatalkan; total belanja = lunas &
+    tidak dibatalkan (sama dengan AD-02/AD-08); level = poin earn + review_bonus positif tahun kalender WIB berjalan
+    (TF-11) dengan ambang `store_settings` (memakai ulang `loyaltyRules.service.js`); pesanan terakhir = pesanan terbaru
+    apa pun statusnya; urut pesanan terakhir ↓, nama, id. Agregat dihitung MySQL (`groupBy`), tanpa memuat semua
+    pesanan; kata sandi/google_id tidak pernah dikirim; pencarian di client (sama dengan mock).
+  - Ulasan: admin melihat semua (termasuk tersembunyi), terbaru lalu id ↓, ringkasan `{total, hidden, unreplied}` dari
+    semua ulasan; foto = path unggahan (sama dengan endpoint ulasan pelanggan). Balasan di-trim, wajib, maks. 500
+    karakter (asumsi client `ADMIN_REPLY_MAX`); `is_hidden` = nilai tujuan (idempoten). Efek ke web pelanggan memakai
+    kode 6.3 yang sudah ada: balasan tampil di C-09/C-10; ulasan tersembunyi tidak tampil & tidak dihitung di rating
+    produk maupun rating Dashboard. Ulasan tidak dihapus; bonus poin ulasan tidak berubah. Berbeda dari mock (lebih
+    ketat): rating tidak dikenal → 400, `is_hidden` wajib boolean, `admin_reply` wajib teks.
+  - Konsistensi: daftar pelanggan & daftar ulasan memakai `runInReadSnapshot` (REPEATABLE READ, query berurutan lewat
+    `tx`); balas/sembunyikan = `updateMany` satu baris (tidak ada → 404) lalu baca ulang dalam satu transaksi, tanpa
+    locking read. Balasan bersamaan → yang terakhir menang (sama dengan mock; form tidak membawa nilai awal).
+  - Uji: `server/tests/adminCustomerRules.test.js` (4), `adminCustomerRoute.test.js` (5), `adminReviewRoute.test.js` (7)
+    — server 431/431. Sensitivitas: satu `groupBy` lewat Prisma global → 5 test gagal; tanpa batas 500 karakter → 2 gagal.
+  - MySQL 8 sementara lewat HTTP: fungsional 9/9 — ulasan dibuat lewat API pelanggan C-19 (+1 disisipkan SQL dengan
+    foto), hak akses 4 endpoint, daftar pelanggan & ulasan (+ filter tiap rating) = SQL independen, balasan tampil di
+    `/products/:id/reviews`, sembunyikan menghapus dari ulasan & ringkasan produk serta rating Dashboard lalu kembali,
+    validasi/404/INVALID_ID tanpa menulis, alur checkout → lunas → AD-04 Selesai (+1.300 poin, Gold → Platinum) → batal
+    sesuai SQL, 10 balasan + 10 sembunyikan serentak (semua 200, nilai akhir salah satu yang dikirim). Konsistensi daftar
+    pelanggan saat 5 × 20 pembatalan pesanan lunas bersamaan (invarian: selisih total pesanan × T = selisih total
+    belanja): **implementasi 0 dari 948 respons; kontrol negatif (query sama tanpa snapshot) 93 dari 1.165**. General
+    log: satu koneksi, `REPEATABLE READ` untuk daftar, tanpa locking read. Regresi: 32 endpoint identik dengan commit
+    `e39b5be` (termasuk Dashboard & Laporan), AD-02 10/10, AD-08 10/10.
+  - Browser mode API (Staf 1440 px, Owner 390 px): tab Pelanggan & Ulasan, balas (modal), sembunyikan (konfirmasi) &
+    tampilkan, filter 2 ★ — semua request 200, tanpa error konsol, DB berubah sesuai.
+  - Keterbatasan (Step 6.6): `AdminReviewCard` menampilkan path foto `/uploads/reviews/…` tanpa `toUploadUrl()` sehingga
+    di mode API gambar dicari di origin frontend (sama dengan foto produk AD-06).
+  **6.4.9 AD-09 Promo & Loyalty (FR-34 · UC-29 · A-09 · BR-020 · BR-09 · BR-10) — sesuai SPEC saat ini, tanpa CR-02**
+  - Endpoint — **hanya Owner** (SPEC §2: promo & loyalty hak Owner; Staf & pelanggan 403, tamu 401): `GET|POST
+    /api/admin/vouchers`, `PUT /api/admin/vouchers/:id`, `PATCH /api/admin/vouchers/:id/active`, `GET|PUT
+    /api/admin/loyalty`. POST 201, lainnya 200; voucher tidak ada 404; id tidak sah 400 `INVALID_ID`. Kontrak = mock
+    `services/adminPromoService.js` / `mock/promoAdmin.js`; aturan diport ke `services/adminPromoRules.service.js`
+    (pesan & `fieldErrors` sama: code, title, discount_type, discount_value, product_id, quota, valid_from, valid_to;
+    loyalty: 5 field). Validasi bentuk zod `validators/adminPromo.validator.js` (salah bentuk → 400 tanpa fieldErrors).
+    Voucher tidak dihapus (dirujuk pesanan & user_vouchers); papan = voucher + nama produk + terpakai (pesanan tidak
+    dibatalkan) + status hari ini WIB (nonaktif → berakhir → kuota habis → terjadwal → aktif) + daftar produk, dalam satu
+    snapshot REPEATABLE READ. Tidak ada minimum quantity/diskon bertingkat/promo grosir (CR-02 terpisah); schema tidak
+    berubah; checkout 6.3 hanya disesuaikan lewat perbaikan klaim voucher terpisah (lihat butir "Perbaikan checkout").
+  - **Kuota & `expected_quota`** (`vouchers.quota` = sisa, diubah checkout `quota − 1` & pembatalan `quota + 1` secara
+    atomik): PUT mengunci baris voucher `SELECT … FOR UPDATE` sebagai pembacaan pertama transaksi, lalu — kuota form =
+    `expected_quota` atau = kuota terkunci → kuota TIDAK ditulis (edit informasi tidak menimpa pemakaian); kuota berbeda →
+    `expected_quota` wajib (tanpa → 400) dan harus = kuota terkunci (basi → 409), keduanya `fieldErrors.quota`. Transaksi
+    voucher hanya mengunci baris voucher (checkout: users → store_settings → … → vouchers) → tanpa urutan silang. Kode
+    unik: pengecekan + UNIQUE(code); P2002 bersamaan → 400 `fieldErrors.code` yang sama. Aktif/nonaktif hanya menulis
+    `is_active`. Loyalty: validasi (bilangan bulat > 0, batas atas, Platinum > Gold) sebelum transaksi, lalu kunci
+    `store_settings` + UPDATE 5 kolom saja (profil toko & review_bonus_points tidak tersentuh).
+  - Uji: `server/tests/adminPromoRules.test.js` (7), `adminPromoRoute.test.js` (10; urutan operasi: kunci = pembacaan
+    pertama, rollback, P2002) — server 446/446 saat AD-09 selesai. Sensitivitas: tanpa kunci baris → 1 gagal; kuota ditulis
+    absolut → 2 gagal.
+  - **`product_id` BIGINT (hasil final review):** sebelumnya regex `^[1-9]\d{0,18}$` menerima 19 digit di atas batas
+    BIGINT signed → di MySQL `9223372036854775808` menghasilkan **500** (`PrismaClientUnknownRequestError`). Kini
+    `isBigIntIdString` (`adminPromoRules.service.js`) memeriksa format string lalu `BigInt(value) ≤ 9223372036854775807`
+    (tanpa Number); angka JSON di luar safe integer dianggap tidak sah (presisi hilang saat parse). ID tidak sah tidak pernah
+    dikirim ke query → 400 `fieldErrors.product_id` "Produk tidak ditemukan" (pesan mock). Uji: valid, tepat batas
+    (produk ada → 201), batas + 1, 20 digit, format tidak sah, angka JSON tidak aman, PUT; terhadap service sebelumnya test
+    route gagal (ID batas + 1 sampai ke query). MySQL: lama 500 → baru 400; tepat batas dengan produk ada → 201.
+  - MySQL 8 sementara lewat HTTP: fungsional 9/9 (hak akses 6 endpoint; papan = SQL; tambah + fieldErrors + 10 POST kode
+    sama serentak → tepat 1 × 201; voucher baru diklaim lalu dipakai checkout & dibatalkan — kuota/terpakai benar;
+    nonaktif → checkout ditolak, hilang dari `/promos/active`, C-21 `expired`; skenario form basi `expected_quota`; kuota 0
+    → kuota habis; aturan loyalty → checkout context, `/me/points`, level AD-10, poin Selesai AD-04 = floor(total/2000);
+    400/404/INVALID_ID). **Konkurensi kuota** (10 putaran × [20 checkout + 10 simpan judul] dan [20 batal + 10 simpan
+    judul], 20 pelanggan berbeda): **implementasi 0 putaran kehilangan kuota, semua PUT 200, tanpa 5xx; kontrol negatif
+    (tanpa kunci, kuota ditulis absolut) kehilangan kuota di 10/10 putaran (288 unit)**. Ubah kuota bersamaan dengan 20
+    checkout (30 putaran, jeda acak): admin 200 → kuota = baru − checkout (1×), admin 409 → kuota = lama − checkout (29×),
+    0 hasil tidak sah. General log: `BEGIN` → `SELECT … FROM vouchers … FOR UPDATE` → … → `COMMIT`; loyalty mengunci
+    `store_settings`. Regresi: 37 endpoint identik dengan commit `2532a10` (termasuk `/me/vouchers`, `/promos/active`,
+    `/checkout/context`, AD-10), AD-02 10/10, AD-08 10/10, AD-10 9/9, tulis AD-06/AD-07 & checkout voucher 6.3
+    (WEEKEND15 = SQL, voucher salah produk/kode tak dikenal ditolak) 3/3.
+  - Browser mode API (Owner 1440 & 390 px): buat voucher, ubah judul (tanpa checkout di antaranya), sakelar nonaktif,
+    simpan & kembalikan aturan loyalty — DB berubah sesuai, tanpa error halaman (satu log jaringan 400 dari uji ubah kuota
+    yang disengaja, lihat koreksi kontrak form di bawah).
+  - **Koreksi hasil audit AD-09 — kontrak form (`expected_quota`), Step 6.6:** `VoucherFormModal` (Step 5.8) mengirim body
+    yang sama untuk POST & PUT (`code, title, discount_type, discount_value, product_id, quota, valid_from, valid_to,
+    is_active`; angka sebagai teks, `quota` = kuota saat halaman dimuat) dan **tidak mengirim `expected_quota`**. Akibatnya
+    (dibuktikan lewat HTTP dengan body form yang sama): edit tanpa perubahan kuota hanya berhasil bila kuota di database belum
+    berubah sejak form dibuka; **edit informasi saja (mis. judul) ditolak 400** ("…wajib menyertakan kuota awal form
+    (expected_quota)…") bila sejak form dibuka ada checkout/pembatalan yang mengubah kuota — data tetap aman (judul tidak
+    tersimpan, kuota tidak tertimpa), tetapi pesannya membingungkan. Mengubah kuota dari UI selalu 400. Step 6.6: form mode
+    ubah mengirim `expected_quota` = kuota saat form dibuka (tidak saat membuat); 409 → tampilkan pesan & muat ulang papan
+    (`apiClient` belum meneruskan `fieldErrors`); **mock `saveAdminVoucher` disesuaikan dengan aturan yang sama** agar
+    kontrak mock = API. Dengan expected_quota: edit informasi berhasil & kuota terbaru utuh; ubah kuota basi → 409.
+  - **Open issue — distribusi voucher (menunggu keputusan bisnis kelompok/dosen; kandidat CR terpisah):** tidak ada kode
+    yang membuat baris `user_vouchers` — server hanya membaca, menandai terpakai saat checkout, dan mengosongkan `used_at`
+    saat batal; klaim hanya dibuat seed (pelanggan demo) dan seed mock. Dokumen hanya menyebut `user_vouchers` "voucher milik
+    pelanggan", `claimed_at` "waktu diterima", FR-23, dan validasi "milik pelanggan" — tanpa FR/UC/layar cara menerima
+    voucher. Akibatnya voucher baru buatan Owner (dan kode di banner Beranda) tidak bisa dipakai pelanggan tanpa klaim
+    (checkout: "Voucher tidak berlaku untuk pesanan ini"). Bukan bug AD-09/6.3; **tidak** diasumsikan semua voucher otomatis
+    dimiliki pelanggan; endpoint klaim tidak dibuat.
+  - **Perbaikan checkout terpisah (hasil audit AD-09, disetujui) — klaim voucher bersyarat** (`orderCreate.service.js`
+    `claimVoucher`; perubahan logis terpisah dari API AD-09): sebelumnya checkout menilai voucher dari SELECT biasa
+    (snapshot) lalu `UPDATE vouchers … WHERE quota > 0` saja, sehingga perubahan Owner yang commit di antaranya terlewat —
+    direproduksi di MySQL: voucher dinonaktifkan tetap terpakai, diskon 10.000 → 1.000 tetap memotong 10.000. Kini UPDATE
+    kuota bersyarat **pada versi terbaru setelah menunggu kunci baris** (current read): `is_active`, `valid_from ≤ hari ini
+    (WIB) ≤ valid_to`, `quota > 0`, dan `code`/`discount_type`/`discount_value`/`product_id` = nilai mentah yang dievaluasi
+    checkout (kuota tidak dibandingkan dengan angka lama). Gagal → 409 "Voucher tidak berlaku untuk pesanan ini" dan seluruh
+    transaksi checkout di-rollback. Tanpa FOR UPDATE baru; urutan kunci tetap users → store_settings → desain → daily_stocks →
+    user_vouchers → vouchers (sama dengan pembatalan: orders → daily_stocks → user_vouchers → vouchers; transaksi Owner hanya
+    baris voucher). Perubahan yang tidak memengaruhi diskon (judul, kuota naik, periode diperpanjang) tidak menolak checkout.
+    Uji: `server/tests/orderVoucherClaim.test.js` (16) — server 464/464 (termasuk uji BIGINT AD-09); terhadap kode
+    sebelum perbaikan 9 test gagal. `assertRolledBack` memeriksa orders, order_items, payments, riwayat status, poin,
+    `daily_stocks.qty_sold`, `user_vouchers.used_at`, dan `vouchers.quota` = nilai sebelum checkout (fake memulihkan seluruh
+    tabel termasuk perubahan Owner; commit Owner terpisah dibuktikan di MySQL). Dua uji **checkout lebih dahulu** (hook
+    setelah klaim): pesanan 201 dengan diskon yang diklaim (10.000, bukan 1.000), perubahan Owner (diskon, nonaktif, judul /
+    periode) tetap tersimpan, kuota tepat −1 dan tidak tertimpa, satu klaim & satu pesanan bervoucher, checkout berikutnya
+    ditolak tanpa sisa data; kedua uji ini juga lulus pada kode lama (perilaku checkout lebih dahulu memang tidak berubah).
+    MySQL 8: **Owner lebih dahulu** (sesi SQL mengunci → ubah → commit saat checkout berjalan) untuk nonaktif, nilai & jenis
+    diskon, produk, kode, periode berakhir/mulai, kuota 0 → **8/8 checkout 409 tanpa sisa** (orders, order_items, payments,
+    riwayat, poin, stok, klaim, kuota tidak berubah); **checkout lebih dahulu** (checkout memegang kunci voucher, tertahan di
+    INSERT pesanan) → checkout 201 dengan aturan lama, lalu `PATCH …/active` / `PUT` diskon (+ expected_quota) Owner 200
+    sesudahnya, pemakaian tidak tertimpa, pembatalan tetap mengembalikan kuota & klaim — 2/2; server sebelum perbaikan: 7
+    skenario Owner-lebih-dahulu lolos 201. 10 putaran × 20 checkout serentak + nonaktif di tengah: 108 berhasil, 92 ditolak
+    409/400, 0 status lain/5xx/deadlock, kuota = klaim terpakai = pesanan aktif, checkout setelah PATCH selalu ditolak;
+    108 pembatalan bersamaan dengan aktifkan ulang semua 200. Regresi setelah perbaikan: AD-09 9/9, konkurensi kuota 0
+    hilang, ubah kuota vs checkout 0 tidak sah, checkout/batal 6.3 + AD-06/AD-07 3/3, AD-02 10/10, AD-08 10/10, AD-10 9/9,
+    37 endpoint identik dengan `2532a10`.
+  **6.4.10 AD-11 Pengaturan (FR-36 · UC-30 · A-11 · BR-022 · BR-02 · BR-05 · BR-12 · TF-10) — bertahap per checkpoint:**
+  **C1 selesai** (commit `ba72b83`: aturan, validator, GET); **C2 selesai** (commit `628d04f`: PUT profil, PUT jam
+  operasional, PATCH metode bayar); **C3 akun staf selesai** (commit `10f4bb5`: C3a GET, C3b POST, C3c PATCH
+  aktif/nonaktif — butir C3 di bawah). **Integrasi MySQL 8 — Validasi AD-11 (C3), dengan smoke test C2: selesai**
+  (commit `b53296a`; butir di bawah; termasuk perbaikan F-1 & F-2). **C4 perbaikan checkout (T1 pengaturan basi saat
+  checkout → 409 + rollback; T2 metode bayar diperiksa ulang di dalam transaksi checkout & ganti metode): selesai**
+  (commit `5b74ba6`) — final review tanpa temuan Critical/High; butir "C4" di bawah. Integrasi MySQL untuk C4 selesai
+  (`tests-mysql/09`, `10`); C2 di MySQL: PUT profil & PATCH metode bayar asli teruji bersamaan dengan checkout (T1-c,
+  T2-d, T2-e), PUT jam operasional asli baru diuji di unit test (T1-a meniru penulisannya lewat SQL).
+  - Endpoint — **hanya Owner** (SPEC §2: pengaturan toko & akun staf hak Owner; Staf & pelanggan 403, tamu 401). Kontrak =
+    client `services/settingsService.js` / mock `settingsAdmin.js`: `GET /api/admin/settings` → `{profile, hours,
+    paymentMethods}`; `PUT /api/admin/settings` (6 field profil) → profil; `PUT /api/admin/settings/operating-hours
+    {hours}` → 7 baris urut hari; `PATCH /api/admin/payment-methods/:code/active {is_active}` → `{method_code, is_active}`
+    (berbeda dari `GET /api/payment-methods` filter AD-03 yang tidak diubah). Akun staf `/api/admin/staff` = C3 (butir C3).
+  - File: aturan murni `services/adminSettingsRules.service.js` (profil, jam, sakelar metode) & `adminStaffRules.service.js`
+    (akun, dipakai C3); pemetaan baris ⇄ respons/data tulis `services/adminSettingsView.service.js` (dipisah di C2 —
+    temuan review C1 L-1; rules tetap mengekspor ulang mapper); `services/adminSettings.service.js`; validasi bentuk zod
+    `validators/adminSettings.validator.js` (field di luar kontrak dibuang); rute `routes/admin/settings.routes.js` &
+    `paymentMethodAdmin.routes.js`; konstanta di `utils/businessConstants.js`.
+  - Lingkup (keputusan audit, disetujui): profil = 6 field mock (nama, alamat, WhatsApp, batas pre-order, radius, tarif).
+    **Koordinat toko tidak diubah AD-11 (open issue OI-01)** — alamat bisa diganti tanpa menggeser titik hitung ongkir.
+    `payment_timeout_minutes` & `review_bonus_points` tidak diatur AD-11 (bukan isi A-11); aturan loyalty milik AD-09.
+  - Validasi (pesan & `fieldErrors` = mock): WhatsApp toko = kontrak mock (+62, 9–13 digit termasuk 62, maks. 20 karakter —
+    huruf/simbol di antara digit ikut diterima seperti mock); jam operasional **tepat 7 hari unik 1–7**, hari buka jam buka
+    < jam tutup, hari tutup disimpan jam null, minimal satu hari buka; minimal satu metode online aktif (BR-05) → 409;
+    metode tidak ada → 404; status sama dengan tujuan → 200 tanpa UPDATE. Berbeda dari mock (lebih ketat/tepat):
+    angka teks hanya desimal biasa (hex, eksponen, tanda, `.5`, `5.` ditolak — pesan sama dengan mock untuk teks bukan
+    angka: "Radius harus lebih dari 0 km"); radius 1,15 diterima (mock menolak karena galat float `x * 100`).
+  - **Tanpa pembulatan diam-diam (hasil final review C1, M1):** radius & tarif dinormalisasi menjadi teks desimal kanonik
+    (`toDecimalText`, tanpa `Number()`), presisi dicek dari teks (radius ≤ 2 desimal, tarif bulat; nol di belakang koma
+    boleh: `"1.150"` → `"1.15"`, `"2500.00"` → `"2500"`), lalu teks itu ditulis apa adanya ke kolom DECIMAL. Sebelumnya
+    `"10.0000000000000001"` / `"2500.0000000000000001"` lolos karena `Number()` membulatkannya. Keterbatasan: presisi angka
+    JSON (bukan teks) yang hilang saat `JSON.parse` tidak terdeteksi (sama dengan AD-09). Hasil normalisasi bisa NaN —
+    penulisan hanya terjadi setelah validasi lolos.
+  - **Hari tutup = jam null di respons (L1):** GET/PUT mengirim jam null untuk `is_open = false` walau data lama masih
+    menyimpan jam; data DB tidak diubah oleh GET.
+  - Transaksi: GET = `runInReadSnapshot` (REPEATABLE READ, 3 query berurutan lewat `tx`, tanpa locking read; `select` 6
+    kolom profil). Tulis C2: validasi bentuk & isi **sebelum** transaksi (input tidak sah tidak membuka transaksi);
+    di dalam transaksi `lockAdminMasterData` (`store_settings FOR UPDATE`) = operasi pertama, lalu baca kondisi terbaru
+    (read view InnoDB dibuat setelah kunci), validasi bisnis (metode bayar; konflik hour_id jam operasional), UPDATE/INSERT
+    berurutan tanpa `Promise.all`, lalu respons dibaca ulang lewat `tx`: profil (`findFirst`), jam (`findMany`), metode
+    bayar (`findUnique` setelah UPDATE; jalur idempoten tanpa UPDATE memakai baris yang dibaca setelah kunci). Semua penulis pengaturan (profil, jam, metode, loyalty AD-09) memakai kunci yang sama →
+    diserialkan: dua Owner menonaktifkan dua metode online terakhir bersamaan → satu 200, satu 409. Urutan kunci
+    store_settings → operating_hours / payment_methods; checkout users → store_settings → … (kunci bersama FK
+    payment_methods setelahnya) → tanpa urutan silang. Pesanan lama tidak berubah (ongkir, slot, metode tersalin).
+  - Uji: `server/tests/adminSettingsRules.test.js`, `adminStaffRules.test.js`, `adminSettingsRoute.test.js` (GET, C1);
+    `adminSettingsWriteRoute.test.js` & `adminPaymentMethodRoute.test.js` (C2) dengan fake `tests/helpers/settingsDb.js`
+    yang meniru kunci baris (antrian FOR UPDATE), read view pada pembacaan biasa pertama, commit/rollback, serta mendeteksi
+    Prisma global, query tumpang tindih, dan baca/tulis sebelum kunci. Rangkaian HTTP → zod → normalisasi → validasi →
+    Prisma: nilai tertulis `"1.15"`/`"2500"` dari `"1.150"`/`"2500.00"`; `"10.0000000000000001"`, `"2500.0000000000000001"`,
+    `"1.149"`, `"2500.01"` → 400 tanpa transaksi; rollback hari ke-5 jam operasional tanpa perubahan parsial; 10 putaran
+    dua PATCH bersamaan → [200, 409]. Sensitivitas (mutasi): baca metode sebelum kunci → 6 gagal; tanpa kunci → 6; baca
+    lewat Prisma global → 7; `Promise.all` upsert → 3; radius/tarif ditulis Number → 3; tanpa validasi isi → 2; hari tutup
+    menulis jam → 1 (angka mutasi ini diukur sebelum perbaikan review C2; jam kini UPDATE/INSERT, bukan upsert).
+  - **Perbaikan hasil final review C2 (L-1, L-2, L-3):**
+    · L-1 PATCH metode bayar: `updateMany` wajib `count === 1` dan hasil baca ulang (`findUnique` lewat `tx`) wajib = status
+      tujuan; selain itu 409 "Metode bayar gagal diperbarui karena data berubah. Muat ulang halaman lalu coba lagi." +
+      rollback (tanpa sukses palsu). Respons dari baris tersimpan (`method_code` = nilai DB — collation `_ci` MySQL bisa
+      menyimpan bentuk lain dari input). Urutan: kunci → baca → UPDATE → baca ulang.
+    · L-2 konflik `hour_id` data lama: `hour_id` = PK TINYINT tanpa AUTO_INCREMENT. Setelah kunci, SEMUA baris
+      `operating_hours` (termasuk di luar 1–7) dibaca; hari yang ada → UPDATE berdasarkan `day_of_week` (hour_id tetap),
+      hari yang belum ada → INSERT `hour_id = day_of_week` — bila hour_id itu sudah dipakai baris hari lain → **409 sebelum
+      menulis** dengan pesan yang menyebut hari & baris penyebab ("…Perbaiki tabel operating_hours (hour_id = day_of_week
+      untuk hari 1–7), lalu simpan ulang."). ID tidak diganti otomatis. P2002 lain dari database TIDAK dipetakan ke 409
+      (tetap 500 umum, rollback penuh).
+    · L-3 hari di luar 1–7: GET & PUT hanya mengirim hari 1–7 (`onlyValidDays`); baris lama di luar rentang tidak dikirim,
+      tidak dihapus, dan tidak diubah (PUT hanya menulis 7 hari sah). Sebelumnya baris hari ke-8 ikut terkirim sehingga form
+      AD-11 mengirim 8 baris dan selalu ditolak.
+    · Uji tambahan (route): count 1/0, baca ulang tidak sesuai/hilang → 409 tanpa commit, `method_code` dari DB, jalur
+      idempoten tanpa tulis; konflik hour_id (termasuk baris di luar 1–7, beberapa konflik sekaligus) → 409 tanpa tulis &
+      data utuh; P2002 lain → 500 & rollback; GET/PUT dengan baris hari 8 & 0 → 7 hari, baris lama utuh. Sensitivitas
+      (mutasi): tanpa cek count → 1 gagal; baca ulang tidak dibandingkan → 1; respons dari input → 1; tanpa baca ulang → 3;
+      baca ulang lewat Prisma global → 7; tanpa deteksi konflik → 2; deteksi mengabaikan baris di luar 1–7 → 1; baca jam
+      sebelum transaksi → 9; tanpa filter hari (GET & PUT) → 2, GET saja → 1, PUT saja → 1. Server 527/527 (C2 sebelum
+      perbaikan 517, baseline C1 494).
+  - Keterbatasan & catatan Step 6.6: urutan metode dalam satu kelompok mengikuti `GET /api/payment-methods` (kelompok lalu
+    nama), berbeda dari urutan tabel mock; `apiClient` belum meneruskan `fieldErrors`; respons PUT profil berupa number
+    (dibaca ulang dari DB) walau normalisasi server memakai teks. MySQL 8 (kunci sungguhan, DECIMAL/TIME) diuji setelah
+    C2–C4 selesai.
+  - **C3 Akun staf (FR-36 · FR-26 · UC-30; UI/UX AD-11 "menambah atau menonaktifkan akun staf"; PRD "staff accounts with
+    roles (Owner, Staf)") — selesai (commit `10f4bb5`).** Endpoint **hanya Owner aktif** (tamu 401, Staf & pelanggan 403,
+    Owner nonaktif 401 `SESSION_INVALID`); kontrak = client `settingsService.js` getAdminAccounts / addAdminAccount /
+    setAdminAccountStatus (mock `settingsAdmin.js`). Akun = `{user_id (string), name, email, phone, role, is_active,
+    created_at}` (`toAdminAccount`). File: `services/adminStaff.service.js` (GET, POST), `adminStaffStatus.service.js`
+    (PATCH; dipisah agar ±150 baris), `adminStaffRules.service.js` (aturan murni, C1 + cek ulang pelaku),
+    `routes/admin/staff.routes.js`; validasi bentuk `validateStaffBody` / `validateStaffId` / `validateActiveBody` (C1).
+    Tidak ada hapus akun, ubah peran, maupun ubah data akun (keputusan audit no. 7; rute itu 404). Schema tidak berubah.
+    · **C3a `GET /api/admin/staff`** → akun Owner & Staf **termasuk nonaktif**, urut peran (Owner dulu) → nama → id
+      numerik; pelanggan disaring di query (`role in [staf, owner]`); satu `findMany` dengan **select whitelist 7 kolom**
+      tanpa transaksi (keputusan C3 D3) — `password_hash` & `google_id` tidak pernah dibaca, apalagi dikirim.
+    · **C3b `POST /api/admin/staff` `{name, email, phone, password, role}` → 201.** Aturan registrasi server: nama ≤ 100,
+      email valid & huruf kecil, HP dinormalisasi seperti login (spasi ( ) - dibuang) lalu `^\+62\d{8,13}$`, sandi ≥ 8
+      karakter & ≤ 72 byte, peran Owner/Staf (Owner boleh membuat Owner). Urutan: validasi isi (gagal → 400 fieldErrors
+      mock, tanpa query/hash/tulis) → cek unik email/HP terhadap **seluruh** tabel users (pelanggan & akun nonaktif juga;
+      email tanpa beda huruf) → **bcrypt cost 12 di luar transaksi** → INSERT tunggal **tanpa kunci store_settings**
+      (keputusan C3 D1: pembuatan akun hanya menambah akun aktif, jadi tidak bisa melanggar invariant Owner) → dibaca
+      balik lewat select whitelist. **UNIQUE(users.email/phone) = otoritas terakhir**: dua request bersamaan yang lolos
+      cek awal → yang kalah P2002 → 400 `fieldErrors.email/phone` (keputusan C3 D4) **hanya** bila `meta.target` persis
+      `users_email_key`/`users_phone_key` (atau nama field `email`/`phone`); P2002 lain (google_id, PRIMARY, tak dikenal)
+      tetap 500. Field di luar kontrak (`is_active`, `google_id`, `user_id`, `password_hash`, …) dibuang zod; akun baru
+      selalu aktif tanpa google_id. Kata sandi asli tidak disimpan, tidak dikirim, dan tidak diteruskan ke Prisma.
+    · **C3c `PATCH /api/admin/staff/:id/active` `{is_active}` → 200 akun (dibaca ulang).** Satu transaksi:
+      `lockAdminMasterData` (`store_settings FOR UPDATE`, operasi pertama — kunci yang sama dengan C2 & AD-06/07/09) →
+      **cek ulang pelaku setelah kunci** (nonaktif → 401 `SESSION_INVALID`, keputusan C3 D2; bukan Owner → 403) → baca
+      target (select whitelist; bukan Owner/Staf / tidak ada → 404 **sebelum** UPDATE, jadi baris pelanggan tidak pernah
+      dikunci) → bila menonaktifkan Owner lain: hitung ulang Owner aktif → akun sendiri 400, **Owner aktif terakhir 409**
+      → status sudah sama dengan tujuan → 200 tanpa UPDATE (idempoten) → `updateMany` bersyarat `{userId, role in [staf,
+      owner], isActive: !tujuan}` hanya `data: {isActive}`, `count` wajib 1 → baca ulang wajib = tujuan; selain itu 409
+      "Status akun gagal diperbarui karena data berubah…" + rollback. ID tidak sah 400 `INVALID_ID`. Tanpa `FOR UPDATE`
+      pada users (satu-satunya penulis `users.is_active` = endpoint ini, sudah diserialkan kunci store_settings). Urutan
+      kunci: checkout users(pelanggan) → store_settings; PATCH store_settings → users(admin); transaksi lain yang menyentuh
+      baris users admin (riwayat status AD-04 = kunci S lewat FK `changed_by`, reset sandi) tidak pernah menunggu
+      store_settings → tanpa siklus. Penonaktifan langsung berlaku: middleware auth membaca `is_active` setiap request
+      (token lama → 401), login menolak akun nonaktif.
+    · **Invariant minimal satu Owner aktif** dijaga dua pengaman yang saling menutup — cek ulang pelaku (pelaku selalu
+      Owner aktif, ikut terhitung) + larangan menonaktifkan akun sendiri — sehingga cabang 409 "Owner aktif terakhir"
+      tidak tercapai lewat urutan normal; cek 409 dipertahankan sebagai lapis ketiga (diuji dengan hitungan yang
+      dipalsukan). **Dua Owner saling menonaktifkan bersamaan:** yang pertama memegang kunci berhasil; yang kedua menunggu,
+      lalu cek ulang pelaku menemukan dirinya sudah nonaktif → 401 `SESSION_INVALID` → tepat satu Owner aktif tersisa.
+      Pelaku yang dinonaktifkan selagi menunggu kunci tidak bisa melanjutkan permintaan apa pun (termasuk menonaktifkan
+      Owner ketiga atau dirinya sendiri).
+    · Uji (Prisma dipalsukan): `adminStaffRoute.test.js` (7, GET), `adminStaffCreateRoute.test.js` (12, POST),
+      `adminStaffStatusRoute.test.js` (16, PATCH), `adminStaffRules.test.js` (+1 cek pelaku). Fake
+      `tests/helpers/settingsDb.js` diperluas secara kompatibel (opsi `userRows`): auth membaca data committed terbaru,
+      `user.create` menegakkan UNIQUE seperti MySQL (email tanpa beda huruf, phone, google_id, PK) dengan P2002 +
+      `meta.target`, `tx.user.updateMany` dievaluasi ulang pada data terbaru saat commit. Skenario: hak akses tanpa
+      query/transaksi; kontrak & urutan; tanpa data sensitif (seed berisi hash & google_id); normalisasi; hash bcrypt
+      (`getRounds` = 12, `compare`); duplikat terhadap Staf/Owner/pelanggan; dua POST bersamaan (keduanya lolos cek awal →
+      satu 201, satu 400 dari UNIQUE); P2002 lain → 500 dan log tanpa kata sandi; login `/api/auth/login` dengan akun baru;
+      PATCH Staf/Owner aktif↔nonaktif, 404 pelanggan, `INVALID_ID`, akun sendiri, idempoten, `count` 0 / baca ulang tidak
+      sesuai → 409, hanya kolom `is_active` berubah (semua kolom semua pengguna dibandingkan); konkurensi 10 putaran dua
+      Owner saling menonaktifkan → selalu [200, 401], tepat satu Owner aktif; skenario pelaku dinonaktifkan selagi menunggu
+      kunci (deterministik: request pertama ditahan memegang kunci, request kedua lolos auth lalu menunggu) → 401, tanpa
+      efek. Sensitivitas (mutasi): GET 8/8 terdeteksi (tanpa select, filter setelah baca, Staf diizinkan, …); POST 13/13
+      (cek unik hanya akun admin, P2002 membabi buta / substring, cost 10, teks asli, field sisipan, kunci store_settings,
+      kata sandi di log, …); PATCH 15/15 (tanpa kunci → 11 gagal; cek pelaku sebelum kunci → 11; tanpa cek pelaku → 11;
+      tanpa cek pelaku + tanpa cek Owner terakhir → 12; Owner aktif dihitung sebelum kunci → 2; tanpa cek count → 1; tanpa
+      baca ulang → 5; UPDATE menyentuh kolom lain → 3; `FOR UPDATE` users sebelum cek peran → 13; …). Server 563/563 (C2
+      527).
+    · **Batas bukti:** fake membuktikan LOGIKA transaksi (urutan, kunci sebagai operasi pertama, baca setelah kunci,
+      serialisasi lewat antrian kunci tiruan, rollback). **Belum terbukti — MySQL 8 (tahap C4):** kunci baris InnoDB &
+      read view setelah `BEGIN` Prisma, tidak adanya deadlock nyata dengan checkout & AD-04, bentuk `meta.target` P2002
+      di Prisma 6.19.3 + MySQL, collation `_ci` email, timeout transaksi Prisma (default maxWait 2 s / timeout 5 s) saat
+      antre di belakang checkout. → Kini dibuktikan di butir "Integrasi MySQL 8 — Validasi AD-11 (C3)" di bawah (dua
+      temuan nyata F-1 & F-2 diperbaiki).
+    · Catatan & temuan terbuka: (1) Step 6.6 — `PengaturanPage` membaca `user.user_id`, sesi API memakai `userId`, jadi
+      label "Akun Anda" tidak muncul di mode API (server tetap menolak 400); `AdminAccountFormModal` mengecek email/HP ganda
+      hanya terhadap akun admin (server memeriksa semua pengguna); `apiClient` belum meneruskan `fieldErrors`. (2) Regex HP
+      registrasi & konstanta bcrypt 12 kini ada di `auth.service`, `profile.validator`, `profile.service`, dan
+      `adminStaffRules`/`adminStaff` — pola yang sudah ada; penyatuan menyentuh fitur auth/profil di luar AD-11 (belum
+      dilakukan). (3) Pesan "Email sudah terdaftar" memungkinkan Owner mengetahui email pelanggan terdaftar (Owner memang
+      melihat email pelanggan di AD-10). (4) Error 500 Prisma dicatat `errorHandler`; argumen create tidak memuat kata sandi
+      asli (hanya hash). (5) Audit log aksi admin (FR-37, Could) tetap Step 6.5.
+  - **Integrasi MySQL 8 — Validasi AD-11 (C3), dengan smoke test C2 — selesai (commit `b53296a`).** Harness terpisah dari
+    unit test: `server/tests-mysql/` (`npm run test:mysql` → `run.sh`: container MySQL 8 sementara di tmpfs, port lokal
+    33306, database `ovenco_c4_test`, akun aplikasi `c4app` hanya pada database uji; guard menolak port 3306 / nama
+    database tanpa `_test`; container dihapus di akhir; log & hasil di `/tmp/c4`, tidak di repo). Hasil akhir (container
+    baru, MySQL 8.0.46, Prisma 6.19.3): **42/42 skenario lulus** (35 skenario C3/C2/timeout/sesi + 7 skenario I1–I7),
+    **`lock_deadlocks` = 0**, unit test server **588/588**. Schema, migrasi, dan frontend tidak berubah.
+    · Terbukti di MySQL nyata: read view REPEATABLE READ dibuat pada SELECT biasa pertama (bukan BEGIN / FOR UPDATE);
+      invariant minimal satu Owner aktif dengan 2/3/4 Owner saling menonaktifkan (30 putaran, selalu tepat 1 tersisa);
+      P2002 `meta.target` = string nama indeks (`users_email_key`, `users_phone_key`, `users_google_id_key`), sesuai
+      asumsi C3b; POST bersamaan 2/5/10 → tepat satu 201; collation `utf8mb4_unicode_ci` (PAD SPACE) menyamakan huruf
+      besar/kecil, `ß`=`ss`, `é`=`e` (cek awal JS meloloskan, UNIQUE + P2002 tetap → 400). Smoke C2: PUT profil
+      menunggu kunci, DECIMAL/TIME tersimpan tepat, dua metode online terakhir → [200, 409].
+    · **F-1 (deadlock tiga arah, diperbaiki):** urutan lama PATCH (store_settings X → UPDATE baris admin) membentuk siklus
+      dengan AD-04 Selesai (S baris admin lewat FK `changed_by` → S baris pelanggan lewat FK poin) dan checkout (baris
+      pelanggan X → store_settings X). Urutan baru `adminStaffStatus.service.js`: validasi target di luar transaksi
+      (pelanggan / tidak ada → 404 tanpa kunci) → kunci baris target → kunci store_settings → cek ulang pelaku →
+      invariant → UPDATE bersyarat → baca ulang. Siklus deterministik D2b & beban campuran D3 (3 × 50 putaran) → 0
+      deadlock; `performance_schema.data_locks` membuktikan baris pelanggan tidak pernah dikunci.
+    · **Deadlock checkout × pembatalan pelanggan yang sama (diperbaiki):** pembatalan memegang `daily_stocks` lalu
+      menunggu kunci S baris pelanggan (INSERT riwayat/poin) sementara checkout memegang baris pelanggan lalu menunggu
+      `daily_stocks` (terbukti 6/6). `cancelMyOrder` kini menulis refund poin & riwayat SEBELUM mengembalikan stok &
+      voucher (isi & atomicity tetap). I6: 20/20 tanpa deadlock, data stok/kuota/klaim/pesanan/riwayat konsisten.
+    · **F-2 (timeout transaksi Prisma, diperbaiki):** `timeout` Prisma tidak menghentikan pernyataan yang menunggu kunci;
+      setelah P2028 dengan pernyataan masih berjalan, koneksi pool rusak (401 `SESSION_INVALID` palsu, P1017, panic
+      engine, atau respons bergeser permanen). Perbaikan di `server/src/lib/`:
+      `transactionLockWait.js` — setiap transaksi interaktif memasang `innodb_lock_wait_timeout` 2 s (1205 sebelum
+      timeout Prisma) lalu memulihkan nilai sesi asli saat commit, rollback, dan error (global MySQL tidak diubah);
+      `prismaClients.js` + `prisma.js` — dua client: utama `connection_limit` 5 (query biasa & auth) dan transaksi 4
+      (`timeout` 15 s, `maxWait` 2 s; opsi per panggilan seperti `runInReadSnapshot` 10 s tetap berlaku), semua
+      `prisma.$transaction` dialihkan tanpa mengubah 33 titik transaksi; `$disconnect` menutup kedua pool (SIGTERM/SIGINT
+      di `server.js`); `transactionProbe.js` — `SELECT <nonce>, CONNECTION_ID()` sebagai pernyataan pertama, mismatch →
+      tepat satu `SELECT` read-only tambahan (memicu Prisma membuang koneksi rusak) → retry maks. 2 kali sebelum callback
+      bisnis; error bisnis tidak di-retry, callback tidak pernah dijalankan dua kali. Terbukti: I3 20/20 (koneksi rusak
+      hilang dari PROCESSLIST, retry di CONNECTION_ID lain, 4 transaksi berikutnya benar, tanpa panic/P1017, koneksi sehat
+      tidak terganggu); 7 lock wait berturut-turut commit (13,6 s), 8 → P2028 dengan rollback bersih lalu pulih; checkout
+      10 produk yang terkena P2028 → 500 tanpa perubahan stok/pesanan, checkout berikutnya 201; auth tetap cepat saat
+      pool transaksi penuh.
+    · **Keterbatasan:** (1) pemulihan koneksi bergantung pada perilaku internal **Prisma 6.19.3** yang tidak
+      terdokumentasi (pernyataan tambahan setelah mismatch membuat Prisma membuang koneksi; probe satu kolom terbukti
+      gagal) — versi dipin persis; **setiap upgrade Prisma wajib mengulang I3–I5** (`tests-mysql/08`); (2) lebih dari 7
+      lock wait berturut-turut dalam satu transaksi tetap P2028 (500), kini pulih bersih; (3) lock wait > 2 s kini 500,
+      bukan sukses lambat (pemetaan error tidak diubah); (4) setelah P2028 nilai sesi 2 s bisa tertinggal di koneksi pool
+      transaksi sampai transaksi berikutnya memulihkannya (query biasa tidak terdampak — pool terpisah); (5)
+      `connection_limit` di `DATABASE_URL` ditimpa 5/4; (6) shutdown tanpa batas waktu paksa; (7) endpoint snapshot
+      AD-02/AD-08/AD-09/AD-10 belum diuji di MySQL pada tahap ini (kode tidak berubah; hanya wrapper transaksi).
+  - **C4 Perbaikan checkout T1/T2 (FR-12 – FR-16 · BR-05 · BR-06 · BR-09 · BR-12 · C-14 · C-15 · AD-11) — selesai
+    (commit `5b74ba6`).** Hasil uji: unit test server **609/609**, integrasi MySQL 8 **51/51** (42 sebelumnya + 4 skenario `09` + 5
+    skenario `10`), `lock_deadlocks` = 0. Schema, migrasi, kontrak API sukses, dan frontend tidak berubah.
+    · **T1 pengaturan basi saat checkout → 409 + rollback.** `loadAndValidate` membaca pengaturan di luar transaksi; setelah
+      `lockRows` (users X → store_settings X) checkout membaca ulang `store_settings` & `operating_hours` (SELECT biasa
+      pertama → read view dibuat setelah kunci, jadi melihat commit Owner terakhir) lalu membandingkan field yang dipakai
+      pesanan: selalu batas pre-order & jam operasional; pembayaran online → `payment_timeout_minutes`; delivery →
+      koordinat, radius, tarif; tukar poin → `redeem_points_unit`, `redeem_value`. Berbeda → 409 "Pengaturan toko baru saja
+      diperbarui. Muat ulang halaman checkout lalu coba lagi." sebelum ada tulisan apa pun. Perubahan yang tidak dipakai
+      (nama, WhatsApp, poin perolehan) tetap 201. Semua penulis pengaturan (AD-11 profil/jam/metode, AD-09 loyalty)
+      mengunci store_settings lebih dulu, jadi nilai yang dibaca final sampai commit.
+    · **T2 metode bayar masih aktif di dalam transaksi → 409 + rollback** (pesan `PAYMENT_METHOD_UNAVAILABLE_TEXT`).
+      Checkout: metode terpilih dibaca ulang setelah kunci store_settings (AD-11 satu-satunya penulis `payment_methods`
+      dan mengunci store_settings lebih dulu). Ganti metode (`PATCH /api/orders/:no/payment`): baris metode tujuan dikunci
+      `FOR SHARE` (locking read → nilai terbaru) sebelum UPDATE pembayaran. Urutan kunci: pesanan X → [Bayar di Toko:
+      UPDATE pesanan + INSERT riwayat — S baris pelanggan lewat FK] → metode S → pembayaran X. Riwayat ditulis SEBELUM kunci
+      metode agar transaksi tidak menunggu baris pelanggan sambil memegang kunci metode (InnoDB mengantrekan S di belakang
+      X AD-11 yang menunggu → siklus tiga arah dengan checkout pelanggan yang sama); dibuktikan T2-d. Metode yang sudah
+      nonaktif sebelum request tetap 400 "Pilih metode pembayaran." (perilaku lama).
+    · File: `server/src/services/checkoutSettingsRules.service.js` (baru, aturan murni `changedCheckoutSettings`);
+      `orderCreate.service.js` (`assertSettingsUnchanged`, `assertMethodStillActive`); `payment.service.js`
+      (`lockActiveMethod`, urutan tulis ganti metode); `utils/businessConstants.js` (`PAYMENT_METHOD_UNAVAILABLE_TEXT`).
+      Uji unit: `server/tests/orderSettingsStale.test.js` (T1), `paymentMethodStale.test.js` (T2), helper
+      `tests/helpers/orderDb.js` (kait `whileWaitingSettingsLock` / `whileWaitingMethodLock`, `findUnique` metode, commit
+      transaksi lain bertahan setelah rollback), `paymentRoute.test.js` (asersi kunci pesanan disesuaikan). Integrasi:
+      `server/tests-mysql/09-checkout-settings.it.test.js` (T1-a batas pre-order & jam operasional berubah selagi checkout
+      menunggu kunci → 409 tanpa data parsial; T1-b perubahan tidak relevan → 201; T1-c PUT profil asli × checkout asli,
+      hanya 201/409, 0 deadlock) dan `10-payment-method-active.it.test.js` (T2-a checkout; T2-b/T2-c ganti metode online &
+      ke Bayar di Toko → 409 + rollback pesanan/riwayat; T2-d urutan kunci tanpa deadlock; T2-e PATCH metode asli ×
+      checkout × ganti metode, tanpa 5xx/deadlock/data parsial).
+    · **Keterbatasan & pekerjaan lanjutan (hasil final review, implementasi tidak diubah):**
+      (L1) `getCartView` membaca `preorder_cutoff_time` dalam query terpisah yang paralel dengan pembacaan pengaturan
+      `loadAndValidate`; bila Owner commit tepat di antara keduanya, tanggal siap divalidasi dengan batas lama tanpa 409
+      (jendela sangat sempit) — lanjutan: pakai satu pembacaan pengaturan untuk keranjang & checkout.
+      (L2) Jam operasional dibandingkan untuk ketujuh hari, bukan hanya hari tanggal siap: perubahan jam hari lain juga
+      menolak checkout yang sedang berjalan (aman, 409 lalu coba lagi; konservatif).
+      (L3) Uji beban T1-c dan T2-e tidak mewajibkan minimal satu 409, jadi bisa lulus tanpa race benar-benar terjadi;
+      bukti race ada di skenario deterministik T1-a, T2-a – T2-d.
+      (L4) Judul uji "pengaturan sama → 201; ongkir … dibaca ulang setelah kunci" (`orderSettingsStale.test.js`) kurang
+      tepat: quote memakai pengaturan dari `loadAndValidate` (identik dengan hasil baca ulang bila lolos T1).
+      (L5) T2-d memakai asersi waktu `patch.ms < 1500` — berpotensi flaky di mesin lambat.
+      (L6) Di MySQL nyata T1 baru diuji untuk batas pre-order & jam operasional; ongkir, radius, koordinat, poin, dan
+      batas pembayaran online hanya diuji di unit test (jalur perbandingan sama). PUT jam operasional asli belum diuji
+      bersamaan dengan checkout di MySQL.
+      Catatan: lock wait > 2 s (F-2) tetap 500 — checkout yang menunggu kunci store_settings lebih lama dari itu tidak
+      menjadi 409.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.
@@ -422,6 +916,123 @@ Tampilkan perintah migrasi dan seed.
 Struktur endpoint mengikuti "Recommended Development Stack":
 `/api/auth`, `/api/products`, `/api/categories`, `/api/custom-options`, `/api/cart`, `/api/orders`,
 `/api/payments`, `/api/reviews`, `/api/me/*`, dan `/api/admin/*` (dilindungi `requireRole`).
+
+### Step 6.7 – 6.10 — Inventory, Purchasing, Manufacturing & Advanced Reporting
+
+Ruang lingkup keempat step di bawah **ditetapkan oleh pemilik project (2026-11-05) sebagai scope resmi** dan ditulis
+apa adanya. Acceptance criteria setiap step dibagi tiga dan tidak boleh dicampur:
+- **[Scope]** — turunan langsung dari ruang lingkup / arahan pemilik project (termasuk arahan "AD-07 & AD-08 tidak
+  diduplikasi"). Wajib.
+- **[Usulan teknis]** — usulan agent; **belum final**, berlaku setelah disetujui pemilik project (boleh lewat CR).
+- **[Menunggu CR]** — keputusan bisnis yang belum ditetapkan; kriteria terkait baru ditulis setelah CR disetujui.
+
+Prasyarat & status (berlaku untuk 6.7 – 6.10):
+- **Prasyarat implementasi: Change Request yang mengubah AGENTS.md dan docs/SPEC.md.** Konflik saat ini:
+  AGENTS.md §1 melarang "modul keuangan/resep" serta tabel/kolom/menu di luar dokumen, sedangkan 6.7 – 6.10 membutuhkan
+  modul resep dan tabel/layar baru. Kedua dokumen **belum diubah**; perubahan dilakukan lewat CR (pola sama dengan
+  CR-01/CR-02) yang mencakup FR & BR baru, tabel §8, daftar layar & rute §7, dan hak akses Staf/Owner §2.
+  `npm run db:check-spec` (29 tabel) ikut disesuaikan setelah CR disetujui. Sebelum CR disetujui, schema, API, dan
+  kode tidak diubah untuk step ini.
+- **Belum ada desain database maupun kontrak API.** SPEC §8 hanya memuat 29 tabel; tidak ada tabel resep/BOM, satuan,
+  alokasi stok, supplier, purchase order, penerimaan, work order, atau pemakaian bahan. Mock frontend, layar AD-xx, dan
+  export Stitch untuk fitur ini juga belum ada.
+- Tahapan per step: (1) CR + rancangan tabel & kontrak API disetujui, (2) API + uji, (3) layar admin. Mode data
+  `services/` (mock vs API) untuk layar baru diputuskan di CR.
+- Urutan: setelah 6.5 dan 6.6 selesai (prinsip "kerjakan berurutan"), lalu 6.7 → 6.8 → 6.9 → 6.10.
+- **Fitur existing yang tidak boleh diduplikasi** (Step 5.7 & 6.4.5 AD-07, Step 5.8 & 6.4.7 AD-08, serta AD-02/AD-05
+  yang memakai datanya): `raw_materials` (nama, satuan `unit` teks bebas, `stock`, `min_stock`),
+  `GET|POST /api/admin/raw-materials`, `PUT /api/admin/raw-materials/:id` (edit informasi & koreksi stok dengan
+  `expected_stock`), `POST /api/admin/raw-materials/:id/stock-in` (Catat Stok Masuk), stok menipis `stock ≤ min_stock`
+  (AD-02, AD-07), `daily_stocks` & `GET|PUT /api/admin/stocks/today` (rencana stok harian produk ready,
+  `qty_planned`/`qty_sold`), kalender produksi pre-order & custom (AD-05, `GET /api/admin/calendar`),
+  `products.ingredients` (teks komposisi untuk pelanggan, bukan takaran resep), laporan penjualan AD-08
+  (`GET /api/admin/reports/sales` + ekspor Excel/PDF) dan KPI omzet AD-02. Fitur baru memperluas atau memakai data
+  ini, tidak membuat tabel, endpoint, atau layar kedua untuk fungsi yang sama.
+
+**Step 6.7 — Inventory & Recipe Management**
+- Tujuan: menjadi dasar pengelolaan bahan baku dan resep untuk pengadaan (6.8) dan produksi (6.9).
+- Ruang lingkup: (1) master bahan baku; (2) komposisi bahan setiap produk (recipe/BOM); (3) satuan bahan baku;
+  (4) perhitungan kebutuhan bahan otomatis; (5) stok tersedia dan stok yang dialokasikan.
+- Existing vs lanjutan: (1) master bahan sudah ada (AD-07) → dilanjutkan, bukan dibuat ulang; (3) satuan saat ini
+  teks bebas `raw_materials.unit` → bentuk pengembangannya diputuskan di CR; (2), (4), (5) belum ada.
+- Dependensi: 6.4.4 AD-06 (produk & varian), 6.4.5 AD-07 (bahan baku & stok masuk); CR disetujui.
+- Acceptance criteria:
+  · [Scope] master bahan baku memakai `raw_materials` AD-07 yang sudah ada, tanpa tabel/endpoint/layar bahan kedua;
+    satuan bahan baku dapat dikelola; komposisi bahan dapat dicatat untuk setiap produk; kebutuhan bahan dihitung
+    otomatis dari komposisi tersebut; stok tersedia dan stok dialokasikan dapat dilihat per bahan.
+  · [Usulan teknis] kebutuhan bahan = Σ (jumlah produk × takaran bahan di resep), ditulis sebagai fungsi murni di
+    `server/src/services/`; resep hanya merujuk bahan yang ada; perilaku AD-02 (stok menipis) dan AD-07 (stok masuk,
+    koreksi `expected_stock`) tidak berubah; stok tidak negatif dan tidak tertimpa saat penulisan bersamaan (memakai
+    pola kunci AD-07).
+  · [Menunggu CR] bentuk master satuan & konversi antar-satuan; resep per produk atau per varian, dan perlakuan custom
+    cake (opsi builder); definisi & sumber alokasi (pesanan, rencana produksi, atau work order 6.9); kapan stok
+    dikurangi (saat dialokasikan atau saat dipakai di 6.9); hak akses Staf/Owner.
+- Kebutuhan pengujian *(usulan teknis)*: unit test aturan murni (kebutuhan bahan, satuan, alokasi); route test (auth,
+  peran, validasi, 404/400/409); integrasi MySQL (alokasi × stok masuk bersamaan, rollback); regresi AD-02, AD-06,
+  AD-07 dan `tests-mysql` yang ada.
+
+**Step 6.8 — Supplier & Purchasing Management**
+- Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
+- Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;
+  (4) penerimaan bahan; (5) riwayat pembelian.
+- Existing vs lanjutan: belum ada supplier, PO, atau riwayat (SPEC §8). "Catat Stok Masuk" AD-07 menambah
+  `raw_materials.stock` tanpa catatan riwayat; (4) penerimaan bahan tidak boleh menjadi mekanisme stok kedua.
+- Dependensi: 6.7 (master bahan & satuan); CR disetujui.
+- Acceptance criteria:
+  · [Scope] supplier dapat dikelola dan dihubungkan dengan bahan baku dari master 6.7 (bahan tidak didefinisikan ulang);
+    purchase order dapat dibuat; penerimaan bahan tercatat dan memperbarui stok bahan yang sama dengan AD-07; riwayat
+    pembelian dapat dilihat.
+  · [Usulan teknis] PO hanya berisi bahan terdaftar; satu penerimaan menambah stok tepat sekali; penerimaan memakai
+    jalur tulis stok AD-07 (kunci baris bahan, penjumlahan DECIMAL di MySQL); stok tidak hilang atau ganda saat
+    penerimaan, stok masuk, dan koreksi AD-07 berjalan bersamaan; riwayat dapat ditelusuri per supplier & bahan.
+  · [Menunggu CR] status/alur PO; penerimaan sebagian; apakah "Catat Stok Masuk" manual AD-07 tetap ada berdampingan
+    dengan penerimaan PO; pencatatan harga beli (SPEC tidak memiliki modul keuangan); hak akses Staf/Owner.
+- Kebutuhan pengujian *(usulan teknis)*: unit test aturan PO & penerimaan; route test; integrasi MySQL (penerimaan
+  ganda/bersamaan × stok masuk × koreksi `expected_stock`, rollback); regresi 6.7 dan AD-07.
+
+**Step 6.9 — Manufacturing Management**
+- Tujuan: menjalankan produksi memakai resep (6.7), stok bahan (6.7), dan hasil pengadaan (6.8).
+- Ruang lingkup: (1) perencanaan produksi; (2) perhitungan kebutuhan bahan; (3) work order; (4) pencatatan pemakaian
+  bahan; (5) hasil produksi dan produk selesai.
+- Existing vs lanjutan: rencana stok harian produk ready (`daily_stocks.qty_planned`, AD-07) dan kalender produksi
+  pre-order & custom (AD-05) sudah ada → perencanaan produksi memakai/menghubungkan data ini, bukan menggantinya;
+  (2) memakai perhitungan kebutuhan bahan 6.7 (tidak ditulis ulang); (3), (4), (5) belum ada. Checkbox "Selesai
+  diproduksi" di Stitch sebelumnya tidak dibuat karena tidak ada kolomnya (catatan 5.6) — dibahas ulang di CR ini.
+- Dependensi: 6.7 (resep, kebutuhan bahan, alokasi), 6.8 (ketersediaan bahan), AD-05, AD-07; CR disetujui.
+- Acceptance criteria:
+  · [Scope] perencanaan produksi tersedia dan memakai data AD-07/AD-05 yang ada (tanpa rencana stok atau kalender
+    kedua); kebutuhan bahan dihitung dengan perhitungan 6.7; work order dapat dibuat; pemakaian bahan tercatat; hasil
+    produksi dan produk selesai tercatat.
+  · [Usulan teknis] kebutuhan bahan work order identik dengan hasil fungsi 6.7; pemakaian mengurangi stok bahan tepat
+    sekali dan melepas alokasi terkait; alur pesanan, checkout, dan stok ready existing tidak berubah kecuali yang
+    ditetapkan CR; tanpa deadlock dan stok negatif saat bersamaan dengan checkout & penerimaan 6.8.
+  · [Menunggu CR] hubungan hasil produksi dengan `daily_stocks` (stok ready) dan pesanan pre-order/custom; apakah
+    status pesanan (SPEC §4) ikut berubah; perlakuan selisih pemakaian vs resep; hak akses Staf/Owner.
+- Kebutuhan pengujian *(usulan teknis)*: unit test aturan work order & pemakaian; route test; integrasi MySQL (work
+  order × checkout × penerimaan 6.8 bersamaan, rollback); regresi AD-05, AD-07, checkout 6.3.
+
+**Step 6.10 — Advanced Reporting**
+- Tujuan: laporan terintegrasi dari data penjualan, inventory, purchasing, dan manufacturing.
+- Ruang lingkup: (1) laporan omzet; (2) laporan penggunaan bahan baku; (3) laporan pembelian; (4) laporan produksi;
+  (5) analisis penjualan dan kebutuhan produksi.
+- Existing vs lanjutan: (1) omzet sudah ada di AD-08 (KPI, grafik per hari, terlaris, metode bayar, transaksi, ekspor)
+  dan AD-02 → dipakai ulang, bukan dihitung ulang dengan aturan lain; (2) – (5) belum ada dan bergantung pada data
+  6.7 – 6.9.
+- Dependensi: AD-08 (6.4.7), AD-02 (6.4.6), 6.7, 6.8, 6.9.
+- Acceptance criteria:
+  · [Scope] laporan omzet memakai laporan AD-08 yang ada (tanpa laporan omzet kedua); laporan penggunaan bahan baku,
+    pembelian, dan produksi tersedia dari data 6.7 – 6.9; analisis penjualan dan kebutuhan produksi tersedia.
+  · [Usulan teknis] angka omzet identik dengan AD-08/AD-02 untuk periode yang sama (aturan `salesRules`/`reportRules`,
+    transaksi = lunas & tidak dibatalkan); angka bahan, pembelian, dan produksi sama dengan data sumbernya; satu
+    respons laporan konsisten dalam satu snapshot (`runInReadSnapshot`); validasi periode sama dengan AD-08.
+  · [Menunggu CR] menjadi bagian AD-08 atau layar baru; periode & format ekspor; metode analisis kebutuhan produksi;
+    hak akses (AD-08 saat ini hanya Owner).
+- Kebutuhan pengujian *(usulan teknis)*: unit test agregasi; route test (peran, periode tidak sah); integrasi MySQL
+  (rekonsiliasi angka laporan vs data sumber, snapshot saat ada tulisan bersamaan); regresi AD-02 & AD-08.
+
+Dampak ke step lain: Step 7 (`docs/TEST_CASES.md`) mencakup aturan baru dari CR 6.7 – 6.10; Step 8 mencakup layar
+admin baru di viewport uji. Backlog yang sudah ada (6.4.10 L1 – L6, snapshot AD-02/08/09/10 di MySQL, tunggakan 6.6,
+CR-02) tidak berubah.
 
 ---
 
