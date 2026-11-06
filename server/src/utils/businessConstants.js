@@ -205,6 +205,14 @@ const PAYMENT_TIMEOUT_CANCEL_REASON = 'Tidak dibayar dalam 30 menit (BR-06)';
 // Status baris payments saat batas bayar lewat (mock orderCancellation.js & seed: 'expired'); orders.payment_status tetap unpaid
 const AUTO_CANCEL_PAYMENT_STATUS = PAYMENT_TRANSACTION_STATUS.EXPIRED;
 
+// FR-38 · BR-07 — pembatalan otomatis Bayar di Toko yang tidak diambil sampai jam tutup (Step 6.5 C3). Alasan = teks seed
+// mock client (services/mock/seed/orderStateRules.js). Status baris payments sama dengan BR-06 (`expired`, keputusan H2).
+const PICKUP_CLOSE_CANCEL_REASON = 'Tidak diambil sampai jam tutup (BR-07)';
+// Status "belum diambil" yang dibatalkan BR-07 (keputusan D1); Selesai/Dibatalkan tidak pernah
+const PICKUP_AUTO_CANCEL_STATUSES = Object.freeze([
+  ORDER_STATUS.DIKONFIRMASI, ORDER_STATUS.SEDANG_DISIAPKAN, ORDER_STATUS.SIAP_DIAMBIL,
+]);
+
 // Penjadwal pembatalan otomatis (jobs/autoCancelOrders.js; dipakai bersama BR-07 di C3)
 const AUTO_CANCEL_JOB = Object.freeze({
   NAME: 'autoCancelOrders',
@@ -394,6 +402,8 @@ module.exports = {
   NOTIFICATION_EMAIL_LOG_PREFIX,
   PAYMENT_TIMEOUT_CANCEL_REASON,
   AUTO_CANCEL_PAYMENT_STATUS,
+  PICKUP_CLOSE_CANCEL_REASON,
+  PICKUP_AUTO_CANCEL_STATUSES,
   AUTO_CANCEL_JOB,
   MEMBER_LEVEL,
   VOUCHER_STATE,

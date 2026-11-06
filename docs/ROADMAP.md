@@ -1046,6 +1046,79 @@ Catatan khusus:
     batas soket memerlukan parameter `socket_timeout` pada `DATABASE_URL` (konfigurasi deploy, belum diatur);
     (6) di M4b proses pertama membatalkan kesepuluh pesanan dan proses kedua melewati semuanya (bukti antre per pesanan
     ada di M4a deterministik).
+  **C2 di-commit & di-push: `0be9319`.**
+  **C3 — Auto-cancel Bayar di Toko (FR-38 · BR-07 · NFR-05) + perbaikan F-C3-1: implementasi & uji selesai, belum
+  di-commit** (menunggu persetujuan commit/push).
+  - Aturan (keputusan D1, H1–H6): kandidat = `pay_at_store` + `orders.payment_status = unpaid` + payment `pending` + status
+    Dikonfirmasi / Sedang Disiapkan / Siap Diambil + batas pengambilan pada `ready_date` (WIB) sudah lewat. Batas = jam
+    tutup dari `operating_hours` TERBARU (H4; bukan `payments.expired_at`, yang salah untuk pesanan hasil ganti metode —
+    sama dengan `pay_before_time` C-18), ketat `now > jam tutup`; hari tutup / `close_time` NULL (H1) → 00.00.00 WIB hari
+    berikutnya, eksklusif (`now >=`), dicatat di log; baris hari tidak ada → asumsi TF-10 07.00–20.00. Efek lewat
+    `cancelOrderTx` yang sama: alasan `Tidak diambil sampai jam tutup (BR-07)` (H3), `payments.status` `expired` (H2),
+    `orders.payment_status` tetap `unpaid`, stok ready (termasuk Sedang Disiapkan/Siap Diambil — H5, TF-12), klaim &
+    kuota voucher, refund poin, riwayat `changed_by` NULL, notifikasi status & poin (recorder C1), email setelah commit.
+  - Desain: job C2 diperluas jadi daftar aturan (BR-06 lalu BR-07) dalam SATU putaran & SATU penjadwal; `stopping`
+    diperiksa sebelum setiap aturan & pesanan; query kandidat gagal → putaran dihentikan, aturan berikutnya tidak di-query
+    (H6); entri `failed` membawa `rule`; log per aturan. Preseleksi BR-07: snapshot jam (SELECT dengan
+    `MAX_EXECUTION_TIME(5000)`) + SQL kandidat `ready_date < hari ini OR (ready_date = hari ini AND batas hari ini lewat)`
+    (jam tutup tidak pernah melewati tengah malam — validasi AD-11). Keputusan final di transaksi per pesanan dengan
+    urutan kunci K1: `orders` X (`lockMyOrder`) → syarat status/pembayaran → `users` S pelanggan (`FOR SHARE`) →
+    `operating_hours` S hari `ready_date` (`FOR SHARE`, versi commit terbaru; baris tidak ada → gap lock S) → keputusan →
+    `cancelOrderTx`. `users` S HARUS sebelum jam: urutan sebaliknya membentuk siklus job → checkout pelanggan yang sama
+    (`users` X → `store_settings` X) → AD-11 (`store_settings` X → jam X) → job. Job tidak mengunci `store_settings`
+    (siklus dengan checkout). Snapshot hanya preseleksi: diperpanjang → kandidat dilewati di transaksi; dimajukan →
+    dibatalkan putaran berikutnya (≤ 1 menit, tidak pernah terlalu awal).
+  - **Temuan F-C3-1 (ada sejak Step 6.3, terbukti, diperbaiki dengan persetujuan K2):** deadlock pembatalan × checkout
+    pelanggan LAIN yang memakai produk ready yang sama. `cancelOrderTx` `UPDATE payments WHERE order_id` memegang
+    next-key lock indeks `payments_order_id_fkey` sampai supremum (pesanan terbaru) lalu menunggu `daily_stocks` X; checkout
+    pelanggan lain memegang `daily_stocks` X lalu INSERT `payments` → siklus (kunci `users` tidak menyerialkan pelanggan
+    berbeda). Bukti pada kode lama (`0be9319`): Q1 (batal pelanggan) & Q2a (job BR-06) masing-masing 1 deadlock 1213,
+    checkout pelanggan lain menjadi korban; pembatalan memegang `payments_order_id_fkey` X pada `(10,10)` & supremum.
+    Perbaikan: id pembayaran dibaca tanpa kunci lalu `UPDATE … WHERE payment_id IN (…)` (PRIMARY KEY, `X,REC_NOT_GAP`
+    saja); urutan F-C1-1 tetap. Sesudah perbaikan Q1/Q2a/Q2b lulus (3 run berturut-turut + harness penuh), pembatalan hanya
+    memegang `payments:PRIMARY:X,REC_NOT_GAP`.
+  - File baru: `server/tests/autoCancelPickup.test.js`, `server/tests-mysql/14-auto-cancel-pay-at-store.it.test.js`,
+    `server/tests-mysql/helpers/autoCancelFixtures.js`. Diubah: `server/src/jobs/autoCancelOrders.js` (daftar aturan, BR-07),
+    `services/autoCancelRules.service.js` (`getPickupDeadline`, `isPickupDeadlinePassed`, `isUnpaidPayAtStorePending`,
+    `isPastPickupClose`), `services/orderCancellation.service.js` (F-C3-1), `utils/businessConstants.js`
+    (`PICKUP_CLOSE_CANCEL_REASON`, `PICKUP_AUTO_CANCEL_STATUSES`), `tests/autoCancelRules.test.js` (+4 uji BR-07),
+    `tests/helpers/orderDb.js` (SQL BR-07, jam, kunci users/jam, `payment.findMany`). Tanpa perubahan schema/migrasi,
+    frontend, kontrak API, atau dependensi; uji C1/C2 tidak diubah.
+  - **Terverifikasi:** `npm test` 679/679 (C2 661; +18 uji BR-07: batas sebelum/tepat/sesudah, hari & jam berbeda,
+    tanggal siap kemarin/hari ini/besok, WIB pergantian hari, fallback H1, status D1 vs lunas/Selesai/Dibatalkan/online,
+    efek & idempotensi, jam diperpanjang/dimajukan antara snapshot & kunci, urutan kunci orders → users S → jam S,
+    pemeriksaan ulang setelah kunci, BR-06 + BR-07 satu putaran, H6, shutdown di antara aturan, rollback per pesanan, SQL
+    ber-hint). MySQL 8.0.46 harness penuh 01–14 pada container baru: **100/100 lulus, `lock_deadlocks` 0**
+    (`lock_timeouts` 10 — sama dengan run C2; C3 tidak menambah). Tambahan run 14 dengan P8 & H4-h × 30: 26/26, 0 deadlock.
+    · P1 (tepat jam tutup belum; sesudahnya ketiga status dibatalkan; lunas/Selesai/tanggal siap mendatang tidak;
+      `payments.expired_at` sudah lewat tetapi tidak dipakai; idempoten), P1b (baris jam tidak ada → 20.00; hari ditutup →
+      23.59.59,999 belum, 00.00 berikutnya dibatalkan). P2 × tandai lunas, P3 × ubah status admin, P4 × batal pelanggan,
+      masing-masing dua urutan antre → satu hasil bisnis, refund sekali (P3: admin ke Sedang Disiapkan lebih dulu → tetap
+      dibatalkan sesuai D1). P5 dua proses job (antre kunci yang sama 1 batal + 1 lewati; 10 pesanan tepat sekali). P6 × checkout
+      pelanggan yang sama × 3 → job memegang `orders` X, belum `payments`/jam, 0 deadlock. P7 rollback trigger → utuh, lalu
+      pulih. P8 beban × 15 (BR-06 + BR-07 + tandai lunas + ubah status + batal + checkout): 0 pelanggaran (lunas XOR batal,
+      riwayat = notifikasi, stok = item pesanan aktif + penambahan peniru), 0 deadlock. P9 SIGTERM saat transaksi BR-07
+      memegang kunci → proses hidup, commit utuh, 2 kandidat berikutnya tidak disentuh, exit 0.
+    · H4-a jam diperpanjang (AD-11 asli) setelah snapshot → dilewati, dibatalkan setelah 22.00. H4-b AD-11 belum commit →
+      job (memegang `orders` X & `users` S) menunggu `operating_hours` S lalu membaca 22.00 → dilewati; H4-c rollback →
+      20.00 → dibatalkan; H4-b2 baris jam tidak ada & AD-11 INSERT → job menunggu → 22.00 → dilewati. H4-d job lebih dulu
+      memegang jam S → AD-11 asli menunggu (`X,REC_NOT_GAP ← S`) → job commit pembatalan → AD-11 200; H4-d2 baris jam tidak
+      ada → job gap S, AD-11 menunggu `X,INSERT_INTENTION ← S` → 200. H4-e jam dimajukan → tidak terlalu awal, dibatalkan
+      tepat setelah 20.00; dimajukan ke 19.00 selagi job menunggu → dibatalkan. H4-f hari ditutup lewat AD-11 → fallback.
+      H4-g siklus tiga pihak (job × checkout × AD-11) → semua commit, 0 deadlock, job membaca 22.00. H4-h beban × 15
+      (AD-11 bolak-balik): AD-11 200 semua, 0 pelanggaran, 0 deadlock; checkout 409 = aturan T1 Step 6.4.10 (jam berubah
+      selagi checkout), bukan 5xx.
+    · Kontrol negatif (kode dikembalikan & diverifikasi identik): `UPDATE payments WHERE order_id` → Q1/Q2a/Q2b gagal;
+      keputusan dari snapshot per putaran → H4-a & H4-b gagal; jam dibaca tanpa kunci di transaksi → H4-b & H4-d gagal
+      (H4-a lulus — membuktikan locking read yang menentukan); kunci jam sebelum `users` → H4-g deadlock nyata (AD-11
+      menjadi korban, job membatalkan dengan jam lama 20.00).
+  - Keterbatasan: (1) AD-11 menyimpan jam bisa menunggu selama sisa transaksi job setelah kunci jam (K3; tertahan > 2 s →
+    1205/500 sesuai F-2 — tidak terjadi pada uji normal/beban); (2) pesanan Bayar di Toko yang tanggal siapnya hari ini
+    baru diperiksa setelah batas menurut snapshot lewat → bila jam dimajukan, pembatalan paling lambat satu putaran (± 1
+    menit) setelah batas baru; (3) `now` keputusan = waktu mulai putaran (tidak pernah lebih awal dari waktu nyata);
+    (4) stok dikembalikan ke tanggal pesanan dibuat (TF-12) walau tanggal siap berbeda; (5) pesanan contoh seed Bayar di
+    Toko (id 8) dibatalkan setelah jam tutup hari seed; (6) `jobs/autoCancelOrders.js` kini 321 baris (> batas lunak ±150,
+    sudah 219 setelah C2) — pemecahan menunggu persetujuan karena menyentuh kode C2.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

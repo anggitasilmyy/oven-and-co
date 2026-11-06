@@ -1,7 +1,17 @@
 // jobs/autoCancelOrders.js
-// FR-38 · BR-06 · NFR-05 — pembatalan otomatis pesanan (Step 6.5 C2: pembayaran online lewat batas waktu).
-// SATU penjadwal (node-cron, tiap menit) untuk semua pembatalan otomatis; BR-07 (Bayar di Toko setelah jam tutup)
-// ditambahkan ke runAutoCancel di C3 — tidak ada penjadwal kedua.
+// FR-38 · BR-06 · BR-07 · NFR-05 — pembatalan otomatis pesanan. SATU penjadwal (node-cron, tiap menit); setiap putaran
+// memproses aturan berurutan: BR-06 (Step 6.5 C2: pembayaran online lewat batas waktu) lalu BR-07 (Step 6.5 C3: Bayar di
+// Toko yang tidak diambil sampai jam tutup pada tanggal siap). Tidak ada penjadwal kedua.
+//
+// BR-07 — urutan kunci per pesanan (keputusan K1, terbukti tanpa siklus di MySQL 8, tests-mysql/14):
+//   1. orders X (lockMyOrder) → periksa syarat status/pembayaran (tanpa jam)
+//   2. users S pelanggan pesanan (SELECT … FOR SHARE) — kunci yang sama yang nanti diambil INSERT riwayat/notifikasi
+//      lewat FK, hanya dimajukan. HARUS sebelum langkah 3: jam operasional S lebih dulu membentuk siklus job →
+//      checkout pelanggan yang sama (users X → store_settings X) → AD-11 (store_settings X → operating_hours X) → job.
+//   3. operating_hours S untuk hari tanggal siap (locking read → versi commit TERBARU; baris tidak ada → gap lock S pada
+//      indeks unik day_of_week, sehingga AD-11 yang menambah hari itu ikut antre). AD-11 yang belum commit ditunggu;
+//      AD-11 yang datang belakangan menunggu keputusan job commit. Snapshot jam per putaran HANYA untuk preseleksi.
+//   4. keputusan BR-07 dengan jam terbaru → 5. cancelOrderTx (urutan C4 + F-C1-1 + F-C3-1).
 //
 // Jaminan:
 //   - Kandidat dibaca tanpa kunci (consistent read), lalu SETIAP pesanan diproses dalam transaksinya sendiri:
@@ -24,12 +34,16 @@ const cron = require('node-cron');
 const prisma = require('../lib/prisma');
 const {
   ORDER_STATUS, PAYMENT_STATUS, PAYMENT_OPTION, PAYMENT_TRANSACTION_STATUS, PAYMENT_TIMEOUT_CANCEL_REASON,
-  AUTO_CANCEL_PAYMENT_STATUS, AUTO_CANCEL_JOB,
+  AUTO_CANCEL_PAYMENT_STATUS, AUTO_CANCEL_JOB, PICKUP_CLOSE_CANCEL_REASON, PICKUP_AUTO_CANCEL_STATUSES,
 } = require('../utils/businessConstants');
 const { lockMyOrder } = require('../services/order.service');
 const { cancelOrderTx } = require('../services/orderCancellation.service');
 const { emailAfterCommit } = require('../services/orderStatusRecorder.service');
-const { isOverdueOnlinePayment } = require('../services/autoCancelRules.service');
+const {
+  isOverdueOnlinePayment, getPickupDeadline, isPickupDeadlinePassed, isUnpaidPayAtStorePending,
+} = require('../services/autoCancelRules.service');
+const { dayOfWeekOf } = require('../services/operatingHours.service');
+const { getJakartaDateKey, dbDateToKey } = require('../utils/jakartaDate');
 
 const LOG_PREFIX = `[Job ${AUTO_CANCEL_JOB.NAME}]`;
 const ERROR_DETAIL_MAX = 300;
@@ -74,21 +88,97 @@ async function findOverdueOnlineOrders(now, limit) {
   );
 }
 
+// ── BR-07 ───────────────────────────────────────────────────────────────────────────────────────
+
+// Jam operasional mentah → bentuk mapOperatingHour ("HH:mm"); TIME_FORMAT agar tidak bergantung konversi TIME driver
+const HOURS_COLUMNS = `day_of_week, TIME_FORMAT(open_time, '%H:%i') AS open_time, TIME_FORMAT(close_time, '%H:%i') AS close_time, is_open`;
+const toHourRow = (row) => ({
+  day_of_week: Number(row.day_of_week), open_time: row.open_time ?? null, close_time: row.close_time ?? null, is_open: Boolean(Number(row.is_open)),
+});
+
+/** Snapshot jam operasional untuk PRESELEKSI kandidat (tanpa kunci, di luar transaksi, dibatasi MAX_EXECUTION_TIME) */
+async function readOperatingHoursSnapshot() {
+  const list = await prisma.$queryRawUnsafe(
+    `SELECT /*+ MAX_EXECUTION_TIME(${CANDIDATE_TIMEOUT_MS}) */ ${HOURS_COLUMNS} FROM operating_hours ORDER BY day_of_week`,
+  );
+  return list.map(toHourRow);
+}
+
 /**
- * Batalkan satu pesanan BR-06 dalam transaksinya sendiri.
+ * BR-07 preseleksi: Bayar di Toko belum lunas & belum diambil dengan tanggal siap SEBELUM hari ini (WIB) — jam tutup tidak
+ * pernah melewati tengah malam (validasi AD-11) dan fallback H1 = 00.00 hari berikutnya, jadi pasti sudah lewat — atau
+ * tanggal siap HARI INI bila batas hari ini (menurut snapshot) sudah lewat. Keputusan final tetap di transaksi.
+ */
+const PICKUP_CANDIDATE_SQL = `SELECT /*+ MAX_EXECUTION_TIME(${CANDIDATE_TIMEOUT_MS}) */ DISTINCT
+    o.order_id AS orderId, o.order_number AS orderNumber, o.user_id AS userId
+  FROM orders o JOIN payments p ON p.order_id = o.order_id
+  WHERE o.payment_option = ? AND o.payment_status = ? AND o.order_status IN (?, ?, ?) AND p.status = ?
+    AND (o.ready_date < ? OR (o.ready_date = ? AND ? = 1))
+  ORDER BY o.order_id
+  LIMIT ?`;
+
+async function findOverduePickupOrders(now, limit) {
+  const todayKey = getJakartaDateKey(now);
+  const hours = await readOperatingHoursSnapshot();
+  const todayPassed = isPickupDeadlinePassed(getPickupDeadline(todayKey, hours), now);
+  return prisma.$queryRawUnsafe(
+    PICKUP_CANDIDATE_SQL,
+    PAYMENT_OPTION.PAY_AT_STORE, PAYMENT_STATUS.UNPAID, ...PICKUP_AUTO_CANCEL_STATUSES, PAYMENT_TRANSACTION_STATUS.PENDING,
+    todayKey, todayKey, todayPassed ? 1 : 0, limit,
+  );
+}
+
+/**
+ * BR-07 keputusan di dalam transaksi (setelah orders X): users S → operating_hours S (hari tanggal siap) → jam TERBARU.
+ * @returns {Promise<boolean>}
+ */
+async function isPickupOverdueLocked(tx, order, now) {
+  if (!isUnpaidPayAtStorePending(order, order.payments[0])) return false;
+  await tx.$queryRaw`SELECT user_id FROM users WHERE user_id = ${order.userId} FOR SHARE`;
+  const readyKey = dbDateToKey(order.readyDate);
+  const hours = (await tx.$queryRawUnsafe(
+    `SELECT ${HOURS_COLUMNS} FROM operating_hours WHERE day_of_week = ? FOR SHARE`, dayOfWeekOf(readyKey),
+  )).map(toHourRow);
+  const deadline = getPickupDeadline(readyKey, hours);
+  const passed = isPickupDeadlinePassed(deadline, now);
+  if (passed && deadline.fallback) {
+    console.warn(`${LOG_PREFIX} BR-07 ${order.orderNumber}: toko tutup / jam tutup kosong pada ${readyKey} — batas `
+      + `memakai akhir tanggal siap (00.00 WIB ${deadline.at.toISOString()}).`);
+  }
+  return passed;
+}
+
+// ── Aturan & pemrosesan per pesanan ──────────────────────────────────────────────────────────────
+
+const RULES = Object.freeze([
+  Object.freeze({
+    name: 'BR-06', reason: PAYMENT_TIMEOUT_CANCEL_REASON, findCandidates: (now, limit) => findOverdueOnlineOrders(now, limit),
+    isEligible: async (_tx, order, now) => isOverdueOnlinePayment(order, order.payments[0], now),
+  }),
+  Object.freeze({
+    name: 'BR-07', reason: PICKUP_CLOSE_CANCEL_REASON, findCandidates: (now, limit) => findOverduePickupOrders(now, limit),
+    isEligible: isPickupOverdueLocked,
+  }),
+]);
+
+/**
+ * Batalkan satu pesanan menurut satu aturan dalam transaksinya sendiri: orders X → periksa ULANG (aturan) → cancelOrderTx.
  * @returns {Promise<'cancelled'|'skipped'>}
  */
-function cancelOverdueOnlineOrder(candidate, now) {
+function cancelOrderByRule(rule, candidate, now) {
   return emailAfterCommit(prisma.$transaction(async (tx) => {
     const order = await lockMyOrder(tx, candidate.userId, candidate.orderNumber);
-    if (!isOverdueOnlinePayment(order, order.payments[0], now)) return { result: OUTCOME.SKIPPED, notices: [] };
+    if (!(await rule.isEligible(tx, order, now))) return { result: OUTCOME.SKIPPED, notices: [] };
 
     const notices = await cancelOrderTx(tx, order, {
-      reason: PAYMENT_TIMEOUT_CANCEL_REASON, changedBy: null, unpaidPaymentStatus: AUTO_CANCEL_PAYMENT_STATUS, now,
+      reason: rule.reason, changedBy: null, unpaidPaymentStatus: AUTO_CANCEL_PAYMENT_STATUS, now,
     });
     return { result: OUTCOME.CANCELLED, notices };
   }));
 }
+
+/** BR-06 (C2) — tetap tersedia dengan nama lama */
+const cancelOverdueOnlineOrder = (candidate, now) => cancelOrderByRule(RULES[0], candidate, now);
 
 // ── Status penjadwal (satu per proses) ──────────────────────────────────────────────────────────
 
@@ -109,39 +199,48 @@ const isStopping = () => stopping;
  */
 async function runAutoCancel({ now = new Date(), batchSize = AUTO_CANCEL_JOB.BATCH_SIZE, shouldStop = isStopping } = {}) {
   const summary = { cancelled: [], skipped: [], failed: [], stopped: false, queryError: null };
-  if (shouldStop()) return { ...summary, stopped: true };
-  let candidates;
-  try {
-    candidates = await findOverdueOnlineOrders(now, batchSize);
-  } catch (error) {
-    // Query kandidat gagal / melewati MAX_EXECUTION_TIME (ER 3024): tidak ada transaksi yang dimulai; dicoba lagi
-    // putaran berikutnya. Setelah ini shutdown (bila diminta) tidak lagi menunggu aktivitas database job.
-    summary.queryError = describeError(error);
-    console.error(`${LOG_PREFIX} Query kandidat BR-06 gagal, dicoba lagi putaran berikutnya — ${summary.queryError}`);
-    return summary;
-  }
 
-  for (const candidate of candidates) {
-    // Shutdown diminta: pesanan sebelumnya sudah commit/rollback; sisanya diproses putaran berikutnya setelah restart
-    if (shouldStop()) {
+  for (const rule of RULES) {
+    if (summary.stopped || shouldStop()) {
       summary.stopped = true;
-      console.info(`${LOG_PREFIX} Shutdown diminta — ${candidates.length - summary.cancelled.length - summary.skipped.length
-        - summary.failed.length} kandidat tersisa tidak diproses.`);
       break;
     }
+    let candidates;
     try {
-      const outcome = await cancelOverdueOnlineOrder(candidate, now);
-      summary[outcome].push(candidate.orderNumber);
+      candidates = await rule.findCandidates(now, batchSize);
     } catch (error) {
-      const detail = describeError(error);
-      summary.failed.push({ order_number: candidate.orderNumber, error: detail });
-      console.error(`${LOG_PREFIX} Gagal membatalkan ${candidate.orderNumber} (BR-06), dicoba lagi putaran berikutnya — ${detail}`);
+      // H6: query kandidat gagal / melewati MAX_EXECUTION_TIME (ER 3024) → putaran DIHENTIKAN (aturan berikutnya tidak
+      // di-query) dan dicoba lagi putaran berikutnya; shutdown tetap paling lama satu batas query.
+      summary.queryError = describeError(error);
+      console.error(`${LOG_PREFIX} Query kandidat ${rule.name} gagal, dicoba lagi putaran berikutnya — ${summary.queryError}`);
+      break;
     }
-  }
 
-  if (summary.cancelled.length || summary.failed.length) {
-    console.info(`${LOG_PREFIX} BR-06: ${summary.cancelled.length} dibatalkan, ${summary.skipped.length} dilewati, `
-      + `${summary.failed.length} gagal${summary.cancelled.length ? ` (${summary.cancelled.join(', ')})` : ''}`);
+    const counts = { cancelled: [], skipped: 0, failed: 0 };
+    for (const [index, candidate] of candidates.entries()) {
+      // Shutdown diminta: pesanan sebelumnya sudah commit/rollback; sisanya diproses putaran berikutnya setelah restart
+      if (shouldStop()) {
+        summary.stopped = true;
+        console.info(`${LOG_PREFIX} Shutdown diminta — ${candidates.length - index} kandidat tersisa tidak diproses.`);
+        break;
+      }
+      try {
+        const outcome = await cancelOrderByRule(rule, candidate, now);
+        summary[outcome].push(candidate.orderNumber);
+        if (outcome === OUTCOME.CANCELLED) counts.cancelled.push(candidate.orderNumber);
+        else counts.skipped += 1;
+      } catch (error) {
+        const detail = describeError(error);
+        summary.failed.push({ order_number: candidate.orderNumber, error: detail, rule: rule.name });
+        counts.failed += 1;
+        console.error(`${LOG_PREFIX} Gagal membatalkan ${candidate.orderNumber} (${rule.name}), dicoba lagi putaran berikutnya — ${detail}`);
+      }
+    }
+
+    if (counts.cancelled.length || counts.failed) {
+      console.info(`${LOG_PREFIX} ${rule.name}: ${counts.cancelled.length} dibatalkan, ${counts.skipped} dilewati, `
+        + `${counts.failed} gagal${counts.cancelled.length ? ` (${counts.cancelled.join(', ')})` : ''}`);
+    }
   }
   return summary;
 }
@@ -210,7 +309,10 @@ module.exports = {
   describeError,
   isStopping,
   findOverdueOnlineOrders,
+  findOverduePickupOrders,
   cancelOverdueOnlineOrder,
+  cancelOrderByRule,
+  RULES,
   runAutoCancel,
   isAutoCancelEnabled,
   tick,

@@ -283,6 +283,11 @@ function installOrderDb(fakePrisma, dates) {
       },
     },
     payment: {
+      // F-C3-1: pembatalan membaca id pembayaran pesanan lalu UPDATE berdasarkan primary key
+      findMany: async ({ where, select }) => {
+        state.ops.push('payment.findMany');
+        return state.t.payments.filter((p) => matchesWhere(p, where)).map((p) => pick(p, select));
+      },
       update: async ({ where, data }) => {
         fail('payment.update');
         const row = state.t.payments.find((p) => p.paymentId === where.paymentId);
@@ -359,6 +364,10 @@ function installOrderDb(fakePrisma, dates) {
     $queryRaw: async (strings, ...values) => {
       const sql = strings.join('?');
       state.locks.push({ sql, values });
+      if (/FROM users WHERE user_id = \? FOR SHARE/.test(sql)) {
+        state.ops.push('lock:users:S'); // BR-07 langkah 2 (Step 6.5 C3)
+        return [{ user_id: values[0] }];
+      }
       state.ops.push(/FOR UPDATE/.test(sql) ? `lock:${sql.match(/FROM (\w+)/)[1]}` : 'queryRaw');
       // T1: kunci store_settings — Owner yang memegang kunci (menyimpan pengaturan) commit lebih dulu, lalu checkout lanjut
       if (/FROM store_settings/.test(sql) && /FOR UPDATE/.test(sql)) state.hooks.whileWaitingSettingsLock?.();
@@ -382,6 +391,33 @@ function installOrderDb(fakePrisma, dates) {
     // Kait `candidateQuery` (async) dijalankan sebelum hasil dikembalikan: menahan query (shutdown di tengah query) atau
     // melempar error (mis. ER 3024 MAX_EXECUTION_TIME).
     $queryRawUnsafe: async (sql, ...values) => {
+      // Step 6.5 C3 · BR-07: snapshot jam operasional (preseleksi) & locking read jam hari tanggal siap (di transaksi)
+      if (/FROM operating_hours/.test(sql)) {
+        const locked = /FOR SHARE$/.test(sql);
+        state.ops.push(locked ? 'lock:operating_hours:S' : 'hoursQuery');
+        if (locked) await state.hooks.whileWaitingHoursLock?.(values[0]);
+        else await state.hooks.hoursQuery?.();
+        const toTime = (d) => (d == null ? null : `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`);
+        return state.t.operatingHours
+          .filter((h) => !locked || h.dayOfWeek === values[0])
+          .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+          .map((h) => ({ day_of_week: h.dayOfWeek, open_time: toTime(h.openTime), close_time: toTime(h.closeTime), is_open: h.isOpen ? 1 : 0 }));
+      }
+      if (/^SELECT \/\*\+ MAX_EXECUTION_TIME\(\d+\) \*\/ DISTINCT/.test(sql) && /o\.ready_date < \?/.test(sql)) {
+        state.ops.push('pickupCandidateQuery');
+        state.pickupCandidateSql = sql;
+        const [option, paymentStatus, s1, s2, s3, paymentRowStatus, before, today, todayPassed, limit] = values;
+        const key = (d) => d.toISOString().slice(0, 10);
+        const rows = state.t.orders
+          .filter((o) => o.paymentOption === option && o.paymentStatus === paymentStatus && [s1, s2, s3].includes(o.orderStatus))
+          .filter((o) => key(o.readyDate) < before || (key(o.readyDate) === today && todayPassed === 1))
+          .filter((o) => state.t.payments.some((p) => p.orderId === o.orderId && p.status === paymentRowStatus))
+          .sort((a, b) => (a.orderId < b.orderId ? -1 : 1))
+          .slice(0, limit)
+          .map((o) => ({ orderId: o.orderId, orderNumber: o.orderNumber, userId: o.userId }));
+        await state.hooks.pickupCandidateQuery?.();
+        return rows;
+      }
       if (!/^SELECT \/\*\+ MAX_EXECUTION_TIME\(\d+\) \*\/ DISTINCT/.test(sql) || !/p\.expired_at < \?/.test(sql)) {
         throw new Error(`orderDb: SQL tidak dikenal: ${sql}`);
       }

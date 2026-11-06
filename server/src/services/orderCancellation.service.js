@@ -51,6 +51,9 @@ async function cancelOrderTx(tx, order, { reason, changedBy, unpaidPaymentStatus
   //   sampai supremum. Checkout pelanggan yang sama (users X) yang INSERT payments pesanan baru menunggu gap itu,
   //   sementara pembatalan menunggu users S → siklus (terbukti di MySQL 8, tests-mysql/12-cancel-checkout-lock-order).
   //   Kini pembatalan menunggu users SEBELUM memegang gap payments, sehingga checkout tidak pernah menunggu pembatalan.
+  // - Step 6.5 C3 · temuan F-C3-1 (terbukti di MySQL 8, tests-mysql/14 Q1/Q2): gap lock itu juga membentuk siklus dengan
+  //   checkout pelanggan LAIN (daily_stocks X → INSERT payments) yang tidak diserialkan kunci users. Karena itu baris
+  //   payments kini diubah lewat PRIMARY KEY (kunci record saja, tanpa next-key/gap lock); urutan di atas tetap.
   // Urutan notifikasi sama dengan mock (status, lalu poin).
   if (order.pointsUsed > 0) {
     await tx.pointTransaction.create({
@@ -75,10 +78,17 @@ async function cancelOrderTx(tx, order, { reason, changedBy, unpaidPaymentStatus
       paymentStatus: paid ? PAYMENT_STATUS.REFUNDED : order.paymentStatus,
     },
   });
-  await tx.payment.updateMany({
-    where: { orderId: order.orderId },
-    data: { status: paid ? PAYMENT_TRANSACTION_STATUS.REFUNDED : unpaidPaymentStatus },
-  });
+  // F-C3-1: id pembayaran dibaca tanpa kunci (consistent read; payments pesanan hanya dibuat bersama pesanan, dan pesanan
+  // sudah dikunci), lalu UPDATE berdasarkan PRIMARY KEY — tidak memakai indeks payments_order_id_fkey sehingga tidak ada
+  // next-key/gap lock yang menahan INSERT payments pesanan baru.
+  const paymentIds = (await tx.payment.findMany({ where: { orderId: order.orderId }, select: { paymentId: true } }))
+    .map((row) => row.paymentId);
+  if (paymentIds.length) {
+    await tx.payment.updateMany({
+      where: { paymentId: { in: paymentIds } },
+      data: { status: paid ? PAYMENT_TRANSACTION_STATUS.REFUNDED : unpaidPaymentStatus },
+    });
+  }
 
   await returnReadyStock(tx, order);
 
