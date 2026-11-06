@@ -1,6 +1,8 @@
 // routes/AppRoutes.jsx
 // Step 3 · Authentication (update dari Step 2) · Step 4: DashboardPage lazy-load
 // Semua rute dari SPEC.md bagian 7 + proteksi ProtectedRoute & RoleRoute
+// Step 6.6 (CP2a): peran per halaman dari utils/routeAccess (satu sumber dengan validasi return path); halaman
+// pelanggan yang wajib login khusus peran customer, layout admin khusus Staf & Owner.
 
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
@@ -13,6 +15,8 @@ import AdminLayout from '../layouts/AdminLayout';
 // Guards
 import ProtectedRoute from './ProtectedRoute';
 import RoleRoute from './RoleRoute';
+import { ACCESS_AREA, ADMIN_PAGE_ROLES } from '../utils/routeAccess';
+import { ADMIN_ROUTES } from '../constants/routes';
 
 // ── Halaman Pelanggan ────────────────────────────────────────────────────────
 import OnboardingPage from '../pages/customer/OnboardingPage';
@@ -165,7 +169,7 @@ export default function AppRoutes() {
       <Route
         path="/admin"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute area={ACCESS_AREA.ADMIN}>
             <AdminLayout />
           </ProtectedRoute>
         }
@@ -176,24 +180,24 @@ export default function AppRoutes() {
         <Route
           path="dashboard"
           element={
-            <RoleRoute roles={['owner']}>
+            <RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.DASHBOARD]}>
               <Suspense fallback={<DashboardSkeleton />}><DashboardPage /></Suspense>
             </RoleRoute>
           }
         />
 
         {/* Staf & Owner */}
-        <Route path="pesanan" element={<RoleRoute roles={['staf', 'owner']}><PesananAdminPage /></RoleRoute>} />
-        <Route path="pesanan/:orderNumber" element={<RoleRoute roles={['staf', 'owner']}><DetailPesananAdminPage /></RoleRoute>} />
-        <Route path="kalender" element={<RoleRoute roles={['staf', 'owner']}><KalenderPage /></RoleRoute>} />
-        <Route path="produk" element={<RoleRoute roles={['staf', 'owner']}><ProdukAdminPage /></RoleRoute>} />
-        <Route path="stok" element={<RoleRoute roles={['staf', 'owner']}><StokPage /></RoleRoute>} />
-        <Route path="pelanggan" element={<RoleRoute roles={['staf', 'owner']}><PelangganPage /></RoleRoute>} />
+        <Route path="pesanan" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.PESANAN]}><PesananAdminPage /></RoleRoute>} />
+        <Route path="pesanan/:orderNumber" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.PESANAN]}><DetailPesananAdminPage /></RoleRoute>} />
+        <Route path="kalender" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.KALENDER]}><KalenderPage /></RoleRoute>} />
+        <Route path="produk" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.PRODUK]}><ProdukAdminPage /></RoleRoute>} />
+        <Route path="stok" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.STOK]}><StokPage /></RoleRoute>} />
+        <Route path="pelanggan" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.PELANGGAN]}><PelangganPage /></RoleRoute>} />
 
         {/* Owner only */}
-        <Route path="laporan" element={<RoleRoute roles={['owner']}><LaporanPage /></RoleRoute>} />
-        <Route path="promo" element={<RoleRoute roles={['owner']}><PromoPage /></RoleRoute>} />
-        <Route path="pengaturan" element={<RoleRoute roles={['owner']}><PengaturanPage /></RoleRoute>} />
+        <Route path="laporan" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.LAPORAN]}><LaporanPage /></RoleRoute>} />
+        <Route path="promo" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.PROMO]}><PromoPage /></RoleRoute>} />
+        <Route path="pengaturan" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.PENGATURAN]}><PengaturanPage /></RoleRoute>} />
       </Route>
 
       {/* ── Dev only ──────────────────────────────────────────────────────── */}

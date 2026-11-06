@@ -1228,6 +1228,76 @@ Catatan khusus:
   - Keterbatasan: (1) audit tidak menyimpan nilai lama/baru (kolom tidak ada di SPEC §8); (2) admin yang dinonaktifkan
     setelah transaksinya memperoleh kunci pelaku tetap menyelesaikan transaksi itu (A6) — penonaktifan berlaku untuk
     request berikutnya; (3) tidak ada layar/endpoint baca audit (FR-37 tanpa layar).
+- 6.6 (berjalan per checkpoint; branch `feat/step-6.6-frontend-api-integration` dari `origin/main` `cbab4cf`). Urutan
+  disetujui: CP0 lingkungan & baseline → CP1 error API → CP2 identitas & autentikasi → CP3 sinkron keranjang akun →
+  CP4 checkout & pembayaran → CP5 foto & upload → CP6 kontrak form admin → CP7 "tidak ditemukan" & zona waktu → CP8
+  verifikasi seluruh layar. Gap audit G1 – G16 (lihat laporan audit 6.6); butir di bawah hanya yang sudah dikerjakan.
+  **CP0 — lingkungan & baseline: selesai (tanpa perubahan kode).** `npm ci` client & server dari lockfile (tanpa
+  ketidaksesuaian), MySQL 8.0.46 di container terpisah (tmpfs) + `migrate deploy` + seed, `/api/health` ok, CORS dari
+  `localhost:5173` ok. Baseline: client unit 142/142, server 707/707, build ok, lint 0 error/2 warning (`Toast.jsx`),
+  smoke API 55/55, harness MySQL 01–16 **124/125**. Pengecualian baseline: `14-auto-cancel-pay-at-store` P1b gagal bila
+  dijalankan setelah 17.00 WIB — fixture (`helpers/autoCancelFixtures.js`) mengasumsikan tanggal siap pre-order = besok,
+  padahal setelah batas jam pre-order menjadi H+2 = hari `D()` yang ditutup uji; bukan bug BR-07 (tidak diubah). Seed
+  default `SEED_ANCHOR_DATE` 2026-10-16 membuat job membatalkan pesanan contoh lama saat server start; uji layar penuh
+  (CP8) memakai database baru dengan `SEED_ANCHOR_DATE` = hari uji.
+  **CP1 — penanganan error API (G3, G4): selesai, commit `b9e7390`.** `apiClient` meneruskan `fieldErrors` 4xx
+  (`createApiError(message, status, code, { fieldErrors, cause })`); gagal tanpa respons HTTP → status 0, kode
+  `CLIENT_NETWORK_ERROR`, pesan "Tidak dapat terhubung ke server. Periksa koneksi internet Anda dan coba kembali.";
+  respons tak terbaca → `CLIENT_INVALID_RESPONSE` dengan status HTTP asli; `AbortError` diteruskan apa adanya. Kode baru
+  di `CLIENT_REQUEST_ERROR_CODE` (bukan `CLIENT_ERROR_CODE`) agar gangguan jaringan tidak membuang data yang tampil.
+  Diuji: unit 156/156; browser mode API — AD-06 harga 3 desimal → `fieldErrors.price` tampil di field; API dimatikan →
+  pesan koneksi di Dashboard & C-02.
+  **CP2 — identitas & autentikasi (FR-01 – FR-03 · FR-26 · BR-04 · SPEC §2/§6/§7/§10): selesai.** Tanpa perubahan
+  backend, schema, kontrak API, atau dependensi.
+  - CP2a guard rute (`utils/routeAccess.js`, satu tabel peran per halaman untuk `AppRoutes`, `ProtectedRoute`,
+    `RoleRoute`, dan validasi return path): tamu & sesi berakhir di `/admin/*` → `/admin/login` (sebelumnya `/masuk`);
+    halaman khusus pelanggan (checkout, bayar, pesanan, akun, notifikasi) hanya peran customer — Staf/Owner dialihkan ke
+    halaman awal perannya SEBELUM halaman memanggil API (dulu 403 tampil di layar); halaman publik tetap terbuka.
+    Return path setelah login (C-02 & AD-01) hanya path internal yang boleh dibuka peran tersebut: URL absolut, `//host`,
+    backslash, karakter kontrol, path admin tak dikenal, dan halaman login ditolak; path dinormalisasi dulu (traversal
+    `/katalog/../admin/laporan` ditolak untuk Staf). Proteksi server (`auth` + `requireRole`) tidak berubah.
+  - CP2b identitas: `PengaturanPage`/`AdminAccountsPanel` ("Akun Anda", temuan 6.4.10 (1)), `AkunPage`, `BerandaPage`,
+    `useWishlist` memakai `getSessionUserId` / `isSameUserId` (mock `user_id` angka & API `userId` string).
+  - CP2c: tombol Google tetap tampil (SPEC §10); di mode API hanya informasi "belum tersedia" tanpa request (dulu
+    `POST /auth/google` → 404); mode mock tetap masuk sebagai pelanggan demo. Petunjuk OTP C-04 sesuai mode (console
+    browser / console server) dengan kalimat netral "Jika … terdaftar".
+  - CP2d: HP AKUN (daftar, ubah profil, akun staf) = aturan server `^\+62\d{8,13}$` setelah spasi/()/- dihapus
+    (`validateAccountPhone`); dulu client menerima +62 + 7 digit (ditolak server) dan menolak +62 + 12–13 digit (sah di
+    server). Temuan: server punya DUA aturan HP — HP penerima alamat & WhatsApp toko memakai 9–13 digit total
+    (`address.validator`, `adminSettingsRules`), jadi `validatePhone` untuk keduanya TIDAK diubah. Pesan gagal
+    autentikasi mode mock = server: login (akun tidak ada/sandi salah/nonaktif) "Email/HP atau kata sandi salah.",
+    registrasi ganda "Email atau nomor HP sudah terdaftar.", lupa sandi selalu pesan yang sama (OTP hanya dibuat untuk
+    akun yang ada), reset "OTP tidak valid, kedaluwarsa, atau sudah digunakan." Uji e2e lama `step-5.8` (akun nonaktif)
+    disesuaikan.
+  - Masa berlaku OTP mock = server (penyesuaian akhir CP2): server `auth.service` → `expiresAt` = permintaan + 10 menit,
+    OTP sah hanya selama `expiresAt > now` (tepat di batas sudah ditolak), sekali pakai, dan permintaan baru menonaktifkan
+    OTP aktif sebelumnya. Mock sebelumnya 5 menit dan masih menerima tepat di batas (`now > expires_at`); kini
+    `OTP_VALID_MINUTES` = 10 (`constants/auth.js`) dan ditolak bila `now >= expires_at`. Permintaan baru tetap
+    menggantikan OTP lama (satu record per email). Hitung mundur kirim ulang 60 detik hanya di UI (server tidak
+    membatasi kirim ulang — lihat backlog keamanan). Backend tidak berubah.
+  - Uji: client unit 186/186 (+30: `routeAccess` 9, `sessionUserId` 2, `authService` API 5 & mock 11 — termasuk 5 uji
+    batas OTP: 10 menit, 1 ms sebelum batas sah, tepat di batas & sesudahnya ditolak, sekali pakai, permintaan baru
+    menggantikan yang lama; sensitivitas: aturan lama 5 menit → 3 uji gagal, `>` di batas → 1 uji gagal —
+    `accountPhone` 3);
+    server 707/707; build ok; lint 0 error/2 warning; smoke API 55/55. Browser 390 & 1440 px — mode API 44/44 per lebar
+    (login 3 peran, registrasi + reset sandi dengan OTP dari console server, sesi kedaluwarsa pelanggan & owner kembali
+    ke halaman asal, akses per peran tanpa request API pelanggan, return path & penolakan open redirect, Google tanpa
+    request); mode mock 39/39 per lebar tanpa request ke API. Data uji MySQL: akun baru tersimpan (HP dinormalisasi),
+    `password_resets` terpakai. Regresi e2e mode mock lama (`tests/step-5.x`): 5.1 cart 40/40, func 55/55, unit 37/37,
+    5.2 56/56, 5.3 76/76, 5.5 56/56, 5.6 80/80 + regresi 18/18, 5.7 90/90, 5.8 67/67.
+  - **Backlog keamanan — pekerjaan terpisah (checkpoint/CR backend sendiri, TIDAK dikerjakan di CP2):** hasil uji CP2:
+    10 login salah beruntun semuanya 401 tanpa pembatasan. Middleware `rateLimit` sudah ada (dipakai simpan desain
+    custom cake) dan bisa dipakai ulang.
+    · SEC-1 Pembatas laju `POST /api/auth/login` (per IP dan per identifier) — mencegah tebak sandi.
+    · SEC-2 Pembatas laju `POST /api/auth/forgot-password` — mencegah banjir permintaan OTP; server saat ini tidak
+      membatasi kirim ulang (hitung mundur 60 detik hanya di UI).
+    · SEC-3 Pembatas laju `POST /api/auth/reset-password`.
+    · SEC-4 Perlindungan percobaan OTP berulang: OTP 6 digit (10⁶ kemungkinan) bisa dicoba tanpa batas selama 10 menit;
+      perlu batas percobaan gagal per OTP/akun (mis. OTP dinonaktifkan setelah N kali salah). SPEC §8 `password_resets`
+      tidak punya kolom hitungan percobaan — keputusan desain (penyimpanan in-memory vs kolom baru lewat CR) termasuk
+      pekerjaan ini.
+    Tetap tercatat sebagai asumsi prototype (6.3): JWT di localStorage dan tanpa pencabutan token saat keluar/ganti
+    sandi.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

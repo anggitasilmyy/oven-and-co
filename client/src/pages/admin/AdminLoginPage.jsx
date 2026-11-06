@@ -5,16 +5,18 @@
 // Owner → /admin/dashboard | Staf → /admin/pesanan
 // Checkbox "Ingat saya" sesuai UI/UX Spec
 // Step 2.5 (PR B): memakai AuthSplitLayout (panel brand ≥ lg, form saja di bawahnya)
+// Step 6.6 (CP2a): kembali ke halaman admin asal bila aman & sesuai peran (utils/routeAccess)
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import AuthSplitLayout from '../../components/layout/AuthSplitLayout';
 import AdminDemoAccounts from '../../components/admin/AdminDemoAccounts';
 import AdminLoginForm from '../../components/admin/AdminLoginForm';
 import { login } from '../../services/authService';
 import useAuthStore from '../../stores/useAuthStore';
 import useCartStore from '../../stores/useCartStore';
-import { ROLE_LANDING, ROLES } from '../../constants/roles';
+import { ROLES } from '../../constants/roles';
+import { postLoginTarget } from '../../utils/routeAccess';
 
 /** Key localStorage untuk "Ingat saya" */
 const REMEMBER_KEY = 'ovenco_admin_remember';
@@ -35,6 +37,9 @@ function getInitialForm() {
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Step 6.6 (CP2a): halaman admin yang dibuka sebelum login / saat sesi berakhir (diisi ProtectedRoute & RoleRoute)
+  const returnTo = location.state?.returnTo;
   const { user, setAuth } = useAuthStore();
   const loadCartForUser = useCartStore((s) => s.loadCartForUser);
 
@@ -46,9 +51,9 @@ export default function AdminLoginPage() {
   // Jika sudah login sebagai admin, redirect langsung
   useEffect(() => {
     if (user && (user.role === ROLES.OWNER || user.role === ROLES.STAF)) {
-      navigate(ROLE_LANDING[user.role], { replace: true });
+      navigate(postLoginTarget(user, returnTo), { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, returnTo]);
 
   const handleChange = (field) => (e) => {
     setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -80,7 +85,8 @@ export default function AdminLoginPage() {
         localStorage.removeItem(REMEMBER_KEY);
       }
 
-      navigate(ROLE_LANDING[loggedUser.role], { replace: true });
+      // Return path hanya bila boleh dibuka peran ini (mis. Staf tidak kembali ke /admin/laporan milik Owner)
+      navigate(postLoginTarget(loggedUser, returnTo), { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {

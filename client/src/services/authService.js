@@ -1,9 +1,15 @@
 // services/authService.js
 // Step 3 · Authentication
 // FR-01 · FR-02 · FR-03 · FR-26
+// Step 6.6 (CP2c): Google hanya di mode mock; petunjuk OTP per mode. (CP2d): pesan mock = pesan API (tanpa membuka
+// keberadaan email / status akun).
 // Semua operasi auth — mode mock dan API
 
-import { apiClient } from './apiClient';
+import { apiClient, USE_MOCK } from './apiClient';
+import {
+  GOOGLE_LOGIN_UNAVAILABLE_MESSAGE, GOOGLE_LOGIN_UNAVAILABLE_CODE, OTP_DELIVERY_HINT, AUTH_MESSAGE, OTP_VALID_MINUTES,
+} from '../constants/auth';
+import { validateEmail } from '../utils/authValidation';
 import {
   findUserByIdentifier,
   addMockUser,
@@ -14,11 +20,15 @@ import {
 
 // ── Konstanta OTP Mock ────────────────────────────────────────────────────────
 const OTP_KEY_PREFIX = 'ovenco_mock_otp_';
-const OTP_TTL_MS = 5 * 60 * 1000; // 5 menit
+// Step 6.6 (CP2): sama dengan server — 10 menit (sebelumnya 5 menit di mock)
+const OTP_TTL_MS = OTP_VALID_MINUTES * 60 * 1000;
 
 // ── Helpers OTP ──────────────────────────────────────────────────────────────
 
-/** Buat OTP 6 digit, simpan ke localStorage, cetak ke console (mode mock). */
+/**
+ * Buat OTP 6 digit, simpan ke localStorage, cetak ke console (mode mock). Satu record per email: permintaan baru
+ * menggantikan OTP lama yang belum dipakai (sama dengan server yang menonaktifkan OTP aktif sebelumnya).
+ */
 function generateAndStoreOtp(email) {
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   const record = { otp, expires_at: Date.now() + OTP_TTL_MS, used: false };
@@ -35,7 +45,8 @@ function verifyOtp(email, inputOtp) {
   try {
     const record = JSON.parse(raw);
     if (record.used) return false;
-    if (Date.now() > record.expires_at) return false;
+    // Step 6.6 (CP2): semantik server `expiresAt > now` — tepat di waktu kedaluwarsa sudah ditolak
+    if (Date.now() >= record.expires_at) return false;
     return record.otp === String(inputOtp).trim();
   } catch {
     return false;
@@ -59,12 +70,9 @@ function markOtpUsed(email) {
 
 async function mockLogin({ identifier, password }) {
   const user = findUserByIdentifier(identifier);
-  // Pesan error persis sesuai SPEC §6 validation rules
-  if (!user || user.password !== password) {
-    throw new Error('Email/HP atau kata sandi salah');
-  }
-  if (!user.is_active) {
-    throw new Error('Akun tidak aktif. Hubungi toko.');
+  // SPEC §6 · Step 6.6 (CP2d): satu pesan untuk akun tidak ada, sandi salah, dan akun nonaktif (sama dengan API)
+  if (!user || user.password !== password || !user.is_active) {
+    throw new Error(AUTH_MESSAGE.LOGIN_FAILED);
   }
   return {
     user: sanitizeUser(user),
@@ -75,11 +83,12 @@ async function mockLogin({ identifier, password }) {
 async function mockRegister({ name, email, phone, password }) {
   // Validasi unikness
   const users = getMockUsers();
-  if (users.find((u) => u.email.toLowerCase() === email.toLowerCase())) {
-    throw new Error('Email sudah terdaftar');
-  }
-  if (users.find((u) => u.phone.replace(/\s/g, '') === phone.replace(/\s/g, ''))) {
-    throw new Error('Nomor HP sudah terdaftar');
+  // Step 6.6 (CP2d): pesan sama dengan API (409) — tidak membedakan email atau HP yang sudah dipakai
+  if (
+    users.find((u) => u.email.toLowerCase() === email.toLowerCase())
+    || users.find((u) => u.phone.replace(/\s/g, '') === phone.replace(/\s/g, ''))
+  ) {
+    throw new Error(AUTH_MESSAGE.ALREADY_REGISTERED);
   }
   const newUser = addMockUser({ name, email, phone, password, role: 'customer' });
   return {
@@ -89,24 +98,26 @@ async function mockRegister({ name, email, phone, password }) {
 }
 
 async function mockRequestOtp({ email }) {
+  // Step 6.6 (CP2d): sama dengan API — format email diperiksa, lalu pesan yang sama terdaftar atau tidak
+  if (validateEmail(String(email ?? ''))) throw new Error(AUTH_MESSAGE.INVALID_EMAIL);
   const users = getMockUsers();
-  const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (!user) throw new Error('Email tidak ditemukan');
-  generateAndStoreOtp(email);
-  return { message: 'OTP dikirim ke email' };
+  const user = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+  if (user) generateAndStoreOtp(user.email);
+  return { message: AUTH_MESSAGE.OTP_REQUESTED_MOCK };
 }
 
 async function mockVerifyOtpAndReset({ email, otp, newPassword }) {
+  // Step 6.6 (CP2d): satu pesan untuk OTP salah/kedaluwarsa/terpakai dan email tidak terdaftar (sama dengan API)
   const valid = verifyOtp(email, otp);
-  if (!valid) throw new Error('OTP tidak valid atau sudah kedaluwarsa');
+  if (!valid) throw new Error(AUTH_MESSAGE.OTP_INVALID);
   // Update password
   const users = getMockUsers();
   const idx = users.findIndex((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (idx === -1) throw new Error('Pengguna tidak ditemukan');
+  if (idx === -1) throw new Error(AUTH_MESSAGE.OTP_INVALID);
   users[idx].password = newPassword;
   saveMockUsers(users);
   markOtpUsed(email);
-  return { message: 'Kata sandi berhasil diubah' };
+  return { message: AUTH_MESSAGE.PASSWORD_CHANGED };
 }
 
 /** Login Google mock — masuk sebagai akun pelanggan demo */
@@ -136,10 +147,28 @@ export async function login(identifier, password) {
 }
 
 /**
+ * Step 6.6 (CP2c): login Google hanya tersedia di mode mock (masuk sebagai pelanggan demo). Mode API belum punya
+ * endpoint OAuth (SPEC §10: opsional di akhir), jadi tombol menampilkan informasi tanpa mengirim request.
+ * @returns {boolean}
+ */
+export function isGoogleLoginAvailable() {
+  return USE_MOCK;
+}
+
+/** Step 6.6 (CP2c): petunjuk lokasi kode OTP sesuai mode data (SPEC §10) */
+export function getOtpDeliveryHint() {
+  return USE_MOCK ? OTP_DELIVERY_HINT.MOCK : OTP_DELIVERY_HINT.API;
+}
+
+/**
  * Login dengan Google (mock: masuk sebagai pelanggan demo).
+ * Mode API: ditolak tanpa request (GOOGLE_LOGIN_UNAVAILABLE_CODE) — tidak ada POST ke endpoint yang tidak tersedia.
  * @returns {Promise<{user, token}>}
  */
 export async function loginWithGoogle() {
+  if (!isGoogleLoginAvailable()) {
+    throw Object.assign(new Error(GOOGLE_LOGIN_UNAVAILABLE_MESSAGE), { code: GOOGLE_LOGIN_UNAVAILABLE_CODE });
+  }
   return apiClient('/auth/google', {
     method: 'POST',
     mockHandler: () => mockGoogleLogin(),

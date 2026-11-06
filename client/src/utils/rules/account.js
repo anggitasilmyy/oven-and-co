@@ -1,7 +1,7 @@
 // utils/rules/account.js
 // Step 5.5 · FR-22 – FR-25 · BR-09 · BR-12 · C-20 – C-22 — profil, alamat, voucher & riwayat poin (fungsi murni).
 
-import { validateEmail, validateName, validatePhone } from '../authValidation';
+import { validateEmail, validateName, validatePhone, validateAccountPhone } from '../authValidation';
 import { isVoucherActiveOn } from './promo';
 import { ADDRESS_LIMITS, PROFILE_NAME_MAX, KM_PER_DEGREE, VOUCHER_STATE } from '../../constants/account';
 
@@ -9,6 +9,7 @@ const tooLong = (val, max, field) => (String(val ?? '').trim().length > max ? `$
 
 /**
  * Validasi Ubah Profil (aturan sama dengan Registrasi SPEC §6: email valid, HP diawali +62).
+ * Step 6.6 (CP2d): HP akun = aturan server profile.validator (+62 diikuti 8–13 digit).
  * Keunikan email/HP diperiksa service karena butuh data pengguna lain.
  * @returns {Record<string, string>} pesan error per field (kosong = valid)
  */
@@ -16,7 +17,7 @@ export function validateProfileInput({ name = '', email = '', phone = '' }) {
   const errors = {
     name: validateName(name) || tooLong(name, PROFILE_NAME_MAX, 'Nama'),
     email: validateEmail(email),
-    phone: validatePhone(phone),
+    phone: validateAccountPhone(phone),
   };
   return Object.fromEntries(Object.entries(errors).filter(([, v]) => v));
 }

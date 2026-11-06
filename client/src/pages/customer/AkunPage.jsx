@@ -10,6 +10,7 @@ import ProfileHeader from '../../components/customer/ProfileHeader';
 import MemberCard from '../../components/customer/MemberCard';
 import AccountMenu from '../../components/customer/AccountMenu';
 import useAuthStore from '../../stores/useAuthStore';
+import { getSessionUserId } from '../../utils/sessionIdentity';
 import useServiceQuery from '../../hooks/useServiceQuery';
 import useLogout from '../../hooks/useLogout';
 import { getMyLoyaltySummary } from '../../services/loyaltyService';
@@ -18,8 +19,10 @@ import { CUSTOMER_ROUTES } from '../../constants/routes';
 
 export default function AkunPage() {
   const user = useAuthStore((s) => s.user);
-  const loyalty = useServiceQuery(() => getMyLoyaltySummary(), [user?.user_id]);
-  const unread = useServiceQuery(() => getMyUnreadNotificationCount(), [user?.user_id]);
+  // Step 6.6 (CP2b): dependensi id sesi untuk mode mock & API
+  const userId = getSessionUserId(user);
+  const loyalty = useServiceQuery(() => getMyLoyaltySummary(), [userId]);
+  const unread = useServiceQuery(() => getMyUnreadNotificationCount(), [userId]);
   const logoutAndLeave = useLogout();
 
   return (

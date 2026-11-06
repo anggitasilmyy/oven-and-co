@@ -4,6 +4,8 @@
 // FR-03 · UC-03 · Reset sandi via OTP email 6 digit
 // Validation rules SPEC §6: OTP 6 digit, belum kedaluwarsa, kirim ulang setelah hitung mundur
 // Step 2.5 (PR B): split-screen ≥ lg lewat CustomerAuthShell
+// Step 6.6 (CP2c/CP2d): petunjuk OTP sesuai mode (console browser / console server) dan kalimat netral — tidak
+// menyatakan email pasti terdaftar (sama dengan respons API forgot-password).
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +17,7 @@ import LupaSandiSuccess from '../../components/customer/LupaSandiSuccess';
 import useCountdown from '../../hooks/useCountdown';
 import { CUSTOMER_ROUTES } from '../../constants/routes';
 import { OTP_RESEND_COOLDOWN } from '../../constants/auth';
+import { getOtpDeliveryHint } from '../../services/authService';
 
 /** Langkah alur reset sandi */
 const STEP = { EMAIL: 1, RESET: 2, DONE: 3 };
@@ -42,7 +45,7 @@ export default function LupaSandiPage() {
         subtitle={
           step === STEP.EMAIL
             ? 'Masukkan email akun kamu untuk menerima kode OTP.'
-            : `Kode dikirim ke ${email}. Cek console browser (mode mock).`
+            : `Jika ${email} terdaftar, kode OTP 6 digit sudah dibuat. ${getOtpDeliveryHint()}`
         }
       />
 

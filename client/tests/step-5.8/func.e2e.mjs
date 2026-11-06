@@ -206,7 +206,8 @@ await p.getByRole('dialog').getByRole('button', { name: 'Nonaktifkan' }).click()
 check('Budi Staf dinonaktifkan', (await toastText()).includes('Budi Staf dinonaktifkan'));
 
 await loginAdmin('staf@demo.com');
-check('Akun nonaktif tidak bisa masuk', (await p.locator('#admin-login-error').innerText()).includes('Akun tidak aktif'));
+// Step 6.6 (CP2d): akun nonaktif memakai pesan login gagal yang sama dengan API (tidak membuka status akun)
+check('Akun nonaktif tidak bisa masuk', (await p.locator('#admin-login-error').innerText()).includes('Email/HP atau kata sandi salah'));
 await loginAdmin('dewi@oven.co', 'rahasia123');
 check('Akun staf baru masuk & landing Pesanan', p.url().endsWith('/admin/pesanan'), p.url());
 

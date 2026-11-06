@@ -3,7 +3,9 @@
 // "Memvalidasi dan menyimpan pengaturan → aturan operasional berlaku di web pelanggan" (FR-36).
 
 import { parseDateKey } from '../date';
-import { validateName, validateEmail, validatePhone, validatePassword } from '../authValidation';
+import {
+  validateName, validateEmail, validatePhone, validateAccountPhone, normalizeAccountPhone, validatePassword,
+} from '../authValidation';
 import { OPERATING_HOURS_DEFAULT } from '../../constants/storeConfig';
 import { ROLES } from '../../constants/roles';
 import { PAYMENT_GROUP } from '../../constants/checkout';
@@ -98,12 +100,13 @@ export function validateAdminAccount(a, users) {
   const e = {};
   const name = String(a.name ?? '').trim();
   const email = String(a.email ?? '').trim().toLowerCase();
-  const phone = String(a.phone ?? '').replace(/\s/g, '');
+  // Step 6.6 (CP2d): HP akun staf = aturan server adminStaffRules (+62 diikuti 8–13 digit, spasi/()/- dihapus)
+  const phone = normalizeAccountPhone(a.phone);
   const set = (f, msg) => { if (msg) e[f] = msg; };
   set('name', validateName(name) || (name.length > STORE_FIELD_MAX.userName ? `Nama maksimal ${STORE_FIELD_MAX.userName} karakter` : ''));
   set('email', validateEmail(email) || (email.length > STORE_FIELD_MAX.email ? `Email maksimal ${STORE_FIELD_MAX.email} karakter` : '')
     || (users.some((u) => u.email.toLowerCase() === email) ? 'Email sudah terdaftar' : ''));
-  set('phone', validatePhone(phone) || (users.some((u) => u.phone.replace(/\s/g, '') === phone) ? 'Nomor HP sudah terdaftar' : ''));
+  set('phone', validateAccountPhone(phone) || (users.some((u) => normalizeAccountPhone(u.phone) === phone) ? 'Nomor HP sudah terdaftar' : ''));
   set('password', validatePassword(a.password ?? ''));
   if (!ADMIN_ACCOUNT_ROLES.includes(a.role)) e.role = 'Pilih peran akun';
   return e;

@@ -13,12 +13,14 @@ import PaymentMethodSettings from '../../components/admin/PaymentMethodSettings'
 import AdminAccountsPanel from '../../components/admin/AdminAccountsPanel';
 import useServiceQuery from '../../hooks/useServiceQuery';
 import useAuthStore from '../../stores/useAuthStore';
+import { getSessionUserId } from '../../utils/sessionIdentity';
 import { getStoreSettings, getAdminAccounts } from '../../services/settingsService';
 
 export default function PengaturanPage() {
   const settings = useServiceQuery(getStoreSettings);
   const accounts = useServiceQuery(getAdminAccounts);
-  const currentUserId = useAuthStore((s) => s.user?.user_id);
+  // Step 6.6 (CP2b): id sesi untuk mode mock (user_id) & API (userId) — label "Akun Anda"
+  const currentUserId = useAuthStore((s) => getSessionUserId(s.user));
   const { toast, showToast, hideToast } = useToast();
   const savedSettings = (message) => { showToast('success', message); settings.reload(); };
   const changedSettings = (type, message) => { showToast(type, message); settings.reload(); };

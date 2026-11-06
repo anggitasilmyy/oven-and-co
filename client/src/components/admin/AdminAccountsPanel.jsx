@@ -12,6 +12,7 @@ import ConfirmActionModal from './ConfirmActionModal';
 import AdminAccountFormModal from './AdminAccountFormModal';
 import { setAdminAccountStatus } from '../../services/settingsService';
 import { ROLES, ROLE_LABEL } from '../../constants/roles';
+import { isSameUserId } from '../../utils/sessionIdentity';
 
 const actionClass =
   'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-lg border border-beige px-3 text-xs font-semibold ' +
@@ -19,7 +20,7 @@ const actionClass =
 
 /**
  * @param {Array} accounts — getAdminAccounts()
- * @param {number} currentUserId — Owner yang sedang masuk
+ * @param {string|null} currentUserId — Owner yang sedang masuk (utils/sessionIdentity getSessionUserId)
  * @param {Function} onChanged — (type, message) → void
  */
 export default function AdminAccountsPanel({ accounts, currentUserId, onChanged }) {
@@ -47,7 +48,7 @@ export default function AdminAccountsPanel({ accounts, currentUserId, onChanged 
   const role = (a) => <Badge variant={a.role === ROLES.OWNER ? 'platinum' : 'neutral'}>{ROLE_LABEL[a.role]}</Badge>;
   const status = (a) => <Badge variant={a.is_active ? 'ready' : 'error'}>{a.is_active ? 'Aktif' : 'Nonaktif'}</Badge>;
   const action = (a) => {
-    if (a.user_id === currentUserId) return <span className="text-xs text-cocoa/65">Akun Anda</span>;
+    if (isSameUserId(a.user_id, currentUserId)) return <span className="text-xs text-cocoa/65">Akun Anda</span>;
     return a.is_active ? (
       <button type="button" className={actionClass} disabled={pendingId != null} onClick={() => setDeactivating(a)} aria-label={`Nonaktifkan akun ${a.name}`}>
         <UserX size={14} aria-hidden="true" /> Nonaktifkan

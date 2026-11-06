@@ -16,6 +16,7 @@ import BestSellerRank from '../../components/customer/BestSellerRank';
 import useServiceQuery from '../../hooks/useServiceQuery';
 import useQuickAddToCart from '../../hooks/useQuickAddToCart';
 import useAuthStore from '../../stores/useAuthStore';
+import { getSessionUserId } from '../../utils/sessionIdentity';
 import { getCategories, getFreshFromOvenToday, getBestSellers, getCustomCakeInfo } from '../../services/productService';
 import { getActivePromos } from '../../services/promoService';
 import { getMyLoyaltySummary } from '../../services/loyaltyService';
@@ -30,7 +31,7 @@ export default function BerandaPage() {
   const user = useAuthStore((s) => s.user);
   const isCustomer = user?.role === ROLES.CUSTOMER;
 
-  const loyalty = useServiceQuery(isCustomer ? getMyLoyaltySummary : noLoyalty, [user?.user_id, isCustomer]);
+  const loyalty = useServiceQuery(isCustomer ? getMyLoyaltySummary : noLoyalty, [getSessionUserId(user), isCustomer]);
   const promos = useServiceQuery(getActivePromos);
   const categories = useServiceQuery(getCategories);
   const fresh = useServiceQuery(getFreshFromOvenToday);
