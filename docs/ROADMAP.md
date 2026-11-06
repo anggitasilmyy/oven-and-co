@@ -181,12 +181,28 @@ Catatan khusus:
 | 6.4 | API admin: pesanan & status, kalender, produk, stok, pelanggan, dashboard, laporan, promo, pengaturan | `routes/admin/*` |
 | 6.5 | Payment simulasi + webhook, job `autoCancelOrders` (BR-06, BR-07), notifikasi, riwayat status, audit log | `services/paymentService.js`, `jobs/` |
 | 6.6 | Ganti `VITE_USE_MOCK=false`, sesuaikan service frontend, uji semua layar | `client/src/services/*` |
+| 6.7 | Inventory & Recipe Management: master bahan baku, komposisi bahan per produk (recipe/BOM), satuan, kebutuhan bahan otomatis, stok tersedia & dialokasikan | lihat "Step 6.7 – 6.10" di bawah (file ditetapkan setelah CR disetujui) |
+| 6.8 | Supplier & Purchasing Management: master supplier, supplier ↔ bahan baku, purchase order, penerimaan bahan, riwayat pembelian | idem |
+| 6.9 | Manufacturing Management: perencanaan produksi, kebutuhan bahan, work order, pemakaian bahan, hasil produksi & produk selesai | idem |
+| 6.10 | Advanced Reporting: omzet, penggunaan bahan baku, pembelian, produksi, analisis penjualan & kebutuhan produksi | idem |
 
-**Hasil:** aplikasi berjalan penuh dengan MySQL; data tersimpan setelah server restart; Prisma Studio bisa dipakai saat presentasi.
+**Hasil (target akhir Step 6):** aplikasi berjalan penuh dengan MySQL; data tersimpan setelah server restart; Prisma Studio
+bisa dipakai saat presentasi. Setelah 6.7 – 6.10: bahan baku, resep, pengadaan, dan produksi tercatat di database dan
+saling terhubung; laporan terintegrasi (penjualan, bahan, pembelian, produksi) dapat ditampilkan melalui antarmuka admin
+sesuai hak akses yang ditetapkan dalam CR.
+**Sudah terverifikasi (per `5b74ba6`):** migrasi & seed pada MySQL 8.0.46 lewat harness `tests-mysql/run.sh`, integrasi
+51/51 (lihat catatan 6.1). **Belum terverifikasi:** aplikasi penuh di mode API (6.6), data tetap ada setelah server
+restart, dan pemeriksaan Prisma Studio.
 
 Catatan khusus:
-- 6.1: Status: skema & seed selesai; **penerapan migrasi pada MySQL 8 sungguhan belum diverifikasi** (lingkungan cloud
-  tanpa MySQL — jalankan `npm run db:migrate && npm run db:seed` di lokal lalu cek di Prisma Studio). Prisma dipin 6.19.3
+- 6.1: Status: skema & seed selesai; **harness migrasi & seed berhasil dijalankan pada MySQL 8.0.46** dengan hasil
+  integrasi **51/51 pada commit `5b74ba6`** (sebelumnya 42/42 pada `b53296a`). Harness `server/tests-mysql/run.sh`
+  dijalankan langsung lewat Git Bash (`bash tests-mysql/run.sh` dari folder `server/`): container MySQL 8 baru (tmpfs)
+  → `prisma migrate deploy` (migrasi repo apa adanya) → `prisma db seed` pada database kosong → seluruh skenario
+  integrasi. **Bukan** lewat npm script: `npm run test:mysql` dari PowerShell sebelumnya gagal karena Node.js tidak
+  ditemukan di WSL, jadi keberhasilan npm script tersebut belum diverifikasi. Uji 6.3/6.4 sebelumnya juga memakai MySQL 8
+  sementara dengan migrasi + seed. Belum tercatat: `npm run db:migrate` (`migrate dev`) di database lokal pengembang dan
+  pemeriksaan Prisma Studio (dibutuhkan untuk presentasi, lihat "Hasil" Step 6). Prisma dipin 6.19.3
   (`prisma` & `@prisma/client`; Prisma 7+ butuh driver adapter & `prisma.config.ts`), bcrypt 6.0.0 untuk hash sandi demo.
   Migrasi awal `prisma/migrations/20261017000000_init` dibuat dengan `prisma migrate diff`; `npm run db:check-spec`
   membandingkannya dengan SPEC §8 (29 tabel, 206 kolom, 40 FK). Keputusan: `@default` hanya untuk id auto-increment,
@@ -649,8 +665,8 @@ Catatan khusus:
   operasional, PATCH metode bayar); **C3 akun staf selesai** (commit `10f4bb5`: C3a GET, C3b POST, C3c PATCH
   aktif/nonaktif — butir C3 di bawah). **Integrasi MySQL 8 — Validasi AD-11 (C3), dengan smoke test C2: selesai**
   (commit `b53296a`; butir di bawah; termasuk perbaikan F-1 & F-2). **C4 perbaikan checkout (T1 pengaturan basi saat
-  checkout → 409 + rollback; T2 metode bayar diperiksa ulang di dalam transaksi checkout & ganti metode): selesai,
-  menunggu commit** — final review tanpa temuan Critical/High; butir "C4" di bawah. Integrasi MySQL untuk C4 selesai
+  checkout → 409 + rollback; T2 metode bayar diperiksa ulang di dalam transaksi checkout & ganti metode): selesai**
+  (commit `5b74ba6`) — final review tanpa temuan Critical/High; butir "C4" di bawah. Integrasi MySQL untuk C4 selesai
   (`tests-mysql/09`, `10`); C2 di MySQL: PUT profil & PATCH metode bayar asli teruji bersamaan dengan checkout (T1-c,
   T2-d, T2-e), PUT jam operasional asli baru diuji di unit test (T1-a meniru penulisannya lewat SQL).
   - Endpoint — **hanya Owner** (SPEC §2: pengaturan toko & akun staf hak Owner; Staf & pelanggan 403, tamu 401). Kontrak =
@@ -842,8 +858,8 @@ Catatan khusus:
       transaksi sampai transaksi berikutnya memulihkannya (query biasa tidak terdampak — pool terpisah); (5)
       `connection_limit` di `DATABASE_URL` ditimpa 5/4; (6) shutdown tanpa batas waktu paksa; (7) endpoint snapshot
       AD-02/AD-08/AD-09/AD-10 belum diuji di MySQL pada tahap ini (kode tidak berubah; hanya wrapper transaksi).
-  - **C4 Perbaikan checkout T1/T2 (FR-12 – FR-16 · BR-05 · BR-06 · BR-09 · BR-12 · C-14 · C-15 · AD-11) — selesai, menunggu
-    commit.** Hasil uji: unit test server **609/609**, integrasi MySQL 8 **51/51** (42 sebelumnya + 4 skenario `09` + 5
+  - **C4 Perbaikan checkout T1/T2 (FR-12 – FR-16 · BR-05 · BR-06 · BR-09 · BR-12 · C-14 · C-15 · AD-11) — selesai
+    (commit `5b74ba6`).** Hasil uji: unit test server **609/609**, integrasi MySQL 8 **51/51** (42 sebelumnya + 4 skenario `09` + 5
     skenario `10`), `lock_deadlocks` = 0. Schema, migrasi, kontrak API sukses, dan frontend tidak berubah.
     · **T1 pengaturan basi saat checkout → 409 + rollback.** `loadAndValidate` membaca pengaturan di luar transaksi; setelah
       `lockRows` (users X → store_settings X) checkout membaca ulang `store_settings` & `operating_hours` (SELECT biasa
@@ -900,6 +916,123 @@ Tampilkan perintah migrasi dan seed.
 Struktur endpoint mengikuti "Recommended Development Stack":
 `/api/auth`, `/api/products`, `/api/categories`, `/api/custom-options`, `/api/cart`, `/api/orders`,
 `/api/payments`, `/api/reviews`, `/api/me/*`, dan `/api/admin/*` (dilindungi `requireRole`).
+
+### Step 6.7 – 6.10 — Inventory, Purchasing, Manufacturing & Advanced Reporting
+
+Ruang lingkup keempat step di bawah **ditetapkan oleh pemilik project (2026-11-05) sebagai scope resmi** dan ditulis
+apa adanya. Acceptance criteria setiap step dibagi tiga dan tidak boleh dicampur:
+- **[Scope]** — turunan langsung dari ruang lingkup / arahan pemilik project (termasuk arahan "AD-07 & AD-08 tidak
+  diduplikasi"). Wajib.
+- **[Usulan teknis]** — usulan agent; **belum final**, berlaku setelah disetujui pemilik project (boleh lewat CR).
+- **[Menunggu CR]** — keputusan bisnis yang belum ditetapkan; kriteria terkait baru ditulis setelah CR disetujui.
+
+Prasyarat & status (berlaku untuk 6.7 – 6.10):
+- **Prasyarat implementasi: Change Request yang mengubah AGENTS.md dan docs/SPEC.md.** Konflik saat ini:
+  AGENTS.md §1 melarang "modul keuangan/resep" serta tabel/kolom/menu di luar dokumen, sedangkan 6.7 – 6.10 membutuhkan
+  modul resep dan tabel/layar baru. Kedua dokumen **belum diubah**; perubahan dilakukan lewat CR (pola sama dengan
+  CR-01/CR-02) yang mencakup FR & BR baru, tabel §8, daftar layar & rute §7, dan hak akses Staf/Owner §2.
+  `npm run db:check-spec` (29 tabel) ikut disesuaikan setelah CR disetujui. Sebelum CR disetujui, schema, API, dan
+  kode tidak diubah untuk step ini.
+- **Belum ada desain database maupun kontrak API.** SPEC §8 hanya memuat 29 tabel; tidak ada tabel resep/BOM, satuan,
+  alokasi stok, supplier, purchase order, penerimaan, work order, atau pemakaian bahan. Mock frontend, layar AD-xx, dan
+  export Stitch untuk fitur ini juga belum ada.
+- Tahapan per step: (1) CR + rancangan tabel & kontrak API disetujui, (2) API + uji, (3) layar admin. Mode data
+  `services/` (mock vs API) untuk layar baru diputuskan di CR.
+- Urutan: setelah 6.5 dan 6.6 selesai (prinsip "kerjakan berurutan"), lalu 6.7 → 6.8 → 6.9 → 6.10.
+- **Fitur existing yang tidak boleh diduplikasi** (Step 5.7 & 6.4.5 AD-07, Step 5.8 & 6.4.7 AD-08, serta AD-02/AD-05
+  yang memakai datanya): `raw_materials` (nama, satuan `unit` teks bebas, `stock`, `min_stock`),
+  `GET|POST /api/admin/raw-materials`, `PUT /api/admin/raw-materials/:id` (edit informasi & koreksi stok dengan
+  `expected_stock`), `POST /api/admin/raw-materials/:id/stock-in` (Catat Stok Masuk), stok menipis `stock ≤ min_stock`
+  (AD-02, AD-07), `daily_stocks` & `GET|PUT /api/admin/stocks/today` (rencana stok harian produk ready,
+  `qty_planned`/`qty_sold`), kalender produksi pre-order & custom (AD-05, `GET /api/admin/calendar`),
+  `products.ingredients` (teks komposisi untuk pelanggan, bukan takaran resep), laporan penjualan AD-08
+  (`GET /api/admin/reports/sales` + ekspor Excel/PDF) dan KPI omzet AD-02. Fitur baru memperluas atau memakai data
+  ini, tidak membuat tabel, endpoint, atau layar kedua untuk fungsi yang sama.
+
+**Step 6.7 — Inventory & Recipe Management**
+- Tujuan: menjadi dasar pengelolaan bahan baku dan resep untuk pengadaan (6.8) dan produksi (6.9).
+- Ruang lingkup: (1) master bahan baku; (2) komposisi bahan setiap produk (recipe/BOM); (3) satuan bahan baku;
+  (4) perhitungan kebutuhan bahan otomatis; (5) stok tersedia dan stok yang dialokasikan.
+- Existing vs lanjutan: (1) master bahan sudah ada (AD-07) → dilanjutkan, bukan dibuat ulang; (3) satuan saat ini
+  teks bebas `raw_materials.unit` → bentuk pengembangannya diputuskan di CR; (2), (4), (5) belum ada.
+- Dependensi: 6.4.4 AD-06 (produk & varian), 6.4.5 AD-07 (bahan baku & stok masuk); CR disetujui.
+- Acceptance criteria:
+  · [Scope] master bahan baku memakai `raw_materials` AD-07 yang sudah ada, tanpa tabel/endpoint/layar bahan kedua;
+    satuan bahan baku dapat dikelola; komposisi bahan dapat dicatat untuk setiap produk; kebutuhan bahan dihitung
+    otomatis dari komposisi tersebut; stok tersedia dan stok dialokasikan dapat dilihat per bahan.
+  · [Usulan teknis] kebutuhan bahan = Σ (jumlah produk × takaran bahan di resep), ditulis sebagai fungsi murni di
+    `server/src/services/`; resep hanya merujuk bahan yang ada; perilaku AD-02 (stok menipis) dan AD-07 (stok masuk,
+    koreksi `expected_stock`) tidak berubah; stok tidak negatif dan tidak tertimpa saat penulisan bersamaan (memakai
+    pola kunci AD-07).
+  · [Menunggu CR] bentuk master satuan & konversi antar-satuan; resep per produk atau per varian, dan perlakuan custom
+    cake (opsi builder); definisi & sumber alokasi (pesanan, rencana produksi, atau work order 6.9); kapan stok
+    dikurangi (saat dialokasikan atau saat dipakai di 6.9); hak akses Staf/Owner.
+- Kebutuhan pengujian *(usulan teknis)*: unit test aturan murni (kebutuhan bahan, satuan, alokasi); route test (auth,
+  peran, validasi, 404/400/409); integrasi MySQL (alokasi × stok masuk bersamaan, rollback); regresi AD-02, AD-06,
+  AD-07 dan `tests-mysql` yang ada.
+
+**Step 6.8 — Supplier & Purchasing Management**
+- Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
+- Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;
+  (4) penerimaan bahan; (5) riwayat pembelian.
+- Existing vs lanjutan: belum ada supplier, PO, atau riwayat (SPEC §8). "Catat Stok Masuk" AD-07 menambah
+  `raw_materials.stock` tanpa catatan riwayat; (4) penerimaan bahan tidak boleh menjadi mekanisme stok kedua.
+- Dependensi: 6.7 (master bahan & satuan); CR disetujui.
+- Acceptance criteria:
+  · [Scope] supplier dapat dikelola dan dihubungkan dengan bahan baku dari master 6.7 (bahan tidak didefinisikan ulang);
+    purchase order dapat dibuat; penerimaan bahan tercatat dan memperbarui stok bahan yang sama dengan AD-07; riwayat
+    pembelian dapat dilihat.
+  · [Usulan teknis] PO hanya berisi bahan terdaftar; satu penerimaan menambah stok tepat sekali; penerimaan memakai
+    jalur tulis stok AD-07 (kunci baris bahan, penjumlahan DECIMAL di MySQL); stok tidak hilang atau ganda saat
+    penerimaan, stok masuk, dan koreksi AD-07 berjalan bersamaan; riwayat dapat ditelusuri per supplier & bahan.
+  · [Menunggu CR] status/alur PO; penerimaan sebagian; apakah "Catat Stok Masuk" manual AD-07 tetap ada berdampingan
+    dengan penerimaan PO; pencatatan harga beli (SPEC tidak memiliki modul keuangan); hak akses Staf/Owner.
+- Kebutuhan pengujian *(usulan teknis)*: unit test aturan PO & penerimaan; route test; integrasi MySQL (penerimaan
+  ganda/bersamaan × stok masuk × koreksi `expected_stock`, rollback); regresi 6.7 dan AD-07.
+
+**Step 6.9 — Manufacturing Management**
+- Tujuan: menjalankan produksi memakai resep (6.7), stok bahan (6.7), dan hasil pengadaan (6.8).
+- Ruang lingkup: (1) perencanaan produksi; (2) perhitungan kebutuhan bahan; (3) work order; (4) pencatatan pemakaian
+  bahan; (5) hasil produksi dan produk selesai.
+- Existing vs lanjutan: rencana stok harian produk ready (`daily_stocks.qty_planned`, AD-07) dan kalender produksi
+  pre-order & custom (AD-05) sudah ada → perencanaan produksi memakai/menghubungkan data ini, bukan menggantinya;
+  (2) memakai perhitungan kebutuhan bahan 6.7 (tidak ditulis ulang); (3), (4), (5) belum ada. Checkbox "Selesai
+  diproduksi" di Stitch sebelumnya tidak dibuat karena tidak ada kolomnya (catatan 5.6) — dibahas ulang di CR ini.
+- Dependensi: 6.7 (resep, kebutuhan bahan, alokasi), 6.8 (ketersediaan bahan), AD-05, AD-07; CR disetujui.
+- Acceptance criteria:
+  · [Scope] perencanaan produksi tersedia dan memakai data AD-07/AD-05 yang ada (tanpa rencana stok atau kalender
+    kedua); kebutuhan bahan dihitung dengan perhitungan 6.7; work order dapat dibuat; pemakaian bahan tercatat; hasil
+    produksi dan produk selesai tercatat.
+  · [Usulan teknis] kebutuhan bahan work order identik dengan hasil fungsi 6.7; pemakaian mengurangi stok bahan tepat
+    sekali dan melepas alokasi terkait; alur pesanan, checkout, dan stok ready existing tidak berubah kecuali yang
+    ditetapkan CR; tanpa deadlock dan stok negatif saat bersamaan dengan checkout & penerimaan 6.8.
+  · [Menunggu CR] hubungan hasil produksi dengan `daily_stocks` (stok ready) dan pesanan pre-order/custom; apakah
+    status pesanan (SPEC §4) ikut berubah; perlakuan selisih pemakaian vs resep; hak akses Staf/Owner.
+- Kebutuhan pengujian *(usulan teknis)*: unit test aturan work order & pemakaian; route test; integrasi MySQL (work
+  order × checkout × penerimaan 6.8 bersamaan, rollback); regresi AD-05, AD-07, checkout 6.3.
+
+**Step 6.10 — Advanced Reporting**
+- Tujuan: laporan terintegrasi dari data penjualan, inventory, purchasing, dan manufacturing.
+- Ruang lingkup: (1) laporan omzet; (2) laporan penggunaan bahan baku; (3) laporan pembelian; (4) laporan produksi;
+  (5) analisis penjualan dan kebutuhan produksi.
+- Existing vs lanjutan: (1) omzet sudah ada di AD-08 (KPI, grafik per hari, terlaris, metode bayar, transaksi, ekspor)
+  dan AD-02 → dipakai ulang, bukan dihitung ulang dengan aturan lain; (2) – (5) belum ada dan bergantung pada data
+  6.7 – 6.9.
+- Dependensi: AD-08 (6.4.7), AD-02 (6.4.6), 6.7, 6.8, 6.9.
+- Acceptance criteria:
+  · [Scope] laporan omzet memakai laporan AD-08 yang ada (tanpa laporan omzet kedua); laporan penggunaan bahan baku,
+    pembelian, dan produksi tersedia dari data 6.7 – 6.9; analisis penjualan dan kebutuhan produksi tersedia.
+  · [Usulan teknis] angka omzet identik dengan AD-08/AD-02 untuk periode yang sama (aturan `salesRules`/`reportRules`,
+    transaksi = lunas & tidak dibatalkan); angka bahan, pembelian, dan produksi sama dengan data sumbernya; satu
+    respons laporan konsisten dalam satu snapshot (`runInReadSnapshot`); validasi periode sama dengan AD-08.
+  · [Menunggu CR] menjadi bagian AD-08 atau layar baru; periode & format ekspor; metode analisis kebutuhan produksi;
+    hak akses (AD-08 saat ini hanya Owner).
+- Kebutuhan pengujian *(usulan teknis)*: unit test agregasi; route test (peran, periode tidak sah); integrasi MySQL
+  (rekonsiliasi angka laporan vs data sumber, snapshot saat ada tulisan bersamaan); regresi AD-02 & AD-08.
+
+Dampak ke step lain: Step 7 (`docs/TEST_CASES.md`) mencakup aturan baru dari CR 6.7 – 6.10; Step 8 mencakup layar
+admin baru di viewport uji. Backlog yang sudah ada (6.4.10 L1 – L6, snapshot AD-02/08/09/10 di MySQL, tunggakan 6.6,
+CR-02) tidak berubah.
 
 ---
 
