@@ -13,11 +13,12 @@
 // error = indeks form).
 
 const prisma = require('../lib/prisma');
-const { PRODUCT_PHOTO_MAX } = require('../utils/businessConstants');
+const { PRODUCT_PHOTO_MAX, AUDIT_ACTION, AUDIT_ENTITY } = require('../utils/businessConstants');
 const { saveProductPhoto, deleteProductPhoto } = require('../utils/productPhotoStorage');
 const { normalizeProductInput, validateProduct, validationError } = require('./adminCatalogRules.service');
 const { lockAdminMasterData } = require('./adminMasterDataLock.service');
 const { NOT_FOUND_MESSAGE, mapVariant, loadValidationContext } = require('./adminProduct.service');
+const { lockAuditActor, recordAudit, decimalChanged } = require('./auditLog.service');
 
 const PHOTO_ERROR = Object.freeze({
   DATA_URL: 'Foto baru harus diunggah sebagai file, bukan data URL.',
@@ -84,6 +85,26 @@ function buildVariants(sent, ownVariants) {
   return { rows, kept: ownVariants.filter((v) => !sentIds.has(v.variant_id)) };
 }
 
+/**
+ * Step 6.5 C5 (FR-37, K2): perubahan harga produk & harga tambahan varian yang SUDAH ADA (DECIMAL), dihitung dari nilai
+ * tersimpan SEBELUM penulisan. Produk / varian baru = data baru → tidak dicatat (K2c).
+ * @returns {Array<{action, entity, entityId}>}
+ */
+function collectPriceChanges(existing, product, rows) {
+  if (!existing) return [];
+  const changes = [];
+  if (decimalChanged(existing.price, product.price)) {
+    changes.push({ action: AUDIT_ACTION.UPDATE_PRODUCT_PRICE, entity: AUDIT_ENTITY.PRODUCTS, entityId: existing.productId });
+  }
+  for (const v of rows.filter((row) => row.variant_id)) {
+    const stored = existing.variants.find((sv) => String(sv.variantId) === String(v.variant_id));
+    if (stored && decimalChanged(stored.extraPrice, v.extra_price)) {
+      changes.push({ action: AUDIT_ACTION.UPDATE_VARIANT_PRICE, entity: AUDIT_ENTITY.PRODUCT_VARIANTS, entityId: stored.variantId });
+    }
+  }
+  return changes;
+}
+
 /** Tulis varian: ubah yang dikirim, buat yang baru; varian tidak dikirim tidak disentuh */
 async function writeVariants(tx, productId, rows) {
   for (const v of rows) {
@@ -110,12 +131,14 @@ async function writePhotos(tx, productId, entries, savedUrls, ownImages) {
 
 /**
  * POST /api/admin/products (productId null) & PUT /api/admin/products/:id.
+ * Step 6.5 C5: urutan kunci pelaku users S (lockAuditActor) → store_settings X (lockAdminMasterData) → tulis → audit.
+ * @param {string|number|bigint} actorId — req.user.userId (pelaku audit)
  * @param {string|null} productId
  * @param {object} input — body hasil validators/adminCatalog.validator.js validateProductBody
  * @param {Array<{buffer: Buffer, extension: string}>} photos — file tervalidasi (validateProductPhoto), urut field
  * @returns {Promise<{product_id: string}>}
  */
-async function saveProduct(productId, input, photos = []) {
+async function saveProduct(actorId, productId, input, photos = [], now = new Date()) {
   const isCreate = productId == null;
   const entries = resolvePhotoRefs(input.photos, photos.length, isCreate);
   const product = normalizeProductInput(input);
@@ -125,6 +148,7 @@ async function saveProduct(productId, input, photos = []) {
     for (const photo of photos) savedUrls.push(await saveProductPhoto(photo));
 
     const { id, removedUrls } = await prisma.$transaction(async (tx) => {
+      await lockAuditActor(tx, actorId); // C5 (K5): pelaku S SEBELUM store_settings X (mencegah siklus dengan AD-11)
       await lockAdminMasterData(tx);
       const existing = isCreate ? null : await tx.product.findUnique({
         where: { productId: BigInt(productId) },
@@ -158,11 +182,13 @@ async function saveProduct(productId, input, photos = []) {
         leadTimeDays: product.lead_time_days,
         isActive: product.is_active,
       };
+      const priceChanges = collectPriceChanges(existing, product, rows); // sebelum menulis
       const saved = existing
         ? await tx.product.update({ where: { productId: existing.productId }, data, select: { productId: true } })
         : await tx.product.create({ data, select: { productId: true } });
 
       await writeVariants(tx, saved.productId, rows);
+      for (const change of priceChanges) await recordAudit(tx, { actorId, ...change, now });
       const removed = entries ? await writePhotos(tx, saved.productId, entries, savedUrls, ownImages) : [];
       return { id: saved.productId, removedUrls: removed };
     });

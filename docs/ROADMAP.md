@@ -1120,8 +1120,8 @@ Catatan khusus:
     Toko (id 8) dibatalkan setelah jam tutup hari seed; (6) `jobs/autoCancelOrders.js` kini 321 baris (> batas lunak ±150,
     sudah 219 setelah C2) — pemecahan menunggu persetujuan karena menyentuh kode C2.
   **C3 di-commit & di-push: `f8085b3`.**
-  **C4 — Payment Webhook sebagai FUNGSI INTERNAL (FR-14 · NFR-05 · SPEC §10): implementasi & uji selesai, belum
-  di-commit** (menunggu persetujuan commit/push). Bukan webhook HTTP: SPEC §10 mensimulasikan gateway (tombol "Simulasikan
+  **C4 — Payment Webhook sebagai FUNGSI INTERNAL (FR-14 · NFR-05 · SPEC §10): selesai, di-commit & di-push
+  `5d6a5f0`.** Bukan webhook HTTP: SPEC §10 mensimulasikan gateway (tombol "Simulasikan
   Lunas", hanya development) dan tidak ada dokumen yang mewajibkan URL callback — TIDAK ada endpoint publik baru.
   - Desain (keputusan W1–W3): `services/paymentGateway.service.js` `applyGatewayPayment(tx, order, { gatewayRef, amount,
     now })` — pemanggil sudah mengunci `orders` X; hasil terstruktur `{ applied: true, notices }` /
@@ -1170,24 +1170,68 @@ Catatan khusus:
     berdasarkan `gateway_ref`, lalu `applyGatewayPayment` (idempoten lewat hasil `NOT_PENDING`); (3) metode yang
     dinonaktifkan AD-11 setelah pesanan dibuat tetap dianggap sah untuk notifikasi (sah = kelompok gateway, bukan
     `is_active`), karena pelanggan sudah menerima kode bayarnya.
-  **C5 — Audit Log (FR-37): RENCANA, belum diimplementasikan** (keputusan K1–K5 & B1–B5 saat audit; checkpoint tetap C5).
-  - Tabel `audit_logs` apa adanya (`log_id`, `user_id` FK `users` NOT NULL = admin pelaku, `action` VARCHAR(50),
-    `entity` = nama tabel, `entity_id` = primary key entitas, `created_at`); tanpa nilai lama/baru, tanpa data sensitif.
-    Service `auditLog.service.js`: `lockAuditActor(tx, actorId)` (`SELECT user_id, is_active FROM users … FOR SHARE`;
-    nonaktif → 401 SESSION_INVALID) & `recordAudit(tx, …)` di transaksi bisnis yang sama (rollback ikut batal).
-  - Cakupan (K2): ubah status pesanan (`update_order_status`, `orders`), tandai lunas (`mark_order_paid`, `orders`/order_id),
-    harga produk (`update_product_price`, `products`), harga varian (`update_variant_price`, `product_variants`), harga opsi
-    custom cake (`update_custom_option_price`, `custom_options`), rencana stok harian (`update_daily_stock_plan`,
-    `daily_stocks`/stock_id), koreksi stok bahan (`correct_raw_material_stock`, `raw_materials`), stok masuk
-    (`raw_material_stock_in`, `raw_materials`/material_id). Hanya bila nilai benar-benar berubah; pembuatan data baru dan
-    edit nama/satuan/minimum bahan tanpa perubahan stok tidak dicatat; job sistem & pelanggan tidak dicatat.
-  - Kunci (K4/K5): master data → `actor S` SEBELUM `store_settings` X (mencegah siklus dengan AD-11 ubah status akun:
-    `users` X → `store_settings` X); AD-04 → `orders` X lalu `actor S`, sebelum UPDATE `payments` & INSERT audit;
-    `markOrderPaid` juga UPDATE `payments` berdasarkan PRIMARY KEY. `actorId` dari `req.user.userId` (kontrak HTTP sama).
-  - Uji yang direncanakan: unit per titik audit (isi baris, tanpa log saat sama/400/409/rollback/akses ditolak, urutan
-    kunci) dan MySQL `16-audit-log` (isi & pelaku, rollback trigger, konkurensi dua admin, pelaku dinonaktifkan selagi
-    transaksi berjalan → 401, deadlock master data × ubah status akun & `markOrderPaid` tiga pihak dengan kontrol negatif,
-    beban campuran).
+  **C5 — Audit Log (FR-37): implementasi & uji selesai, belum di-commit** (menunggu persetujuan commit/push; keputusan
+  K1–K5 & B1–B5 saat audit).
+  - Tabel `audit_logs` apa adanya (tanpa perubahan schema/migrasi): `user_id` = admin pelaku, `action` (≤ 50 karakter,
+    konstanta `AUDIT_ACTION`), `entity` = nama tabel (`AUDIT_ENTITY`), `entity_id` = primary key, `created_at` = `now`
+    dibulatkan KE BAWAH ke detik penuh (`toAuditTime`; kolom DATETIME(0) — MySQL sendiri membulatkan ke detik terdekat,
+    terbukti di A0: `…30.987` mentah tersimpan `…31`). Tanpa nilai lama/baru, tanpa data sensitif, tanpa endpoint/layar baca.
+  - Service baru `services/auditLog.service.js`: `lockAuditActor(tx, actorId)` (`SELECT user_id, is_active FROM users …
+    FOR SHARE`; tidak ada / nonaktif → 401 `SESSION_INVALID` "Akun tidak ditemukan atau tidak aktif." tanpa menulis apa
+    pun), `recordAudit(tx, …)` di transaksi bisnis yang sama (rollback = tanpa audit; INSERT audit gagal = perubahan
+    bisnis ikut batal), `decimalChanged` (Prisma.Decimal, 56500 = 56500.00).
+  - Titik audit: AD-04 ubah status (`update_order_status`, `orders`/order_id), tandai lunas (`mark_order_paid`,
+    `orders`/order_id), harga produk (`update_product_price`, `products`), harga varian yang sudah ada
+    (`update_variant_price`, `product_variants`; dibandingkan dengan nilai tersimpan SEBELUM penulisan), harga opsi custom
+    cake (`update_custom_option_price`, `custom_options`), rencana stok harian (`update_daily_stock_plan`,
+    `daily_stocks`/stock_id; per baris yang `qty_planned`-nya benar-benar berubah), koreksi stok bahan
+    (`correct_raw_material_stock`, `raw_materials`; hanya bila kolom `stock` ditulis), stok masuk (`raw_material_stock_in`,
+    `raw_materials`/material_id). Tidak dicatat: nilai sama, data baru, edit nama/satuan/minimum bahan, 400/404/409/403/401,
+    job sistem & aksi pelanggan.
+  - Urutan kunci (K4/K5): master data → `users` pelaku S SEBELUM `store_settings` X; stok masuk → pelaku S → baris bahan X;
+    AD-04 & tandai lunas → `orders` X → pelaku S → validasi → tulis → audit; `markOrderPaid(adminId, …)` membaca id
+    pembayaran tanpa kunci lalu UPDATE `payments` berdasarkan PRIMARY KEY. `actorId` dari `req.user.userId`; rute, respons,
+    dan frontend tidak berubah.
+  - File baru: `server/src/services/auditLog.service.js`, `server/tests/auditLog.test.js`,
+    `server/tests-mysql/16-audit-log.it.test.js`. Diubah: `utils/businessConstants.js`, `services/adminOrderActions.service.js`,
+    `adminProductSave.service.js`, `adminCustomOption.service.js`, `adminDailyStock.service.js`,
+    `adminRawMaterial.service.js`, rute admin `order`, `product`, `customOption`, `stock`, `rawMaterial` (meneruskan
+    `req.user.userId`), uji `tests/helpers/catalogDb.js`, `adminOrderActionsRoute`, `adminCustomOptionRoute`,
+    `adminProductRoute`, `adminStockRoute` (urutan kunci yang diharapkan kini diawali kunci pelaku), dan
+    `tests-mysql/04-staff-deadlock.it.test.js` (lihat perubahan perilaku di bawah).
+  - **Perubahan perilaku yang disengaja (B2), tercatat di uji lama:** di `04` D2-kontrol & D2a, PATCH menonaktifkan Staf
+    commit lebih dulu lalu AD-04 Staf yang sama memperoleh FOR SHARE → kini 401 `SESSION_INVALID` tanpa perubahan pesanan
+    (sebelum C5: 200 dengan `changed_by` admin yang sudah nonaktif). Asersi 0 deadlock & tanpa kunci tertinggal tetap.
+  - **Terverifikasi:** `npm test` 707/707 (C4 691; +16: `auditLog.test.js` 10, `adminOrderActionsRoute` +6). Kontrol
+    negatif unit (kode dikembalikan & diverifikasi identik): `is_active` diabaikan → 3 gagal; `created_at` tanpa pembulatan
+    → 8 gagal; tanpa audit tandai lunas → 3 gagal; kunci pelaku sesudah `store_settings` → 2 gagal; entity stok masuk salah
+    → 1 gagal. MySQL 8.0.46 harness penuh 01–16 pada container baru: **125/125 lulus, `lock_deadlocks` 0**
+    (`lock_timeouts` 10 — sama dengan run C3/C4, semuanya skenario timeout yang disengaja).
+    · A0 `created_at` = detik ke bawah. A1 8 titik audit (Staf & Owner) dengan isi baris tepat; nilai sama / data baru /
+      400 / 409 → 0 audit. A2 trigger menolak INSERT `audit_logs` → 7 jenis operasi 500, data bisnis & riwayat tidak
+      berubah. A3 dua admin bersamaan dengan nilai BERBEDA (harga 41000/42000, rencana 90061/90062, stok masuk 1.25/2.75) →
+      2 audit per pasangan dengan pelaku masing-masing, nilai akhir = audit terakhir, stok = jumlah, 0 deadlock. A4 10×
+      Selesai (Staf & Owner) → 200 × 1 + 409 × 9, tepat 1 audit dengan pelaku = `changed_by` pemenang.
+    · A5 (deterministik): harness memegang `users` X pelaku + `UPDATE is_active = 0`; request admin menunggu kunci
+      `S,REC_NOT_GAP` baris pelaku — commit → 401 `SESSION_INVALID` tanpa perubahan/audit; rollback → 200 + 1 audit
+      (harga produk, AD-04, tandai lunas). A6 (deterministik): transaksi admin sudah memegang S pelaku (ditahan di
+      `store_settings` / baris pelanggan) → PATCH nonaktif ASLI menunggu `X` baris pelaku → transaksi admin commit + audit →
+      PATCH 200 → request berikutnya 401 (master data & AD-04).
+    · A7 master data × ubah status akun (`users` X → `store_settings` X) × 3 → semua commit, 0 deadlock. A8 tiga pihak
+      tandai lunas × ubah status akun × checkout pelanggan lain × 3 → semua commit, 0 deadlock; saat menunggu pelaku,
+      tandai lunas belum memegang kunci `payments`. A9 pelanggan 403, tanpa token 401, admin nonaktif 401 → 0 audit. A10
+      beban × 15 (harga ×2, rencana & tandai lunas oleh admin yang dinonaktifkan/diaktifkan bergantian lewat PATCH asli,
+      stok masuk, AD-04, checkout, simulasi C4, job C2/C3): 401 hanya untuk admin yang sedang nonaktif (7 + 7), tanpa 5xx,
+      audit = perubahan berhasil, 0 deadlock, tanpa kunci tertinggal.
+    · Kontrol negatif MySQL (dijalankan terpisah per skenario, kode dikembalikan & diverifikasi identik): kunci pelaku
+      SESUDAH `store_settings` → A7 deadlock nyata (`lock_deadlocks` 1: simpan produk memegang `store_settings` X & menunggu
+      S pelaku; ubah status akun memegang X pelaku & menunggu `store_settings`); tanpa kunci pelaku di awal + `UPDATE
+      payments WHERE order_id` → A8 deadlock nyata tiga pihak (`lock_deadlocks` 1: tandai lunas memegang next-key
+      `payments_order_id_fkey` X & menunggu S pelaku saat INSERT audit; ubah status akun memegang X pelaku & menunggu
+      `store_settings`; checkout memegang `store_settings` & menunggu insert intention `payments_order_id_fkey`).
+  - Keterbatasan: (1) audit tidak menyimpan nilai lama/baru (kolom tidak ada di SPEC §8); (2) admin yang dinonaktifkan
+    setelah transaksinya memperoleh kunci pelaku tetap menyelesaikan transaksi itu (A6) — penonaktifan berlaku untuk
+    request berikutnya; (3) tidak ada layar/endpoint baca audit (FR-37 tanpa layar).
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

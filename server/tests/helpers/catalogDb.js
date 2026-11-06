@@ -3,6 +3,7 @@
 // varian, opsi custom cake, stok harian, bahan baku. $transaction mengembalikan tabel bila callback gagal (meniru
 // rollback); `ops` mencatat urutan tx:begin / lock:<tabel> agar tes bisa memeriksa kunci = pembacaan pertama.
 // Tidak membuktikan locking/transaksi MySQL yang sebenarnya (lihat uji integrasi MySQL 8).
+// Step 6.5 C5: kunci pelaku audit (`lock:users:S`, membaca is_active) & tabel auditLogs (op `auditLog.create`).
 
 const { matchesWhere } = require('./whereMatch');
 
@@ -14,6 +15,7 @@ function baseTables(today) {
       4: { userId: 4n, role: 'owner', isActive: true },
     },
     storeSetting: { settingId: 1 },
+    auditLogs: [], // Step 6.5 C5
     categories: [
       { categoryId: 1, name: 'Roti', sortOrder: 1 },
       { categoryId: 2, name: 'Cake', sortOrder: 2 },
@@ -74,7 +76,7 @@ const sortBy = (rows, orderBy = []) => [...rows].sort((a, b) => {
  */
 function installCatalogDb(fakePrisma, today) {
   const state = { t: baseTables(today), ops: [], raw: [], failOn: null, hooks: {} };
-  const next = { product: 100n, image: 500n, variant: 300n, option: 50, stock: 800n, material: 60n };
+  const next = { product: 100n, image: 500n, variant: 300n, option: 50, stock: 800n, material: 60n, audit: 900n };
   const id = (k) => (typeof next[k] === 'bigint' ? (next[k] += 1n) : (next[k] += 1));
   const fail = (op) => {
     state.ops.push(op);
@@ -196,22 +198,37 @@ function installCatalogDb(fakePrisma, today) {
     },
     $queryRaw: async (strings, ...values) => {
       const sql = strings.join('?');
+      // Step 6.5 C5: kunci pelaku audit — pelaku nonaktif / tidak ada ditolak oleh lockAuditActor
+      if (/^SELECT user_id, is_active FROM users WHERE user_id = \? FOR SHARE$/.test(sql)) {
+        state.ops.push('lock:users:S');
+        if (state.failOn === 'lock:users') throw Object.assign(new Error('Lock wait timeout'), { code: 'P2034' });
+        await state.hooks.whileWaitingActorLock?.(values[0]);
+        const user = state.t.users[String(values[0])];
+        return user ? [{ user_id: user.userId, is_active: user.isActive ? 1 : 0 }] : [];
+      }
       const table = sql.match(/FROM (\w+)/)?.[1];
       state.ops.push(/FOR UPDATE/.test(sql) ? `lock:${table}` : `query:${table}`);
       state.raw.push({ sql, values });
       if (state.failOn === `lock:${table}`) throw Object.assign(new Error('Lock wait timeout'), { code: 'P2034' });
       state.hooks.onQuery?.(sql, values);
       if (/FROM store_settings/.test(sql)) return state.t.storeSetting ? [{ setting_id: 1 }] : [];
-      if (/^SELECT qty_sold FROM daily_stocks\s+WHERE product_id = \? AND stock_date = \? FOR UPDATE$/.test(sql)) {
+      if (/^SELECT stock_id, qty_planned, qty_sold FROM daily_stocks\s+WHERE product_id = \? AND stock_date = \? FOR UPDATE$/.test(sql)) {
         const [productId, stockDate] = values;
         const row = state.t.dailyStocks.find((d) => d.productId === productId && d.stockDate.getTime() === stockDate.getTime());
-        return row ? [{ qty_sold: row.qtySold }] : [];
+        return row ? [{ stock_id: row.stockId, qty_planned: row.qtyPlanned, qty_sold: row.qtySold }] : [];
       }
       if (/^SELECT stock FROM raw_materials WHERE material_id = \? FOR UPDATE$/.test(sql)) {
         const m = state.t.materials.find((x) => x.materialId === values[0]);
         return m ? [{ stock: m.stock }] : [];
       }
       throw new Error(`catalogDb: SQL tidak dikenal: ${sql}`);
+    },
+    // Step 6.5 C5: audit_logs
+    auditLog: {
+      create: async ({ data }) => {
+        fail('auditLog.create'); // fail() mencatat op
+        state.t.auditLogs.push({ logId: id('audit'), ...data });
+      },
     },
     $executeRaw: async (strings, ...values) => {
       const sql = strings.join('?');

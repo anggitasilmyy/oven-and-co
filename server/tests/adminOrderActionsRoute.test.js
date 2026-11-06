@@ -51,6 +51,7 @@ function seed() {
     ],
     histories: [],
     notifications: [], // Step 6.5 C1
+    audits: [], // Step 6.5 C5
     points: [],
     storeSetting: { settingId: 1, earnAmountPerPoint: '1000.00' },
   };
@@ -81,11 +82,20 @@ fakePrisma.order = {
   },
 };
 fakePrisma.payment = {
+  // Step 6.5 C5 (K4): markOrderPaid membaca id pembayaran lalu UPDATE berdasarkan primary key
+  findMany: async ({ where }) => t.payments.filter((p) => p.orderId === where.orderId).map((p) => ({ paymentId: p.paymentId })),
   updateMany: async ({ where, data }) => {
     fail('payment.updateMany');
-    const rows = t.payments.filter((p) => p.orderId === where.orderId);
+    locks.push({ sql: 'payment.updateMany', where });
+    const rows = t.payments.filter((p) => (where.paymentId ? where.paymentId.in.includes(p.paymentId) : p.orderId === where.orderId));
     rows.forEach((p) => Object.assign(p, data));
     return { count: rows.length };
+  },
+};
+fakePrisma.auditLog = {
+  create: async ({ data }) => {
+    fail('auditLog.create');
+    t.audits.push({ logId: (nextId += 1n), ...data });
   },
 };
 fakePrisma.orderStatusHistory = {
@@ -117,6 +127,13 @@ fakePrisma.pointTransaction = {
 fakePrisma.$queryRaw = async (strings, ...values) => {
   const sql = strings.join('?');
   locks.push({ sql, values });
+  // Step 6.5 C5: kunci pelaku audit (users S, membaca is_active)
+  if (/^SELECT user_id, is_active FROM users WHERE user_id = \? FOR SHARE$/.test(sql)) {
+    fail('lock:actor');
+    await hooks.whileWaitingActorLock?.(values[0]);
+    const u = users[String(values[0])];
+    return u ? [{ user_id: u.userId, is_active: u.isActive ? 1 : 0 }] : [];
+  }
   if (!/^SELECT order_id FROM orders WHERE order_number = \? FOR UPDATE$/.test(sql)) throw new Error(`SQL tidak dikenal: ${sql}`);
   fail('lock');
   // Request lain yang memegang kunci selesai (commit) lebih dulu: perubahannya tetap ada walau transaksi ini rollback
@@ -216,7 +233,9 @@ test('alur pickup lengkap oleh Staf & Owner: riwayat ber-pengubah, catatan kode 
   );
   assert.deepEqual(t.points.map((p) => [String(p.userId), p.type, p.points, String(p.orderId)]), [['1', 'earn', 56, '1']]);
   // Kunci baris pesanan diambil di setiap perubahan; kode pickup tidak ada di respons
-  assert.deepEqual(locks.map((l) => l.values[0]), [number, number, number]);
+  assert.deepEqual(locks.filter((l) => /FROM orders/.test(l.sql)).map((l) => l.values[0]), [number, number, number]);
+  // Step 6.5 C5: setiap perubahan juga mengunci pelaku audit (Staf 3 → Owner 4 → Staf 3) SETELAH kunci pesanan
+  assert.deepEqual(locks.filter((l) => /FROM users/.test(l.sql)).map((l) => l.values[0]), [3n, 4n, 3n]);
   assert.ok(!JSON.stringify(res.json).includes('4821'));
 
   // Ulang Selesai → ditolak (final), poin tetap sekali
@@ -485,4 +504,76 @@ test('C1 rollback: notifikasi status / poin gagal ditulis → 500, status-riwaya
   assert.equal((await setStatus('OVC-261102-001', { from: 'siap_diambil', to: 'selesai', pickup_code: 'PK4821' })).status, 500);
   assert.equal(dump(), ready);
   assert.deepEqual(emails, []);
+});
+
+// ── Step 6.5 C5 · FR-37: audit log AD-04 (status & tandai lunas) ─────────────────────────────────
+
+const auditRows = () => t.audits.map((a) => [String(a.userId), a.action, a.entity, String(a.entityId), a.createdAt.toISOString()]);
+const SECOND = new Date(Math.floor(NOW.getTime() / 1000) * 1000).toISOString();
+
+test('C5 ubah status: satu audit update_order_status per transisi, pelaku = token, entity orders / order_id, created_at detik penuh', async () => {
+  const number = 'OVC-261102-001';
+  await setStatus(number, { from: 'dikonfirmasi', to: 'sedang_disiapkan' });
+  await setStatus(number, { from: 'sedang_disiapkan', to: 'siap_diambil' }, owner);
+  await setStatus(number, { from: 'siap_diambil', to: 'selesai', pickup_code: 'PK4821' });
+  assert.deepEqual(auditRows(), [
+    ['3', 'update_order_status', 'orders', '1', SECOND],
+    ['4', 'update_order_status', 'orders', '1', SECOND],
+    ['3', 'update_order_status', 'orders', '1', SECOND],
+  ]);
+  // Urutan: kunci pesanan → kunci pelaku (sebelum penulisan)
+  const order = locks.map((l) => (/FROM orders/.test(l.sql) ? 'orders' : /FROM users/.test(l.sql) ? 'actor' : 'other'));
+  assert.deepEqual(order.slice(0, 2), ['orders', 'actor']);
+});
+
+test('C5 tandai lunas: audit mark_order_paid (orders / order_id); payments diubah berdasarkan PRIMARY KEY setelah kunci pelaku', async () => {
+  const res = await markPaid('OVC-261102-003', owner);
+  assert.equal(res.status, 200);
+  assert.deepEqual(auditRows(), [['4', 'mark_order_paid', 'orders', '3', SECOND]]);
+  const seq = locks.map((l) => (l.sql === 'payment.updateMany' ? `payments:${Object.keys(l.where).join(',')}` : /FROM orders/.test(l.sql) ? 'orders' : 'actor'));
+  assert.deepEqual(seq, ['orders', 'actor', 'payments:paymentId']);
+  assert.equal(t.payments.find((p) => p.paymentId === 13n).status, 'paid');
+});
+
+test('C5 tanpa audit saat transisi ditolak, status basi, 404, verify-pickup, tandai lunas ulang / online', async () => {
+  assert.equal((await setStatus('OVC-261102-001', { from: 'dikonfirmasi', to: 'selesai' })).status, 409);
+  assert.equal((await setStatus('OVC-261102-001', { from: 'siap_diambil', to: 'selesai' })).status, 409);
+  assert.equal((await setStatus('OVC-261102-999', { from: 'dikonfirmasi', to: 'sedang_disiapkan' })).status, 404);
+  assert.equal((await verify('OVC-261102-003', 'PK4821')).status, 200);
+  assert.equal((await markPaid('OVC-261102-001')).status, 409, 'online');
+  assert.equal((await markPaid('OVC-261102-003')).status, 200);
+  assert.equal((await markPaid('OVC-261102-003')).status, 409, 'sudah lunas');
+  assert.deepEqual(auditRows().map((r) => r[1]), ['mark_order_paid'], 'hanya perubahan berhasil');
+});
+
+test('C5 request bersamaan: yang kalah (status sudah berubah selagi menunggu kunci) tidak menulis audit', async () => {
+  find('OVC-261102-001').orderStatus = 'siap_diambil';
+  hooks.otherCommit = () => { find('OVC-261102-001').orderStatus = 'selesai'; };
+  assert.equal((await setStatus('OVC-261102-001', { from: 'siap_diambil', to: 'selesai', pickup_code: 'PK4821' })).status, 409);
+  assert.deepEqual(t.audits, []);
+});
+
+test('C5 INSERT audit gagal → 500, status, riwayat, poin, notifikasi, pembayaran di-rollback', async () => {
+  find('OVC-261102-001').orderStatus = 'siap_diambil';
+  const ready = dump();
+  failOn = 'auditLog.create';
+  assert.equal((await setStatus('OVC-261102-001', { from: 'siap_diambil', to: 'selesai', pickup_code: 'PK4821' })).status, 500);
+  assert.equal((await markPaid('OVC-261102-003')).status, 500);
+  failOn = null;
+  assert.equal(dump(), ready);
+});
+
+test('C5 pelaku dinonaktifkan sebelum kunci pelaku → 401 SESSION_INVALID tanpa perubahan (status & tandai lunas)', async () => {
+  const before = dump();
+  for (const run of [
+    () => setStatus('OVC-261102-001', { from: 'dikonfirmasi', to: 'sedang_disiapkan' }),
+    () => markPaid('OVC-261102-003'),
+  ]) {
+    hooks.whileWaitingActorLock = () => { users[3].isActive = false; hooks.whileWaitingActorLock = null; };
+    const res = await run();
+    users[3].isActive = true;
+    assert.deepEqual([res.status, res.json.code, res.json.message], [401, 'SESSION_INVALID', 'Akun tidak ditemukan atau tidak aktif.']);
+  }
+  assert.equal(dump(), before);
+  assert.deepEqual(t.audits, []);
 });

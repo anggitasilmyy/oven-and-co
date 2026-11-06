@@ -5,14 +5,19 @@
 // tab lain, atau pembatalan pelanggan yang bersamaan diproses berurutan dan request kedua melihat status terbaru,
 // sehingga tidak ada transisi, riwayat, atau poin ganda. Step 6.5 C1: riwayat + notifikasi status, dan notifikasi poin
 // earn saat Selesai, ditulis di transaksi yang sama (mock adminOrderWrites.js); salinan email dicetak setelah commit.
+// Step 6.5 C5 · FR-37: audit log (update_order_status / mark_order_paid, entity orders, entity_id order_id) di transaksi
+// yang sama. Urutan kunci (K5): orders X → pelaku users S (lockAuditActor, nonaktif → 401) → tulis → INSERT audit.
+// markOrderPaid (K4): payments diubah berdasarkan PRIMARY KEY (tanpa gap lock indeks payments_order_id_fkey).
 
 const prisma = require('../lib/prisma');
 const {
   ORDER_STATUS, PAYMENT_STATUS, PAYMENT_TRANSACTION_STATUS, FULFILLMENT_TYPE, POINT_TX_TYPE, POINTS_NOTIFICATION_REASON,
+  AUDIT_ACTION, AUDIT_ENTITY,
 } = require('../utils/businessConstants');
 const { mapOrder } = require('./orderView.service');
 const { pointsEarnedFor } = require('./orderRules.service');
 const { recordOrderStatus, recordPointsNotice, emailAfterCommit } = require('./orderStatusRecorder.service');
+const { lockAuditActor, recordAudit } = require('./auditLog.service');
 const {
   ADMIN_ORDER_ERROR, STATUS_NOTE, validateAdminStatusChange, checkPickupCode, checkMarkPaidAtStore, httpStatusForRuleError,
 } = require('./adminOrderRules.service');
@@ -71,6 +76,7 @@ async function awardCompletionPoints(tx, row, now) {
 async function changeOrderStatus(adminId, orderNumber, input, now = new Date()) {
   return emailAfterCommit(prisma.$transaction(async (tx) => {
     const { row, order } = await lockOrder(tx, orderNumber);
+    await lockAuditActor(tx, adminId); // C5: orders X → pelaku S, sebelum penulisan apa pun
     const error = validateAdminStatusChange(order, {
       from: input.from, to: input.to, pickupCode: input.pickup_code, courierName: input.courier_name,
     });
@@ -95,6 +101,7 @@ async function changeOrderStatus(adminId, orderNumber, input, now = new Date()) 
         userId: row.userId, points: pointsAwarded, reason: POINTS_NOTIFICATION_REASON.EARN(orderNumber), orderId: row.orderId, now,
       }));
     }
+    await recordAudit(tx, { actorId: adminId, action: AUDIT_ACTION.UPDATE_ORDER_STATUS, entity: AUDIT_ENTITY.ORDERS, entityId: row.orderId, now });
     return { result: { order_number: orderNumber, order_status: input.to, points_awarded: pointsAwarded }, notices };
   }));
 }
@@ -117,22 +124,31 @@ async function verifyPickupCode(orderNumber, code) {
 /**
  * PATCH /api/admin/orders/:orderNumber/mark-paid — FR-28: orders.payment_status & payments (status, paid_at, amount)
  * diperbarui bersamaan. Status pesanan tidak berubah sehingga tidak ada riwayat status.
+ * @param {string|number|bigint} adminId — req.user.userId (pelaku audit)
  * @returns {Promise<{order_number, payment_status, paid_at}>}
  */
-async function markOrderPaid(orderNumber, now = new Date()) {
+async function markOrderPaid(adminId, orderNumber, now = new Date()) {
   // payments.paid_at DATETIME(0): detik penuh agar respons = nilai yang tersimpan
   const paidAt = new Date(Math.floor(now.getTime() / 1000) * 1000);
 
   return prisma.$transaction(async (tx) => {
     const { row, order } = await lockOrder(tx, orderNumber);
+    await lockAuditActor(tx, adminId); // C5 (K5): pelaku S SEBELUM UPDATE payments & INSERT audit
     const error = checkMarkPaidAtStore(order);
     if (error) throw ruleError(error);
 
     await tx.order.update({ where: { orderId: row.orderId }, data: { paymentStatus: PAYMENT_STATUS.PAID } });
-    await tx.payment.updateMany({
-      where: { orderId: row.orderId },
-      data: { status: PAYMENT_TRANSACTION_STATUS.PAID, paidAt, amount: row.total },
-    });
+    // K4: id pembayaran dibaca tanpa kunci (pesanan sudah terkunci), lalu UPDATE berdasarkan PRIMARY KEY — tanpa
+    // next-key/gap lock indeks payments_order_id_fkey (pola F-C3-1)
+    const paymentIds = (await tx.payment.findMany({ where: { orderId: row.orderId }, select: { paymentId: true } }))
+      .map((p) => p.paymentId);
+    if (paymentIds.length) {
+      await tx.payment.updateMany({
+        where: { paymentId: { in: paymentIds } },
+        data: { status: PAYMENT_TRANSACTION_STATUS.PAID, paidAt, amount: row.total },
+      });
+    }
+    await recordAudit(tx, { actorId: adminId, action: AUDIT_ACTION.MARK_ORDER_PAID, entity: AUDIT_ENTITY.ORDERS, entityId: row.orderId, now });
     return { order_number: orderNumber, payment_status: PAYMENT_STATUS.PAID, paid_at: paidAt.toISOString() };
   });
 }

@@ -223,6 +223,29 @@ const PICKUP_AUTO_CANCEL_STATUSES = Object.freeze([
   ORDER_STATUS.DIKONFIRMASI, ORDER_STATUS.SEDANG_DISIAPKAN, ORDER_STATUS.SIAP_DIAMBIL,
 ]);
 
+// Step 6.5 C5 · FR-37 — audit log aktivitas admin (tabel audit_logs; keputusan K2/K3). `entity` = nama tabel yang diubah,
+// `entity_id` = primary key baris itu. Semua ≤ 50 karakter (VARCHAR(50)); tanpa nilai lama/baru & tanpa data sensitif.
+const AUDIT_ACTION = Object.freeze({
+  UPDATE_ORDER_STATUS: 'update_order_status',
+  MARK_ORDER_PAID: 'mark_order_paid',
+  UPDATE_PRODUCT_PRICE: 'update_product_price',
+  UPDATE_VARIANT_PRICE: 'update_variant_price',
+  UPDATE_CUSTOM_OPTION_PRICE: 'update_custom_option_price',
+  UPDATE_DAILY_STOCK_PLAN: 'update_daily_stock_plan',
+  CORRECT_RAW_MATERIAL_STOCK: 'correct_raw_material_stock',
+  RAW_MATERIAL_STOCK_IN: 'raw_material_stock_in',
+});
+const AUDIT_ENTITY = Object.freeze({
+  ORDERS: 'orders',
+  PRODUCTS: 'products',
+  PRODUCT_VARIANTS: 'product_variants',
+  CUSTOM_OPTIONS: 'custom_options',
+  DAILY_STOCKS: 'daily_stocks',
+  RAW_MATERIALS: 'raw_materials',
+});
+// Pesan 401 pelaku tidak ada / nonaktif — sama dengan middleware auth & adminStaffRules ACTOR_INACTIVE
+const AUDIT_ACTOR_INACTIVE_TEXT = 'Akun tidak ditemukan atau tidak aktif.';
+
 // Penjadwal pembatalan otomatis (jobs/autoCancelOrders.js; dipakai bersama BR-07 di C3)
 const AUTO_CANCEL_JOB = Object.freeze({
   NAME: 'autoCancelOrders',
@@ -417,6 +440,9 @@ module.exports = {
   PICKUP_CLOSE_CANCEL_REASON,
   PICKUP_AUTO_CANCEL_STATUSES,
   AUTO_CANCEL_JOB,
+  AUDIT_ACTION,
+  AUDIT_ENTITY,
+  AUDIT_ACTOR_INACTIVE_TEXT,
   MEMBER_LEVEL,
   VOUCHER_STATE,
   API_ERROR_CODE,

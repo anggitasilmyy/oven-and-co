@@ -64,7 +64,8 @@ test('POST 201 & PUT 200: nama dirapikan, kelompok lama tetap walau dikirim lain
   assert.equal(res.status, 201);
   const id = res.json.data.option_id;
   assert.deepEqual([opt(id).optionGroup, opt(id).name, opt(id).description, Number(opt(id).extraPrice), opt(id).isActive, opt(id).imageUrl], ['rasa', 'Red Velvet', null, 20000, true, null]);
-  assert.equal(db.ops[db.ops.lastIndexOf('tx:begin') + 1], 'lock:store_settings');
+  // Step 6.5 C5 (K5): kunci pelaku audit (users S) lalu kunci master data — keduanya locking read sebelum pembacaan biasa
+  assert.deepEqual(db.ops.slice(db.ops.lastIndexOf('tx:begin') + 1, db.ops.lastIndexOf('tx:begin') + 3), ['lock:users:S', 'lock:store_settings']);
 
   res = await call('PUT', '/5', { option_group: 'rasa', name: 'Bulat Besar', description: 'Ø 22 cm', extra_price: 5000, is_active: true });
   assert.deepEqual([res.status, res.json.data], [200, { option_id: 5 }]);

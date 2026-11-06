@@ -14,10 +14,11 @@
 //      baris dan memakai rencana baru.
 
 const prisma = require('../lib/prisma');
-const { AVAILABILITY_TYPE } = require('../utils/businessConstants');
+const { AVAILABILITY_TYPE, AUDIT_ACTION, AUDIT_ENTITY } = require('../utils/businessConstants');
 const { getJakartaDateKey, dateKeyToDbDate } = require('../utils/jakartaDate');
 const { getRemainingStock, getDailyStockStatus, validateDailyPlan } = require('./stockRules.service');
 const { lockAdminMasterData } = require('./adminMasterDataLock.service');
+const { lockAuditActor, recordAudit } = require('./auditLog.service');
 
 const NOT_STOCKED = 'Produk ini bukan produk ready yang aktif';
 // daily_stocks.qty_planned INT (SPEC §8): di atas batas kolom ditolak sebagai isian, bukan error database
@@ -63,14 +64,18 @@ async function getDailyStockBoard(now = new Date()) {
 /**
  * PUT /api/admin/stocks/today — simpan rencana beberapa produk sekaligus (semua sah atau tidak ada yang disimpan).
  * Error per produk → 400 { message, fieldErrors: { [product_id]: pesan } } (sama dengan mock).
+ * Step 6.5 C5 (FR-37): satu audit per produk yang qty_planned-nya berubah (nilai akhir bila produk dikirim lebih dari
+ * sekali; entity daily_stocks, entity_id stock_id). Urutan kunci: pelaku users S → store_settings X → daily_stocks X.
+ * @param {string|number|bigint} actorId — req.user.userId
  * @param {Array<{product_id, qty_planned}>|undefined} plans
  */
-async function saveDailyStockPlans(plans, now = new Date()) {
+async function saveDailyStockPlans(actorId, plans, now = new Date()) {
   if (!Array.isArray(plans) || plans.length === 0) throw httpError(400, 'Tidak ada perubahan stok untuk disimpan');
   const todayKey = getJakartaDateKey(now);
   const stockDate = dateKeyToDbDate(todayKey);
 
   await prisma.$transaction(async (tx) => {
+    await lockAuditActor(tx, actorId); // C5 (K5): pelaku S SEBELUM store_settings X
     await lockAdminMasterData(tx);
     const products = await tx.product.findMany({ where: stockedWhere, select: { productId: true } });
     const stocked = new Set(products.map((p) => String(p.productId)));
@@ -82,13 +87,15 @@ async function saveDailyStockPlans(plans, now = new Date()) {
 
     // Kunci baris stok hari ini urut product_id naik; baris yang belum ada dibuat 0/0 (ikut rollback bila gagal)
     const sold = new Map();
+    const lockedRows = new Map(); // C5: stock_id & qty_planned terkunci (audit bila berubah)
     for (const key of valid) {
       const productId = BigInt(key);
       await tx.$executeRaw`INSERT INTO daily_stocks (product_id, stock_date, qty_planned, qty_sold)
         VALUES (${productId}, ${stockDate}, 0, 0) ON DUPLICATE KEY UPDATE stock_id = stock_id`;
-      const [row] = await tx.$queryRaw`SELECT qty_sold FROM daily_stocks
+      const [row] = await tx.$queryRaw`SELECT stock_id, qty_planned, qty_sold FROM daily_stocks
         WHERE product_id = ${productId} AND stock_date = ${stockDate} FOR UPDATE`;
       sold.set(key, Number(row.qty_sold));
+      lockedRows.set(key, { stockId: row.stock_id, planned: Number(row.qty_planned) });
     }
     for (const plan of plans.filter((p) => stocked.has(keyOf(p)))) {
       const error = validateDailyPlan(plan.qty_planned, sold.get(keyOf(plan)))
@@ -100,11 +107,22 @@ async function saveDailyStockPlans(plans, now = new Date()) {
     }
 
     // Rencana terakhir untuk produk yang sama yang dipakai (sama dengan mock)
+    const finalPlan = new Map();
     for (const plan of plans) {
       await tx.dailyStock.update({
         where: { productId_stockDate: { productId: BigInt(keyOf(plan)), stockDate } },
         data: { qtyPlanned: Number(plan.qty_planned) },
       });
+      finalPlan.set(keyOf(plan), Number(plan.qty_planned));
+    }
+    // Audit per produk (urut product_id naik, sama dengan urutan kunci) bila rencana akhir ≠ rencana terkunci
+    for (const key of valid) {
+      const locked = lockedRows.get(key);
+      if (finalPlan.get(key) !== locked.planned) {
+        await recordAudit(tx, {
+          actorId, action: AUDIT_ACTION.UPDATE_DAILY_STOCK_PLAN, entity: AUDIT_ENTITY.DAILY_STOCKS, entityId: locked.stockId, now,
+        });
+      }
     }
   });
 

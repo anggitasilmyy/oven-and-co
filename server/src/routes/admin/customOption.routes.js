@@ -32,7 +32,7 @@ router.post(
   '/',
   asyncHandler(async (req, res) => {
     const input = validateCustomOptionBody(req.body);
-    res.status(201).json({ status: 'success', data: await adminCustomOptionService.saveCustomOption(null, input) });
+    res.status(201).json({ status: 'success', data: await adminCustomOptionService.saveCustomOption(req.user.userId, null, input) });
   })
 );
 
@@ -42,7 +42,7 @@ router.put(
   asyncHandler(async (req, res) => {
     const optionId = validateOptionId(req.params.id);
     const input = validateCustomOptionBody(req.body);
-    res.status(200).json({ status: 'success', data: await adminCustomOptionService.saveCustomOption(optionId, input) });
+    res.status(200).json({ status: 'success', data: await adminCustomOptionService.saveCustomOption(req.user.userId, optionId, input) });
   })
 );
 

@@ -7,12 +7,13 @@
 // "minimal satu opsi aktif" tetap benar walau ada request bersamaan.
 
 const prisma = require('../lib/prisma');
-const { AVAILABILITY_TYPE, CUSTOM_CAKE_MIN_LEAD_DAYS } = require('../utils/businessConstants');
+const { AVAILABILITY_TYPE, CUSTOM_CAKE_MIN_LEAD_DAYS, AUDIT_ACTION, AUDIT_ENTITY } = require('../utils/businessConstants');
 const { OPTION_GROUPS } = require('../validators/customCakeDesign.validator');
 const {
   normalizeCustomOptionInput, validateCustomOption, checkOptionDeactivation, validationError,
 } = require('./adminCatalogRules.service');
 const { lockAdminMasterData } = require('./adminMasterDataLock.service');
+const { lockAuditActor, recordAudit, decimalChanged } = require('./auditLog.service');
 
 const NOT_FOUND_MESSAGE = 'Opsi tidak ditemukan.';
 
@@ -54,10 +55,14 @@ async function getAdminCustomOptions() {
 
 /**
  * POST /api/admin/custom-options (optionId null) & PUT /api/admin/custom-options/:id.
+ * Step 6.5 C5 (FR-37): audit harga tambahan opsi yang SUDAH ADA bila berubah; opsi baru tidak dicatat (K2c).
+ * Urutan kunci: pelaku users S → store_settings X → tulis → audit.
+ * @param {string|number|bigint} actorId — req.user.userId
  * @returns {Promise<{option_id: number}>}
  */
-async function saveCustomOption(optionId, input) {
+async function saveCustomOption(actorId, optionId, input, now = new Date()) {
   return prisma.$transaction(async (tx) => {
+    await lockAuditActor(tx, actorId); // C5 (K5): pelaku S SEBELUM store_settings X
     await lockAdminMasterData(tx);
     const options = await loadOptions(tx);
     const id = optionId == null ? null : Number(optionId);
@@ -81,6 +86,11 @@ async function saveCustomOption(optionId, input) {
     const saved = existing
       ? await tx.customOption.update({ where: { optionId: existing.option_id }, data, select: { optionId: true } })
       : await tx.customOption.create({ data: { ...data, optionGroup: option.option_group, imageUrl: null }, select: { optionId: true } });
+    if (existing && decimalChanged(existing.extra_price, option.extra_price)) {
+      await recordAudit(tx, {
+        actorId, action: AUDIT_ACTION.UPDATE_CUSTOM_OPTION_PRICE, entity: AUDIT_ENTITY.CUSTOM_OPTIONS, entityId: existing.option_id, now,
+      });
+    }
     return { option_id: saved.optionId };
   });
 }

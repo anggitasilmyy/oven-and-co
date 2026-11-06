@@ -32,7 +32,7 @@ router.put(
   '/today',
   asyncHandler(async (req, res) => {
     const { plans } = validateDailyPlansBody(req.body);
-    res.status(200).json({ status: 'success', data: await adminDailyStockService.saveDailyStockPlans(plans) });
+    res.status(200).json({ status: 'success', data: await adminDailyStockService.saveDailyStockPlans(req.user.userId, plans) });
   })
 );
 
