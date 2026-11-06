@@ -23,11 +23,11 @@ function baseTables(today, plusDays) {
 
   return {
     users: {
-      1: { userId: 1n, role: 'customer', isActive: true, name: 'Anisa Pelanggan' },
-      2: { userId: 2n, role: 'customer', isActive: true, name: 'Budi' },
-      3: { userId: 3n, role: 'staf', isActive: true },
-      4: { userId: 4n, role: 'owner', isActive: true },
-      5: { userId: 5n, role: 'customer', isActive: false },
+      1: { userId: 1n, role: 'customer', isActive: true, name: 'Anisa Pelanggan', email: 'anisa@example.com' },
+      2: { userId: 2n, role: 'customer', isActive: true, name: 'Budi', email: 'budi@example.com' },
+      3: { userId: 3n, role: 'staf', isActive: true, email: 'staf@example.com' },
+      4: { userId: 4n, role: 'owner', isActive: true, email: 'owner@example.com' },
+      5: { userId: 5n, role: 'customer', isActive: false, email: 'nonaktif@example.com' },
     },
     storeSetting: {
       settingId: 1, storeName: 'Oven & Co.', address: 'Jl. Toko 1', latitude: String(STORE.lat), longitude: String(STORE.lng),
@@ -88,6 +88,7 @@ function baseTables(today, plusDays) {
     orderItems: [],
     payments: [],
     statusHistories: [],
+    notifications: [], // Step 6.5 C1
     reviews: [],
     reviewPhotos: [],
   };
@@ -122,7 +123,7 @@ function installOrderDb(fakePrisma, dates) {
   const state = {
     t: baseTables(dates.today, dates.plusDays), locks: [], raw: [], ops: [], failOn: null, hooks: {}, committedElsewhere: [], reviewsCommittedElsewhere: [],
   };
-  let nextId = { order: 100n, item: 1000n, payment: 500n, history: 700n, point: 900n, review: 300n, photo: 400n };
+  let nextId = { order: 100n, item: 1000n, payment: 500n, history: 700n, point: 900n, review: 300n, photo: 400n, notification: 800n };
   const id = (key) => (nextId[key] += 1n);
   const fail = (op) => {
     if (state.failOn === op) throw Object.assign(new Error('Can\'t reach database server'), { code: 'P1001' });
@@ -158,7 +159,14 @@ function installOrderDb(fakePrisma, dates) {
   };
 
   Object.assign(fakePrisma, {
-    user: { findUnique: async ({ where }) => state.t.users[String(where.userId)] ?? null },
+    user: {
+      findUnique: async ({ where }) => state.t.users[String(where.userId)] ?? null,
+      // Salinan email notifikasi (orderStatusRecorder.logNotificationEmails) — dibaca setelah commit
+      findMany: async ({ where, select }) => {
+        state.ops.push('user.findMany');
+        return Object.values(state.t.users).filter((u) => matchesWhere(u, where)).map((u) => pick(u, select));
+      },
+    },
     storeSetting: { findFirst: async () => state.t.storeSetting },
     paymentMethod: {
       findMany: async ({ where }) => sortBy(state.t.paymentMethods.filter((m) => matchesWhere(m, where)), [{ methodGroup: 'asc' }]),
@@ -269,7 +277,8 @@ function installOrderDb(fakePrisma, dates) {
         state.t.orders.push(row);
         items.create.forEach((item) => state.t.orderItems.push({ orderItemId: id('item'), orderId: row.orderId, ...item }));
         state.t.payments.push({ paymentId: id('payment'), orderId: row.orderId, paidAt: null, ...payments.create });
-        state.t.statusHistories.push({ historyId: id('history'), orderId: row.orderId, note: null, ...statusHistories.create });
+        // Step 6.5 C1: riwayat ditulis lewat orderStatusRecorder (bukan nested create); bentuk lama tetap didukung
+        if (statusHistories) state.t.statusHistories.push({ historyId: id('history'), orderId: row.orderId, note: null, ...statusHistories.create });
         return pick(row, select);
       },
     },
@@ -281,6 +290,7 @@ function installOrderDb(fakePrisma, dates) {
         return { ...row };
       },
       updateMany: async ({ where, data }) => {
+        state.ops.push('payment.updateMany'); // F-C1-1: urutan pernyataan pembatalan diperiksa uji
         const rows = state.t.payments.filter((p) => matchesWhere(p, where));
         rows.forEach((p) => Object.assign(p, data));
         return { count: rows.length };
@@ -329,8 +339,20 @@ function installOrderDb(fakePrisma, dates) {
     },
     orderStatusHistory: {
       create: async ({ data }) => {
+        fail('orderStatusHistory.create');
+        state.ops.push('orderStatusHistory.create');
         const row = { historyId: id('history'), note: null, ...data };
         state.t.statusHistories.push(row);
+        return row;
+      },
+    },
+    // Step 6.5 C1: notifikasi in-app (tabel notifications)
+    notification: {
+      create: async ({ data }) => {
+        fail('notification.create');
+        state.ops.push('notification.create');
+        const row = { notificationId: id('notification'), orderId: null, isRead: false, ...data };
+        state.t.notifications.push(row);
         return row;
       },
     },

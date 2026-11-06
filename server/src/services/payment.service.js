@@ -4,6 +4,8 @@
 // SIMULASI prototype (SPEC §10) — tidak ada payment gateway sungguhan; nominal & status tidak pernah dari klien.
 // Mock membatalkan pesanan kedaluwarsa setiap kali dibaca; di server job autoCancelOrders baru ada di Step 6.5,
 // jadi pembayaran yang batas waktunya sudah lewat DITOLAK di sini (tidak dianggap lunas, tidak diganti metode).
+// Step 6.5 C1: perubahan status dicatat lewat recordOrderStatus (riwayat + notifikasi, transaksi yang sama); salinan
+// email dicetak setelah commit (emailAfterCommit).
 
 const prisma = require('../lib/prisma');
 const {
@@ -14,6 +16,7 @@ const { isPayAtStoreAllowed, resolvePaymentMethod, PAYMENT_METHOD_ERROR } = requ
 const { paymentCodeFor, gatewayRefFor } = require('./orderRules.service');
 const { mapPaymentMethod } = require('./checkout.service');
 const { lockMyOrder } = require('./order.service');
+const { recordOrderStatus, emailAfterCommit } = require('./orderStatusRecorder.service');
 
 const MESSAGES = Object.freeze({
   DEV_ONLY: 'Simulasi hanya tersedia di mode development',
@@ -50,7 +53,7 @@ async function lockPendingOrder(tx, userId, orderNumber, now) {
 async function simulatePaid(userId, orderNumber, now = new Date()) {
   if (process.env.NODE_ENV === 'production') throw httpError(403, MESSAGES.DEV_ONLY);
 
-  return prisma.$transaction(async (tx) => {
+  return emailAfterCommit(prisma.$transaction(async (tx) => {
     const { order, payment } = await lockPendingOrder(tx, userId, orderNumber, now);
 
     await tx.payment.update({
@@ -61,13 +64,12 @@ async function simulatePaid(userId, orderNumber, now = new Date()) {
       where: { orderId: order.orderId },
       data: { paymentStatus: PAYMENT_STATUS.PAID, orderStatus: ORDER_STATUS.DIKONFIRMASI },
     });
-    // Webhook payment gateway = sistem (changed_by kosong)
-    await tx.orderStatusHistory.create({
-      data: { orderId: order.orderId, status: ORDER_STATUS.DIKONFIRMASI, changedBy: null, changedAt: now },
-    });
+    // Webhook payment gateway = sistem (changed_by kosong). INSERT notifikasi (FK users → kunci S baris pelanggan)
+    // diambil SETELAH kunci orders — pola yang sama dengan pembatalan pelanggan (orders X → users S).
+    const notice = await recordOrderStatus(tx, order, ORDER_STATUS.DIKONFIRMASI, { changedBy: null, now });
 
-    return { order_number: orderNumber };
-  });
+    return { result: { order_number: orderNumber }, notices: [notice] };
+  }));
 }
 
 /**
@@ -88,7 +90,7 @@ async function lockActiveMethod(tx, methodCode) {
 async function changePaymentMethod(userId, orderNumber, methodCode, now = new Date()) {
   const methodRows = await prisma.paymentMethod.findMany({ where: { isActive: true } });
 
-  return prisma.$transaction(async (tx) => {
+  return emailAfterCommit(prisma.$transaction(async (tx) => {
     const { order, payment } = await lockPendingOrder(tx, userId, orderNumber, now);
     const payAtStoreAllowed = isPayAtStoreAllowed(
       order.fulfillmentType,
@@ -100,17 +102,16 @@ async function changePaymentMethod(userId, orderNumber, methodCode, now = new Da
 
     const payAtStore = method.method_code === PAY_AT_STORE_METHOD;
     // Urutan kunci (T2): pesanan X → [Bayar di Toko: riwayat — kunci S baris pelanggan lewat FK] → metode S → pembayaran.
-    // Riwayat ditulis SEBELUM kunci metode: selama memegang kunci metode transaksi ini tidak lagi menunggu baris pelanggan,
+    // Riwayat & notifikasi (C1) ditulis SEBELUM kunci metode: selama memegang kunci metode transaksi ini tidak lagi menunggu baris pelanggan,
     // sehingga tidak ada siklus dengan checkout pelanggan yang sama (pelanggan X → store_settings) dan AD-11
     // (store_settings X → metode X). Metode nonaktif → 409 dan semua tulisan di atas di-rollback.
+    const notices = [];
     if (payAtStore) {
       await tx.order.update({
         where: { orderId: order.orderId },
         data: { paymentOption: PAYMENT_OPTION.PAY_AT_STORE, orderStatus: ORDER_STATUS.DIKONFIRMASI },
       });
-      await tx.orderStatusHistory.create({
-        data: { orderId: order.orderId, status: ORDER_STATUS.DIKONFIRMASI, changedBy: BigInt(userId), changedAt: now },
-      });
+      notices.push(await recordOrderStatus(tx, order, ORDER_STATUS.DIKONFIRMASI, { changedBy: userId, now }));
     }
 
     await lockActiveMethod(tx, method.method_code);
@@ -123,8 +124,11 @@ async function changePaymentMethod(userId, orderNumber, methodCode, now = new Da
       },
     });
 
-    return { order_number: orderNumber, payment_option: payAtStore ? PAYMENT_OPTION.PAY_AT_STORE : PAYMENT_OPTION.ONLINE };
-  });
+    return {
+      result: { order_number: orderNumber, payment_option: payAtStore ? PAYMENT_OPTION.PAY_AT_STORE : PAYMENT_OPTION.ONLINE },
+      notices,
+    };
+  }));
 }
 
 module.exports = {

@@ -143,6 +143,61 @@ const POINT_TX_TYPE = Object.freeze({
   REFUND: 'refund',
 });
 
+// FR-18 · BR-007 · SPEC §4 — notifications.type (client constants/notification.js NOTIFICATION_TYPE)
+const NOTIFICATION_TYPE = Object.freeze({
+  ORDER_STATUS: 'order_status',
+  PROMO: 'promo',
+  POINTS: 'points',
+});
+
+// Judul & isi notifikasi perubahan status — SAMA PERSIS dengan client constants/notification.js ORDER_STATUS_NOTIFICATION.
+// `{order}` diganti nomor pesanan; Siap Diambil menambahkan kode pickup, Dibatalkan menambahkan alasan.
+const ORDER_STATUS_NOTIFICATION = Object.freeze({
+  [ORDER_STATUS.MENUNGGU_PEMBAYARAN]: Object.freeze({
+    title: 'Pesanan dibuat',
+    body: 'Pesanan {order} menunggu pembayaran. Selesaikan pembayaran sebelum batas waktu.',
+  }),
+  [ORDER_STATUS.DIKONFIRMASI]: Object.freeze({
+    title: 'Pesanan dikonfirmasi',
+    body: 'Pesanan {order} sudah kami terima dan akan segera diproses.',
+  }),
+  [ORDER_STATUS.SEDANG_DISIAPKAN]: Object.freeze({
+    title: 'Pesanan sedang disiapkan',
+    body: 'Pesanan {order} sedang disiapkan oleh tim dapur Oven & Co.',
+  }),
+  [ORDER_STATUS.SIAP_DIAMBIL]: Object.freeze({
+    title: 'Pesanan siap diambil',
+    body: 'Pesanan {order} siap diambil di toko. Tunjukkan kode pickup saat mengambil.',
+  }),
+  [ORDER_STATUS.DALAM_PENGIRIMAN]: Object.freeze({
+    title: 'Pesanan dalam pengiriman',
+    body: 'Pesanan {order} sedang diantar kurir ke alamatmu.',
+  }),
+  [ORDER_STATUS.SELESAI]: Object.freeze({
+    title: 'Pesanan selesai',
+    body: 'Pesanan {order} selesai. Terima kasih! Beri ulasan untuk mendapatkan bonus poin.',
+  }),
+  [ORDER_STATUS.DIBATALKAN]: Object.freeze({
+    title: 'Pesanan dibatalkan',
+    body: 'Pesanan {order} dibatalkan.',
+  }),
+});
+
+// Batas kolom notifications.title / body (SPEC §8)
+const NOTIFICATION_TITLE_MAX = 100;
+const NOTIFICATION_BODY_MAX = 255;
+
+// Alasan notifikasi poin (client mock: adminOrderWrites / reviewWrites / orderCancellation buildPointsNotification)
+const POINTS_NOTIFICATION_REASON = Object.freeze({
+  EARN: (orderNumber) => `pesanan ${orderNumber}`,
+  REVIEW_BONUS: (orderNumber) => `ulasan pesanan ${orderNumber}`,
+  REFUND: (orderNumber) => `pembatalan pesanan ${orderNumber}`,
+});
+
+// TF-14 (penyedia email belum ditentukan) · SPEC §10: salinan email notifikasi hanya dicetak ke console server,
+// sama seperti OTP ([DEV OTP] di auth.service).
+const NOTIFICATION_EMAIL_LOG_PREFIX = '[DEV EMAIL]';
+
 // BR-09 · TF-11: level member dari poin tahun kalender berjalan (client constants/storeConfig.js MEMBER_LEVEL)
 const MEMBER_LEVEL = Object.freeze({
   SILVER: Object.freeze({ key: 'silver', label: 'Silver Member', badge: 'silver' }),
@@ -312,6 +367,12 @@ module.exports = {
   PAYMENT_METHOD_UNAVAILABLE_TEXT,
   ROLES,
   POINT_TX_TYPE,
+  NOTIFICATION_TYPE,
+  ORDER_STATUS_NOTIFICATION,
+  NOTIFICATION_TITLE_MAX,
+  NOTIFICATION_BODY_MAX,
+  POINTS_NOTIFICATION_REASON,
+  NOTIFICATION_EMAIL_LOG_PREFIX,
   MEMBER_LEVEL,
   VOUCHER_STATE,
   API_ERROR_CODE,

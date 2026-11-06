@@ -5,15 +5,18 @@
 // Pembatalan: status Dibatalkan + alasan, lunas → refunded (TF-09: hanya dicatat), stok ready kembali pada tanggal
 // pesanan dibuat, klaim voucher bisa dipakai lagi (kuota +1), poin yang ditukar dikembalikan (refund), riwayat status.
 // Pesan Lagi hanya MENGHITUNG item untuk keranjang — tidak membuat pesanan atau pembayaran.
+// Step 6.5 C1: riwayat + notifikasi "Pesanan dibatalkan" dan notifikasi poin refund ditulis di transaksi yang sama
+// (mock orderCancellation.js cancelOrderInTables); salinan email dicetak setelah commit.
 
 const prisma = require('../lib/prisma');
 const {
-  AVAILABILITY_TYPE, ORDER_STATUS, PAYMENT_STATUS, PAYMENT_TRANSACTION_STATUS, POINT_TX_TYPE,
+  AVAILABILITY_TYPE, ORDER_STATUS, PAYMENT_STATUS, PAYMENT_TRANSACTION_STATUS, POINT_TX_TYPE, POINTS_NOTIFICATION_REASON,
 } = require('../utils/businessConstants');
 const { getJakartaDateKey, dateKeyToDbDate } = require('../utils/jakartaDate');
 const { canCancelOrder } = require('./orderTracking.service');
 const { lockMyOrder } = require('./order.service');
 const { toItemLine, findMyOrderDetailRow } = require('./myOrders.service');
+const { recordOrderStatus, recordPointsNotice, emailAfterCommit } = require('./orderStatusRecorder.service');
 
 const MESSAGES = Object.freeze({
   NOT_CANCELLABLE: 'Pesanan sudah disiapkan sehingga tidak bisa dibatalkan',
@@ -57,12 +60,38 @@ async function returnReadyStock(tx, order) {
 async function cancelMyOrder(userId, orderNumber, reason, now = new Date()) {
   const owner = BigInt(userId);
 
-  return prisma.$transaction(async (tx) => {
+  return emailAfterCommit(prisma.$transaction(async (tx) => {
     // Kunci = pembacaan pertama transaksi (lihat lockMyOrder)
     const order = await lockMyOrder(tx, userId, orderNumber);
 
     if (order.orderStatus === ORDER_STATUS.DIBATALKAN) throw httpError(409, MESSAGES.ALREADY_CANCELLED);
     if (!canCancelOrder({ order_status: order.orderStatus })) throw httpError(409, MESSAGES.NOT_CANCELLABLE);
+
+    // Urutan kunci (Integrasi MySQL 8 C4 + Step 6.5 C1 · temuan F-C1-1):
+    //   orders X (lockMyOrder) → INSERT poin refund, riwayat, notifikasi (FK users → kunci S baris pelanggan)
+    //   → UPDATE orders & payments → daily_stocks X → user_vouchers / vouchers.
+    // - Kelompok users S SEBELUM daily_stocks (C4): urutan lama daily_stocks X → users S deadlock dengan checkout pelanggan
+    //   yang sama (users X → … → daily_stocks X).
+    // - Kelompok users S juga SEBELUM payment.updateMany (F-C1-1): UPDATE … WHERE order_id memakai indeks
+    //   payments_order_id_fkey dan mengambil next-key lock; bila pesanan ini entri terakhir indeks, kunci mencakup gap
+    //   sampai supremum. Checkout pelanggan yang sama (users X) yang INSERT payments pesanan baru menunggu gap itu,
+    //   sementara pembatalan menunggu users S → siklus (terbukti di MySQL 8, tests-mysql/12-cancel-checkout-lock-order).
+    //   Kini pembatalan menunggu users SEBELUM memegang gap payments, sehingga checkout tidak pernah menunggu pembatalan.
+    // Semua langkah tetap dalam satu transaksi: gagal di mana pun → seluruhnya di-rollback.
+    // Urutan notifikasi sama dengan mock (status, lalu poin).
+    if (order.pointsUsed > 0) {
+      await tx.pointTransaction.create({
+        data: { userId: owner, type: POINT_TX_TYPE.REFUND, points: order.pointsUsed, orderId: order.orderId, createdAt: now },
+      });
+    }
+    const notices = [
+      await recordOrderStatus(tx, order, ORDER_STATUS.DIBATALKAN, { changedBy: owner, note: reason, now }),
+    ];
+    if (order.pointsUsed > 0) {
+      notices.push(await recordPointsNotice(tx, {
+        userId: owner, points: order.pointsUsed, reason: POINTS_NOTIFICATION_REASON.REFUND(order.orderNumber), orderId: order.orderId, now,
+      }));
+    }
 
     const paid = order.paymentStatus === PAYMENT_STATUS.PAID;
     await tx.order.update({
@@ -77,17 +106,6 @@ async function cancelMyOrder(userId, orderNumber, reason, now = new Date()) {
       where: { orderId: order.orderId },
       data: { status: paid ? PAYMENT_TRANSACTION_STATUS.REFUNDED : UNPAID_CANCEL_PAYMENT_STATUS },
     });
-    // Integrasi MySQL 8 (C4): INSERT poin & riwayat (FK user_id/changed_by → kunci S baris pelanggan) dijalankan SEBELUM
-    // stok & voucher dikembalikan. Urutan lama (daily_stocks X → users S) membentuk deadlock nyata dengan checkout
-    // pelanggan yang sama (users X → … → daily_stocks X); kini keduanya mengambil kunci users sebelum daily_stocks.
-    if (order.pointsUsed > 0) {
-      await tx.pointTransaction.create({
-        data: { userId: owner, type: POINT_TX_TYPE.REFUND, points: order.pointsUsed, orderId: order.orderId, createdAt: now },
-      });
-    }
-    await tx.orderStatusHistory.create({
-      data: { orderId: order.orderId, status: ORDER_STATUS.DIBATALKAN, changedBy: owner, note: reason, changedAt: now },
-    });
 
     await returnReadyStock(tx, order);
 
@@ -99,8 +117,8 @@ async function cancelMyOrder(userId, orderNumber, reason, now = new Date()) {
       await tx.voucher.update({ where: { voucherId: order.voucherId }, data: { quota: { increment: 1 } } });
     }
 
-    return { order_number: orderNumber };
-  });
+    return { result: { order_number: orderNumber }, notices };
+  }));
 }
 
 /**

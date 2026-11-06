@@ -904,6 +904,59 @@ Catatan khusus:
       bersamaan dengan checkout di MySQL.
       Catatan: lock wait > 2 s (F-2) tetap 500 — checkout yang menunggu kunci store_settings lebih lama dari itu tidak
       menjadi 409.
+- 6.5 (berjalan per checkpoint, branch `feat/step-6.5-payment-notification-jobs` dari `origin/main` `54d5532`):
+  C1 Notification System → C2 Auto-cancel Online Payment (BR-06) → C3 Auto-cancel Bayar di Toko (BR-07) → C4 Payment
+  Webhook (fungsi internal, bukan endpoint HTTP) → C5 Audit Log (FR-37). Pengujian & dokumentasi lintas checkpoint.
+  **C1 — Notification System (FR-18 · BR-007 · SPEC §4 · C-24) + perbaikan F-C1-1: implementasi & uji selesai, belum
+  di-commit** (menunggu persetujuan commit/push).
+  - Aturan: setiap perubahan status = tepat 1 baris `order_status_histories` + 1 notifikasi `order_status` untuk PEMILIK
+    pesanan; transaksi poin `earn` (Selesai), `review_bonus`, `refund` (batal) = 1 notifikasi `points`; `redeem` tidak
+    dinotifikasi (sama dengan mock). Teks, tanda (+/−), format angka, dan pemotongan 100/255 karakter = client
+    `constants/notification.js` & `utils/rules/notification.js`. Notifikasi promo tidak dibuat (tidak ada pemicu di
+    SPEC/mock — keputusan D3).
+  - Transaksi: `recordOrderStatus(tx, …)` dan `recordPointsNotice(tx, …)` selalu di transaksi yang sama dengan perubahan
+    bisnisnya; hanya `logNotificationEmails` (salinan email ke console `[DEV EMAIL]`, TF-14 · SPEC §10) yang berjalan
+    setelah commit lewat `emailAfterCommit`. Rollback → tanpa riwayat, notifikasi, maupun email. Satu-satunya penulis
+    `order_status_histories` kini `orderStatusRecorder.service.js` (nested create di checkout diganti; jumlah riwayat per
+    transisi tidak berubah).
+  - Urutan kunci: INSERT notifikasi ditaruh di kelompok INSERT ber-FK `users` (setelah kunci `orders`, sebelum
+    `daily_stocks` / voucher / kunci S metode). Kunci baru: simulasi lunas & AD-04 status non-Selesai kini mengambil kunci S
+    baris pelanggan (FK notifikasi) setelah `orders` X — pola pembatalan pelanggan Step 6.3; bonus ulasan menambah kunci S
+    baris `orders` di akhir transaksi. Terbukti tanpa deadlock di N5/N6.
+  - **Perbaikan F-C1-1 (deadlock lama sejak Step 6.3, disetujui sebagai bagian C1):** batal pelanggan × checkout pelanggan
+    yang SAMA. Urutan lama `cancelMyOrder`: `orders` X → UPDATE `orders` → `payment.updateMany WHERE order_id` (next-key
+    lock indeks `payments_order_id_fkey`, sampai supremum bila pesanan ini entri terakhir) → INSERT poin/riwayat
+    (FK → `users` S, menunggu checkout) — sementara checkout (`users` X) INSERT `payments` pesanan baru menunggu gap itu →
+    siklus. Urutan baru: `orders` X → INSERT poin refund, riwayat, notifikasi (`users` S) → UPDATE `orders` → UPDATE
+    `payments` → `daily_stocks` → voucher. Satu transaksi; kontrak API & efek pembatalan tidak berubah.
+  - File baru: `server/src/services/notificationRules.service.js` (fungsi murni), `orderStatusRecorder.service.js`;
+    uji `server/tests/notificationRules.test.js`, `orderStatusRecorder.test.js`, `notificationPathsRoute.test.js`,
+    `server/tests-mysql/11-notifications.it.test.js` (N1–N6), `12-cancel-checkout-lock-order.it.test.js` (X1–X2). Diubah:
+    `utils/businessConstants.js` (tipe, teks, alasan poin, prefix email), `orderCreate.service.js`, `payment.service.js`,
+    `orderActions.service.js` (notifikasi + urutan F-C1-1), `adminOrderActions.service.js`, `review.service.js` (select
+    `orderId` untuk tautan notifikasi), helper uji `tests/helpers/orderDb.js` (tabel `notifications`, `user.findMany`, op
+    `payment.updateMany`), `tests/adminOrderActionsRoute.test.js` (+4 uji C1). `notification.service.js` tidak diubah.
+    Tanpa perubahan schema/migrasi, frontend, atau dependensi.
+  - **Terverifikasi:**
+    · `npm test` 638/638 (sebelum C1 609/609; +29 uji; uji batal kini juga memeriksa urutan pernyataan riwayat/notifikasi
+      → `payment.updateMany` → stok — urutan saja, bukan bukti locking). Mutasi: riwayat ganda → 19 uji gagal; email
+      dicetak sebelum commit → 5 uji gagal.
+    · MySQL 8.0.46, `npm run test:mysql` penuh pada container baru: **59/59 lulus, `lock_deadlocks` 0** (01–10 lama tetap
+      lulus; 11 N1–N6; 12 X1–X2).
+    · X1 deterministik × 5 (checkout memegang `users` X lalu INSERT orders + payments selagi batal asli menunggu `users`):
+      0 deadlock; batal tidak memegang kunci `payments` saat menunggu; stok ready kembali tepat, kuota voucher +1, klaim
+      bisa dipakai lagi, poin kembali tepat sekali, tepat 1 riwayat & 1 notifikasi Dibatalkan & 1 notifikasi poin.
+      Kontrol negatif: X1 dijalankan pada urutan LAMA → gagal "Deadlock found when trying to get lock" (kode dikembalikan
+      ke versi perbaikan sesudahnya). Reproduksi awal: 3/3 deadlock pada `54d5532` tanpa C1, 3/3 dengan C1 sebelum
+      perbaikan.
+    · X2 HTTP asli × 20 (checkout + batal pesanan terbaru pelanggan yang sama bersamaan): 20× 201 + 20× 200, 0 deadlock,
+      stok/voucher/poin konsisten.
+    · N6 beban campuran 3 rangkaian × 15 putaran setelah perbaikan: 0 deadlock tiap rangkaian, tanpa 5xx, jumlah riwayat =
+      notifikasi status untuk setiap pesanan (sebelum perbaikan: `cancel 500` pada 2 dari 3 rangkaian).
+    · N1 rollback (riwayat & notifikasi sudah di-INSERT — kunci IX `notifications` terlihat — lalu di-rollback, tanpa
+      email); N2 10× Selesai bersamaan → tepat 1 riwayat/notifikasi status/notifikasi poin/earn; N3 10× simulasi lunas →
+      1; N4 5× batal dengan poin → 1 refund & 1 notifikasi poin; N5 AD-04 menunggu kunci S pelanggan yang dipegang
+      checkout → 0 deadlock.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

@@ -3,14 +3,16 @@
 // Port server dari client/src/services/mock/adminOrderWrites.js dengan aturan & pesan sama (adminOrderRules.service.js).
 // Penulisan dilakukan dalam satu transaksi setelah baris pesanan dikunci (FOR UPDATE) lalu dibaca ulang: klik ganda,
 // tab lain, atau pembatalan pelanggan yang bersamaan diproses berurutan dan request kedua melihat status terbaru,
-// sehingga tidak ada transisi, riwayat, atau poin ganda. Notifikasi perubahan status menyusul di Step 6.5.
+// sehingga tidak ada transisi, riwayat, atau poin ganda. Step 6.5 C1: riwayat + notifikasi status, dan notifikasi poin
+// earn saat Selesai, ditulis di transaksi yang sama (mock adminOrderWrites.js); salinan email dicetak setelah commit.
 
 const prisma = require('../lib/prisma');
 const {
-  ORDER_STATUS, PAYMENT_STATUS, PAYMENT_TRANSACTION_STATUS, FULFILLMENT_TYPE, POINT_TX_TYPE,
+  ORDER_STATUS, PAYMENT_STATUS, PAYMENT_TRANSACTION_STATUS, FULFILLMENT_TYPE, POINT_TX_TYPE, POINTS_NOTIFICATION_REASON,
 } = require('../utils/businessConstants');
 const { mapOrder } = require('./orderView.service');
 const { pointsEarnedFor } = require('./orderRules.service');
+const { recordOrderStatus, recordPointsNotice, emailAfterCommit } = require('./orderStatusRecorder.service');
 const {
   ADMIN_ORDER_ERROR, STATUS_NOTE, validateAdminStatusChange, checkPickupCode, checkMarkPaidAtStore, httpStatusForRuleError,
 } = require('./adminOrderRules.service');
@@ -67,7 +69,7 @@ async function awardCompletionPoints(tx, row, now) {
  * @returns {Promise<{order_number, order_status, points_awarded}>}
  */
 async function changeOrderStatus(adminId, orderNumber, input, now = new Date()) {
-  return prisma.$transaction(async (tx) => {
+  return emailAfterCommit(prisma.$transaction(async (tx) => {
     const { row, order } = await lockOrder(tx, orderNumber);
     const error = validateAdminStatusChange(order, {
       from: input.from, to: input.to, pickupCode: input.pickup_code, courierName: input.courier_name,
@@ -83,13 +85,18 @@ async function changeOrderStatus(adminId, orderNumber, input, now = new Date()) 
     let note = null;
     if (courierName) note = STATUS_NOTE.COURIER(courierName);
     if (input.to === ORDER_STATUS.SELESAI && order.fulfillment_type === FULFILLMENT_TYPE.PICKUP) note = STATUS_NOTE.PICKUP_VERIFIED;
-    await tx.orderStatusHistory.create({
-      data: { orderId: row.orderId, status: input.to, changedBy: BigInt(adminId), note, changedAt: now },
-    });
+    // Urutan kunci: orders X → riwayat (FK admin: users S) → notifikasi (FK pelanggan: users S) → poin & notifikasi
+    // poin (users S pelanggan). Pola orders X → users S sama dengan pembatalan pelanggan (Step 6.3).
+    const notices = [await recordOrderStatus(tx, row, input.to, { changedBy: adminId, note, now })];
 
     const pointsAwarded = input.to === ORDER_STATUS.SELESAI ? await awardCompletionPoints(tx, row, now) : 0;
-    return { order_number: orderNumber, order_status: input.to, points_awarded: pointsAwarded };
-  });
+    if (pointsAwarded > 0) {
+      notices.push(await recordPointsNotice(tx, {
+        userId: row.userId, points: pointsAwarded, reason: POINTS_NOTIFICATION_REASON.EARN(orderNumber), orderId: row.orderId, now,
+      }));
+    }
+    return { result: { order_number: orderNumber, order_status: input.to, points_awarded: pointsAwarded }, notices };
+  }));
 }
 
 /**

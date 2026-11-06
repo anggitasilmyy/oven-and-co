@@ -14,7 +14,7 @@ const app = require('../src/app');
 
 const NOW = new Date('2026-11-03T03:00:00.500Z');
 const users = {
-  1: { userId: 1n, role: 'customer', isActive: true },
+  1: { userId: 1n, role: 'customer', isActive: true, email: 'anisa@example.com' },
   3: { userId: 3n, role: 'staf', isActive: true },
   4: { userId: 4n, role: 'owner', isActive: true },
   5: { userId: 5n, role: 'staf', isActive: false },
@@ -50,6 +50,7 @@ function seed() {
       { paymentId: 14n, orderId: 4n, methodCode: 'qris', amount: '56500.00', status: 'pending', paidAt: null },
     ],
     histories: [],
+    notifications: [], // Step 6.5 C1
     points: [],
     storeSetting: { settingId: 1, earnAmountPerPoint: '1000.00' },
   };
@@ -60,7 +61,11 @@ const fail = (op) => {
   if (failOn === op) throw Object.assign(new Error('Can\'t reach database server'), { code: 'P1001' });
 };
 
-fakePrisma.user = { findUnique: async ({ where }) => users[String(where.userId)] ?? null };
+fakePrisma.user = {
+  findUnique: async ({ where }) => users[String(where.userId)] ?? null,
+  // Salinan email notifikasi — dibaca setelah commit (orderStatusRecorder.logNotificationEmails)
+  findMany: async ({ where }) => where.userId.in.map((id) => users[String(id)]).filter(Boolean),
+};
 fakePrisma.order = {
   findUnique: async ({ where, select }) => {
     fail('order.findUnique');
@@ -88,6 +93,14 @@ fakePrisma.orderStatusHistory = {
     fail('orderStatusHistory.create');
     const row = { historyId: (nextId += 1n), ...data };
     t.histories.push(row);
+    return row;
+  },
+};
+fakePrisma.notification = {
+  create: async ({ data }) => {
+    fail('notification.create');
+    const row = { notificationId: (nextId += 1n), ...data };
+    t.notifications.push(row);
     return row;
   },
 };
@@ -392,4 +405,84 @@ test('database gagal di tengah transaksi → 500 tanpa detail, semua perubahan d
   failOn = 'order.findUnique';
   res = await verify('OVC-261102-003', 'PK4821');
   assert.equal(res.status, 500);
+});
+
+// ── Step 6.5 C1 · FR-18 · SPEC §4: notifikasi status & poin dari aksi admin ─────────────────────────
+
+const captureEmails = (tt) => {
+  const lines = [];
+  tt.mock.method(console, 'info', (line) => { if (String(line).startsWith('[DEV EMAIL]')) lines.push(line); });
+  return lines;
+};
+const brief = () => t.notifications.map((n) => [String(n.userId), n.type, n.title, n.body, String(n.orderId)]);
+
+test('C1 alur pickup: 1 notifikasi per perubahan status untuk PELANGGAN (bukan admin) + notifikasi poin earn saat Selesai', async (tt) => {
+  const emails = captureEmails(tt);
+  const number = 'OVC-261102-001';
+  await setStatus(number, { from: 'dikonfirmasi', to: 'sedang_disiapkan' });
+  await setStatus(number, { from: 'sedang_disiapkan', to: 'siap_diambil' }, owner);
+  await setStatus(number, { from: 'siap_diambil', to: 'selesai', pickup_code: 'PK4821' });
+
+  assert.equal(t.histories.length, 3);
+  assert.deepEqual(brief(), [
+    ['1', 'order_status', 'Pesanan sedang disiapkan', `Pesanan ${number} sedang disiapkan oleh tim dapur Oven & Co.`, '1'],
+    ['1', 'order_status', 'Pesanan siap diambil', `Pesanan ${number} siap diambil di toko. Tunjukkan kode pickup saat mengambil. Kode pickup: PK4821.`, '1'],
+    ['1', 'order_status', 'Pesanan selesai', `Pesanan ${number} selesai. Terima kasih! Beri ulasan untuk mendapatkan bonus poin.`, '1'],
+    ['1', 'points', '+56 poin', `Poin bertambah dari pesanan ${number}.`, '1'],
+  ]);
+  assert.ok(t.notifications.every((n) => n.isRead === false && n.createdAt.getTime() === NOW.getTime()));
+  assert.equal(emails.length, 4);
+  assert.equal(emails[3], `[DEV EMAIL] Kepada: anisa@example.com · +56 poin — Poin bertambah dari pesanan ${number}.`);
+});
+
+test('C1 delivery: notifikasi Dalam Pengiriman (catatan kurir hanya di riwayat); Selesai tanpa poin baru → tanpa notifikasi poin', async () => {
+  const number = 'OVC-261102-002';
+  find(number).orderStatus = 'sedang_disiapkan';
+  await setStatus(number, { from: 'sedang_disiapkan', to: 'dalam_pengiriman', courier_name: 'Andi' });
+  t.points.push({ pointTxId: 1n, userId: 1n, type: 'earn', points: 81, orderId: 2n }); // poin sudah pernah diberikan
+  const res = await setStatus(number, { from: 'dalam_pengiriman', to: 'selesai' });
+  assert.equal(res.json.data.points_awarded, 0);
+  assert.deepEqual(t.notifications.map((n) => [n.type, n.title]), [
+    ['order_status', 'Pesanan dalam pengiriman'], ['order_status', 'Pesanan selesai'],
+  ]);
+  assert.equal(t.notifications[0].body, `Pesanan ${number} sedang diantar kurir ke alamatmu.`);
+});
+
+test('C1 request bersamaan / basi / transisi tidak sah / mark-paid / verify-pickup → tanpa notifikasi & tanpa email', async (tt) => {
+  const emails = captureEmails(tt);
+  const number = 'OVC-261102-001';
+  find(number).orderStatus = 'siap_diambil';
+  hooks.otherCommit = () => { find(number).orderStatus = 'selesai'; };
+  assert.equal((await setStatus(number, { from: 'siap_diambil', to: 'selesai', pickup_code: 'PK4821' })).status, 409);
+  assert.equal((await setStatus('OVC-261102-002', { from: 'siap_diambil', to: 'selesai' })).status, 409);
+  assert.equal((await setStatus('OVC-261102-002', { from: 'dikonfirmasi', to: 'selesai' })).status, 409);
+  assert.equal((await verify('OVC-261102-003', 'PK4821')).status, 200);
+  assert.equal((await markPaid('OVC-261102-003')).status, 200);
+  assert.deepEqual(t.notifications, []);
+  assert.deepEqual(emails, []);
+});
+
+test('C1 rollback: notifikasi status / poin gagal ditulis → 500, status-riwayat-poin-notifikasi tidak tersimpan, tanpa email', async (tt) => {
+  const emails = captureEmails(tt);
+  find('OVC-261102-001').orderStatus = 'siap_diambil';
+  const ready = dump();
+  let writes = 0;
+  const create = fakePrisma.notification.create;
+  fakePrisma.notification.create = async (args) => {
+    writes += 1;
+    if (writes === 2) throw Object.assign(new Error('Can\'t reach database server'), { code: 'P1001' }); // notifikasi poin
+    return create(args);
+  };
+  try {
+    const res = await setStatus('OVC-261102-001', { from: 'siap_diambil', to: 'selesai', pickup_code: 'PK4821' });
+    assert.equal(res.status, 500);
+  } finally {
+    fakePrisma.notification.create = create;
+  }
+  assert.equal(dump(), ready);
+
+  failOn = 'notification.create';
+  assert.equal((await setStatus('OVC-261102-001', { from: 'siap_diambil', to: 'selesai', pickup_code: 'PK4821' })).status, 500);
+  assert.equal(dump(), ready);
+  assert.deepEqual(emails, []);
 });

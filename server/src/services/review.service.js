@@ -5,13 +5,16 @@
 // - Bonus = store_settings.review_bonus_points, dicatat `review_bonus` dengan review_id, dalam transaksi yang sama.
 // - Foto: file multipart divalidasi di route, ditulis ke disk DI LUAR transaksi (pola custom cake) dan dihapus lagi
 //   bila penyimpanan database gagal. Ulasan disembunyikan (is_hidden) tidak pernah tampil di halaman pelanggan.
+// - Step 6.5 C1: notifikasi poin review_bonus ditulis di transaksi yang sama dengan bonusnya (mock reviewWrites.js);
+//   salinan email dicetak setelah commit.
 
 const prisma = require('../lib/prisma');
-const { POINT_TX_TYPE, API_ERROR_CODE } = require('../utils/businessConstants');
+const { POINT_TX_TYPE, API_ERROR_CODE, POINTS_NOTIFICATION_REASON } = require('../utils/businessConstants');
 const { saveReviewPhoto, deleteReviewPhoto } = require('../utils/reviewPhotoStorage');
 const { getProductReviewViews, summarizeRatings } = require('./productView.service');
 const { canReviewOrder } = require('./orderTracking.service');
 const { toItemLine, findMyOrderDetailRow } = require('./myOrders.service');
+const { recordPointsNotice, emailAfterCommit } = require('./orderStatusRecorder.service');
 
 const MESSAGES = Object.freeze({
   NOT_COMPLETED: 'Ulasan hanya bisa diberikan untuk pesanan Selesai',
@@ -55,11 +58,15 @@ async function getOrderReviewForm(userId, orderNumber, now = new Date()) {
   };
 }
 
-/** Pemeriksaan sebelum file ditulis: pesanan milik pelanggan, Selesai, item bagian dari pesanan, belum diulas */
+/**
+ * Pemeriksaan sebelum file ditulis: pesanan milik pelanggan, Selesai, item bagian dari pesanan, belum diulas.
+ * @returns {Promise<bigint>} order_id (tautan notifikasi poin; tidak berubah setelah pesanan dibuat)
+ */
 async function assertReviewable(userId, orderNumber, orderItemId) {
   const order = await prisma.order.findFirst({
     where: { orderNumber, userId: BigInt(userId) },
     select: {
+      orderId: true,
       orderStatus: true,
       items: { select: { orderItemId: true, review: { select: { reviewId: true } } } },
     },
@@ -71,6 +78,7 @@ async function assertReviewable(userId, orderNumber, orderItemId) {
   const item = order.items.find((entry) => String(entry.orderItemId) === orderItemId);
   if (!item) throw httpError(400, MESSAGES.ITEM_NOT_IN_ORDER);
   if (item.review) throw httpError(409, MESSAGES.ALREADY_REVIEWED);
+  return order.orderId;
 }
 
 async function removePhotos(urls) {
@@ -89,13 +97,13 @@ async function removePhotos(urls) {
  */
 async function createReview(userId, orderNumber, input, photos = [], now = new Date()) {
   const owner = BigInt(userId);
-  await assertReviewable(userId, orderNumber, input.order_item_id);
+  const orderId = await assertReviewable(userId, orderNumber, input.order_item_id);
 
   const savedUrls = [];
   try {
     for (const photo of photos) savedUrls.push(await saveReviewPhoto(photo));
 
-    return await prisma.$transaction(async (tx) => {
+    return await emailAfterCommit(prisma.$transaction(async (tx) => {
       const points = await getReviewBonusPoints(tx);
       // UNIQUE(order_item_id): request ganda/bersamaan untuk item yang sama gagal di sini (P2002) → tanpa bonus kedua
       const review = await tx.review.create({
@@ -120,9 +128,13 @@ async function createReview(userId, orderNumber, input, photos = [], now = new D
       await tx.pointTransaction.create({
         data: { userId: owner, type: POINT_TX_TYPE.REVIEW_BONUS, points, reviewId: review.reviewId, createdAt: now },
       });
+      // Satu notifikasi per transaksi poin (mock: selalu, termasuk bonus 0); FK orders = kunci S baris pesanan Selesai
+      const notice = await recordPointsNotice(tx, {
+        userId: owner, points, reason: POINTS_NOTIFICATION_REASON.REVIEW_BONUS(orderNumber), orderId, now,
+      });
 
-      return { review_id: String(review.reviewId), points };
-    });
+      return { result: { review_id: String(review.reviewId), points }, notices: [notice] };
+    }));
   } catch (error) {
     await removePhotos(savedUrls);
     if (error.code === 'P2002') throw httpError(409, MESSAGES.ALREADY_REVIEWED);
