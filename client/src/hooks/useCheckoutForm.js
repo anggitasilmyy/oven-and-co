@@ -9,6 +9,8 @@ import {
 import { FULFILLMENT_TYPE } from '../constants/orderStatus';
 import { AVAILABILITY_TYPE } from '../constants/product';
 import { TIME_SLOTS, CHECKOUT_DATE_WINDOW_DAYS, VOUCHER_INVALID_TEXT } from '../constants/checkout';
+import { IS_MOCK_MODE } from '../constants/dataMode';
+import { toZonedWallClock } from '../utils/date';
 
 /**
  * @param {object} ctx — hasil getCheckoutContext
@@ -16,7 +18,9 @@ import { TIME_SLOTS, CHECKOUT_DATE_WINDOW_DAYS, VOUCHER_INVALID_TEXT } from '../
  */
 export default function useCheckoutForm(ctx, cart) {
   const draft = useCheckoutStore();
-  const now = new Date(ctx.now);
+  // Step 6.6 (CP4 · G15): mode API — slot hari ini dihitung dengan jam WIB (sama dengan validasi server), bukan zona
+  // waktu perangkat. Mode mock tidak berubah (jam perangkat, sama dengan mockClock).
+  const now = IS_MOCK_MODE ? new Date(ctx.now) : toZonedWallClock(ctx.now);
   const lines = cart.lines.filter((l) => l.available);
   const allReady = lines.every((l) => l.availability_type === AVAILABILITY_TYPE.READY);
   // BR-01: ready = hari ini · BR-03: campuran = tanggal item dengan persiapan terlama

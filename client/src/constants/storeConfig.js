@@ -2,6 +2,12 @@
 // Step 4 · Asumsi prototype SPEC §10 & nilai default store_settings (SPEC §8)
 // Semua nilai di sini mudah diganti; mock store_settings memakai nilai yang sama.
 
+/**
+ * Step 6.6 (CP4 · G15): zona waktu operasional toko. Server menghitung "hari ini", jam operasional, dan slot dalam WIB
+ * (server/src/utils/jakartaDate.js); frontend mode API memakai zona yang sama untuk slot checkout.
+ */
+export const STORE_TIME_ZONE = 'Asia/Jakarta';
+
 /** Nilai default store_settings (setting_id = 1) */
 export const STORE_SETTINGS_DEFAULT = {
   store_name: 'Oven & Co.',

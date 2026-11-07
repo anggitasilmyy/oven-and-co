@@ -1368,6 +1368,28 @@ Catatan khusus:
     dikonfirmasi; (6) pesanan tanpa idempotensi di server (dua POST identik → dua pesanan) — frontend menjamin satu kali
     kirim (tombol terkunci, apiClient tidak mengirim ulang); (7) keranjang tamu antar-tab tetap tanpa journal (perilaku
     lama); (8) keranjang akun tetap di localStorage setelah logout (keputusan 4; hanya dimuat untuk pemiliknya).
+  **CP4 — checkout & pembayaran mode API (FR-12 – FR-16 · FR-18 · FR-20 · BR-05 – BR-07 · BR-09 · BR-10 · C-13 – C-18 ·
+  C-24): selesai.** Verifikasi end-to-end di browser mode API + MySQL uji (database baru, seed hari uji; akun demo
+  pelanggan; pembayaran hanya simulasi), viewport 390 & 1440 px: pickup, delivery (alamat utama + ongkir; alamat di luar
+  radius diblokir), voucher WEEKEND15, tukar poin, QRIS, ganti metode (QRIS → GoPay), Bayar di Toko, Simulasikan Lunas →
+  Dikonfirmasi, batal pelanggan (stok, klaim voucher + kuota, dan poin kembali; payment `failed`), auto-cancel BR-06
+  (`expired_at` digeser ke masa lalu) dan BR-07 (`ready_date` digeser ke kemarin) oleh job — payment `expired` sesuai
+  desain 6.5 K2, riwayat status & notifikasi C-24 tercatat dan tampil. Tanpa perubahan backend, schema, kontrak API, atau
+  dependensi.
+  - **Bug G15 (diperbaiki):** slot hari ini dihitung dengan zona waktu PERANGKAT (`getTimeSlotOptions` membaca
+    `getHours()`/`toDateKey()` dari `new Date(ctx.now)`), sedangkan server memvalidasi dalam WIB. Browser UTC pada 10.xx WIB
+    menawarkan slot 07–09 & 09–11 lalu ditolak server ("Pilih slot waktu dalam jam operasional."); perangkat di depan WIB
+    (WITA/WIT) menonaktifkan slot yang masih sah. Perbaikan minimal: `useCheckoutForm` mode API memakai
+    `toZonedWallClock(ctx.now)` (`utils/date.js`, `Intl.DateTimeFormat` zona `STORE_TIME_ZONE = 'Asia/Jakarta'` di
+    `constants/storeConfig.js`); mode mock tetap `new Date(ctx.now)` (jam perangkat, sama dengan mockClock).
+    `getTimeSlotOptions` dan `isPastPreorderCutoff` tidak diubah (batas pre-order mode API berasal dari server).
+  - Uji: client unit 238/238 (+5 `zonedWallClock`: zona proses UTC, Jakarta, Tokyo, New York, Makassar; lewat tengah malam
+    WIB; bukti perilaku lama salah); server 707/707; build ok; lint 0 error/2 warning; smoke API 55/55; suite CP4 browser
+    36/36 per lebar (13 skenario + G15 di browser UTC, Asia/Jakarta, Asia/Tokyo — slot lewat tidak ditawarkan, slot
+    mendatang tersedia, pesanan dengan slot pertama diterima server); regresi mock: e2e `step-5.1`–`5.8` lulus semua,
+    CP2 mock 39/39 per lebar.
+  - Keterbatasan yang tetap: keranjang server setelah checkout saat paused (CP3); tampilan jam mengikuti zona perangkat
+    (G12, CP7).
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.
