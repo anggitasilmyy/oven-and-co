@@ -219,7 +219,7 @@ Catatan khusus:
   `GET /payment-methods` (Staf/Owner, filter AD-03), ulasan (`GET|POST /orders/:no/reviews`,
   `GET /products/:id/reviews`), notifikasi (`GET /me/notifications`, `GET /me/notifications/unread-count`,
   `PATCH /me/notifications/:id/read`), keranjang akun tersimpan (`GET|PUT /cart/items`, `POST /cart/merge`).
-  Penyambungan `useCartStore` ke API keranjang server menyusul di 6.6.
+  Penyambungan `useCartStore` ke API keranjang server menyusul di 6.6 → selesai di 6.6 CP3 (lihat catatan 6.6).
   - Keranjang akun (C-12, FR-04, BR-04): hanya pelanggan login (tamu 401, staf/owner 403), disimpan di
     `carts.user_id` + `cart_items`; keranjang tamu tetap di localStorage (`carts.session_token` tidak dipakai).
     `PUT` mengganti seluruh isi; `merge` menggabung item tamu dengan aturan identitas yang sama dengan client
@@ -232,7 +232,12 @@ Catatan khusus:
     (`selectClaimableGuestDesignIds()` + kunci desain + `updateMany` bersyarat). Mode mock: keranjang akun = key
     localStorage pelanggan, tanpa cek token (sama dengan catatan desain di bawah).
     Catatan untuk 6.6: `cart_item_id` dibuat ulang setiap simpan (hapus + buat), jadi store perlu memakai id dari
-    respons terakhir. Diuji di MySQL 8 sementara (21 skenario, termasuk merge & klaim bersamaan) dan browser mode mock.
+    respons terakhir. **Direvisi di 6.6 CP3 (disetujui): id lokal milik klien dan TIDAK diganti id hasil PUT.** Alasan:
+    server tidak memakai `cart_item_id` untuk operasi apa pun (PUT mengganti seluruh isi; `POST /api/orders` hanya
+    mewajibkan id unik), sedangkan mengganti id setelah setiap PUT membuat `removeOrderedItems` (pengurangan baris yang
+    dipesan per `cart_item_id`) salah sasaran bila simpan selesai di tengah checkout (temuan G2). Id dari server hanya
+    dipakai untuk baris yang baru muncul dari GET/merge. Diuji di MySQL 8 sementara (21 skenario, termasuk merge & klaim
+    bersamaan) dan browser mode mock.
   - Notifikasi (C-24): hanya baca & tandai dibaca milik pelanggan login (staf/owner 403); milik pelanggan lain → 404
     (sama dengan tidak ada); tandai dibaca idempoten; respons `{ items, unread, today_key }` sesuai
     `client/src/services/notificationService.js`. Pembuatan notifikasi saat status berubah tetap Step 6.5.
@@ -1305,6 +1310,64 @@ Catatan khusus:
   adanya (termasuk null/false/0); body tanpa `data` (forgot/reset password) tetap utuh. Uji: 5 regresi di
   `apiClient.test.mjs` (kode lama: kasus null gagal), client unit 191/191, browser API & mock 390/1440 px tanpa error
   halaman dan tanpa request API di mode mock. Id tidak valid (400 `INVALID_ID`) di ulasan tetap pekerjaan G11/CP7.
+  **CP3 — sinkronisasi keranjang akun (FR-04 · FR-11 · BR-04 · G1/G2): selesai.** Tanpa perubahan backend, schema,
+  migrasi, kontrak API, atau dependensi. Titik integrasi CP2 yang diubah hanya satu baris di `MasukPage`/`DaftarPage`
+  (`await syncCartAfterLogin(user)` menggantikan `mergeGuestCart`); CP1, N1, dan logika autentikasi CP2 lain tidak berubah.
+  - Arsitektur "lokal dulu, dikonfirmasi server": UI tetap membaca/menulis `useCartStore` secara sinkron; engine
+    (`services/cartSync.js` siklus hidup, `cartSyncReconcile.js` + `cartSyncSteps.js` algoritma, `cartSyncState.js` status
+    lokal, `cartSyncLock.js` kunci antar-tab, `cartStorage.js` kunci & journal, aturan murni `utils/rules/cartSync.js` &
+    `cartSyncErrors.js`) menyalin ke `GET|PUT /api/cart/items` dan `POST /api/cart/merge` hanya di mode API untuk pelanggan
+    login. Mode mock, tamu, dan staf/owner: tanpa request keranjang akun. Satu engine per tab (`useCartSync` di App; start
+    ganda aman, stop ditunda satu tick → React StrictMode tidak menggandakan).
+  - Namespace penyimpanan: mode mock tetap `ovenco_mock_cart_*`; mode API `ovenco_api_cart_*` + catatan
+    `ovenco_api_cartsync_*` (base, provenance tamu, attempt, blocked, generasi, journal). **Data lama `ovenco_mock_cart_*`
+    tidak dipindahkan ke namespace API** (sumbernya tidak bisa dibedakan antara mode mock dan API) **dan tidak dihapus/diubah.**
+    Tujuh berkas uji unit mode API diperbarui hanya kunci penyimpanannya.
+  - Rekonsiliasi (di dalam kunci antar-tab per pemilik; Web Locks, cadangan lease localStorage): NO_BASE (perangkat/lokal
+    belum pernah sinkron) → GET bila kosong, selain itu `POST /cart/merge` — tidak pernah PUT ke snapshot yang belum
+    sinkron; CLEAN → GET dan adopsi perubahan perangkat lain; LOCAL_CHANGED → GET → merge3(base, bagian akun lokal, server)
+    → PUT hasilnya; item tamu (provenance per id lokal + design_token) SELALU lewat `POST /cart/merge` setelah PUT.
+    Common ancestor: GET = base sebelum request; PUT = payload yang dikirim; merge = perkiraan hasil server
+    (`predictServerMerge`, port aturan server: jumlah dijumlah per kunci, token null) atau seluruh lokal saat NO_BASE.
+    Setelah setiap await lokal dibaca ulang + journal di-fold, jadi perubahan selama GET/PUT tidak tertimpa.
+    Identitas baris lintas perangkat = `lineKey` (desain: `d:{design_id}` — design_id tidak berubah saat klaim, hanya
+    user_id; dibuktikan kode & MySQL), signature konten kanonik mencakup ketujuh field bisnis dan diurutkan per lineKey.
+  - Hasil tidak pasti (konservatif, dari pemeriksaan transaksi server): status 0, 2xx tak terbaca, semua 5xx, 4xx tanpa
+    body server kita → UNKNOWN; hanya 4xx dari server kita (sebelum commit) = gagal pasti. Attempt `sending` ditulis
+    sebelum fetch; ditemukan di dalam kunci = crash → UNKNOWN. **Merge tidak pernah dikirim ulang otomatis:** GET = hasil
+    yang diharapkan → applied; selain itu UNCONFIRMED → sinkronisasi akun di perangkat itu **paused** (tanpa PUT/POST
+    otomatis; GET boleh; item tamu & perubahan lokal tetap tersimpan dan terlihat; notifikasi sekali). Tidak ada
+    rekonsiliasi manual implisit; pemulihan manual butuh persetujuan terpisah. PUT tidak pasti → GET → ancestor per baris
+    (server = payload → P; server = sebelum PUT → B0; lainnya → P) → merge3 → hasil gabungan dikirim (bukan payload lama).
+  - Multi-tab: setiap perubahan keranjang akun ditulis dulu sebagai entri journal immutable (kunci unik per tab + seq),
+    lalu kunci keranjang, lalu token generasi; engine mem-fold entri urut (ts, tab, seq) dan menghapus HANYA kunci yang
+    sudah diproses. Temuan saat uji: dua tab yang menambah baris pada milidetik yang sama mendapat `cart_item_id` sama
+    (Date.now) sehingga satu baris hilang saat fold → baris BARU kini diberi id ber-garam per tab
+    (`useCartStore.withTabUniqueNewIds`, tetap bilangan bulat aman; aturan `nextCartItemId` Step 5.1 tidak diubah).
+  - Checkout memakai keranjang lokal (dibuktikan: `POST /api/orders` memvalidasi `items` request, tidak membaca
+    `cart_items`; desain tamu belum diklaim tetap sah lewat token). Setelah pesanan berhasil, `PembayaranPage` menunggu
+    `flushCartSync()` (tidak pernah melempar, tidak pernah memicu pesanan ulang; gagal → pending).
+  - Uji: client unit **233/233** (+42: `cartSyncRules` 9, `cartSync` 25 engine, `cartSyncTabs` 5 dua store nyata dengan
+    interleaving dipaksa — lost update, tulis selama fold, crash di antara journal & kunci, crash engine sebelum hapus,
+    baris sama dua tab; `cartSyncMock` 3); server 707/707; build ok; lint 0 error/2 warning (`Toast.jsx`); smoke API 55/55.
+    Integrasi MySQL dengan engine & `apiClient` asli (17/17): merge tamu ke server berisi, PUT, perangkat baru + nama,
+    klaim desain tamu (design_id tetap, user_id terisi), respons merge hilang setelah commit (recovery, POST 1×, tidak
+    ganda), merge tidak terkirim (paused, MySQL tidak berubah), checkout saat paused (seluruh isi lokal masuk pesanan, 1×),
+    PUT respons hilang + perubahan perangkat lain dipertahankan, checkout sebagian. Browser mode API 390 & 1440 px
+    (17/17 per lebar): tamu → login → MySQL ∪, perangkat baru, stepper, dua tab, merge respons dibuang (route) → reload →
+    tidak ganda, merge diblokir → paused + notifikasi, logout dengan PUT gagal → login → terkirim, staf tanpa request,
+    checkout UI dengan tab kedua menambah item saat `POST /orders` diproses → server tinggal item itu. Regresi: CP2 browser
+    API 44/44 & mock 39/39 per lebar, N1 8/8, e2e mode mock lama `step-5.1`–`5.8` semua lulus (40/40, 55/55, 37/37, 56/56,
+    76/76, 56/56, 80/80, 18/18, 90/90, 67/67). Uji MySQL/browser memakai database uji `ovenco_step66_today` (seed hari uji).
+  - **Keterbatasan (tanpa perubahan backend):** (1) setelah checkout saat paused, keranjang server tetap berisi item yang
+    sudah dipesan (subtract-only PUT tidak dikerjakan — keputusan pemilik project); perangkat lain akun yang sama masih
+    melihatnya; (2) paused bisa berlangsung lama (tidak ada aksi pemulihan); (3) dua perangkat menulis tumpang tindih →
+    last-write-wins (GET→PUT tidak atomik, tanpa versi/ETag); merge3 best-effort, konflik baris sama: lokal menang,
+    perubahan tanggal/catatan = identitas baru; (4) 500 yang pasti rollback tetap UNKNOWN (body server tidak membedakan
+    fase); (5) perangkat yang belum pernah sinkron dan merge-nya tidak pasti hanya menampilkan isi lokalnya sampai merge
+    dikonfirmasi; (6) pesanan tanpa idempotensi di server (dua POST identik → dua pesanan) — frontend menjamin satu kali
+    kirim (tombol terkunci, apiClient tidak mengirim ulang); (7) keranjang tamu antar-tab tetap tanpa journal (perilaku
+    lama); (8) keranjang akun tetap di localStorage setelah logout (keputusan 4; hanya dimuat untuk pemiliknya).
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

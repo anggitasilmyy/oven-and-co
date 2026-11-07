@@ -82,20 +82,20 @@ test('sesi kedaluwarsa pada endpoint akun: sesi dihapus, TIDAK diulang, pesan & 
   assert.equal(calls.length, 1);
   assert.equal(useAuthStore.getState().token, null);
   assert.equal(useAuthStore.getState().sessionExpired, true);
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
 });
 
 test('keranjang (POST /cart) TIDAK memakai fallback tamu: body keranjang akun tidak dikirim ulang sebagai tamu', async () => {
   login();
   useCartStore.getState().addItem({ product_id: 1, quantity: 3, name: 'Croissant', price: 28000 });
-  const accountCart = localStorage.getItem('ovenco_mock_cart_1');
+  const accountCart = localStorage.getItem('ovenco_api_cart_1');
   responses = [SESSION_INVALID];
 
   await assert.rejects(apiClient('/cart', { method: 'POST', body: { items: useCartStore.getState().items } }), EXPIRED);
   assert.equal(calls.length, 1);
   // Store pindah ke keranjang tamu; keranjang akun tetap utuh di perangkat untuk login berikutnya
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
-  assert.equal(localStorage.getItem('ovenco_mock_cart_1'), accountCart);
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
+  assert.equal(localStorage.getItem('ovenco_api_cart_1'), accountCart);
 });
 
 test('operasi ber-guestFallback (desain custom cake): diulang SEKALI tanpa token; ulangan tidak pernah lebih dari satu', async () => {
@@ -233,7 +233,7 @@ test('CP1 #3 & #4: server mati / koneksi ditolak / CORS → pesan Indonesia, sta
   assert.equal(isSessionError(error), false);
   assert.equal(useAuthStore.getState().token, 'jwt-lama');
   assert.equal(useAuthStore.getState().sessionExpired, false);
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_1');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_1');
   // Mutasi juga tidak dikirim ulang otomatis
   calls.length = 0;
   await assert.rejects(apiClient('/orders', { method: 'POST', body: {} }), { code: CLIENT_REQUEST_ERROR_CODE.NETWORK_ERROR });
@@ -276,7 +276,7 @@ test('CP1 #6: 401 SESSION_INVALID tetap memicu mekanisme sesi (hapus sesi, notif
   assert.equal(error.message, SESSION_EXPIRED_MESSAGE);
   assert.equal(useAuthStore.getState().token, null);
   assert.equal(useAuthStore.getState().sessionExpired, true);
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
 });
 
 test('CP1 #7 & #8: 403 & 404 tidak berubah; 409 mempertahankan pesan, kode, dan fieldErrors backend', async () => {

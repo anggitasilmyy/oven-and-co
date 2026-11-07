@@ -20,8 +20,7 @@ import GoogleLoginButton from '../../components/customer/GoogleLoginButton';
 import { login, loginWithGoogle, isGoogleLoginAvailable } from '../../services/authService';
 import { GOOGLE_LOGIN_UNAVAILABLE_MESSAGE } from '../../constants/auth';
 import useAuthStore from '../../stores/useAuthStore';
-import useCartStore from '../../stores/useCartStore';
-import { getCartOwnerId } from '../../utils/sessionIdentity';
+import { syncCartAfterLogin } from '../../services/cartSync';
 import { CUSTOMER_ROUTES } from '../../constants/routes';
 import { postLoginTarget } from '../../utils/routeAccess';
 
@@ -29,7 +28,6 @@ export default function MasukPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const { mergeGuestCart } = useCartStore();
 
   const [form, setForm] = useState({ identifier: '', password: '' });
   const [error, setError] = useState('');
@@ -58,8 +56,9 @@ export default function MasukPage() {
     try {
       const { user, token } = await loginFn();
       setAuth(user, token);
-      // Step 6.3: id pemilik keranjang dari helper bersama (mock user_id / API userId)
-      mergeGuestCart(getCartOwnerId(user));
+      // Step 6.6 (CP3): keranjang tamu diintegrasikan sebelum redirect (mock: mergeGuestCart; API: POST /cart/merge);
+      // gagal jaringan → pending, login tetap berhasil
+      await syncCartAfterLogin(user);
       redirectAfterLogin(user);
     } catch (err) {
       // Pesan error persis sesuai SPEC §6

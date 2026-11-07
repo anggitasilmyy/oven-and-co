@@ -90,17 +90,17 @@ test.beforeEach(() => {
 // ── M-A: desain tamu yang selesai setelah login ───────────────────────────────────────────────────────────────────
 
 test('M-A: login di TAB INI saat desain tamu disimpan (gabung keranjang berjalan dulu) → desain tetap masuk keranjang X, satu baris', async () => {
-  store.set('ovenco_mock_cart_guest', JSON.stringify([{ cart_item_id: 1, product_id: 2, quantity: 1 }]));
+  store.set('ovenco_api_cart_guest', JSON.stringify([{ cart_item_id: 1, product_id: 2, quantity: 1 }]));
   useCartStore.getState().resetToGuest();
   scriptFetch([{ before: () => thisTabLogin(customer(7), 'jwt-X'), ...created('90', 'tok-90') }]);
 
   const result = await saveCustomCakeToCart(DESIGN, PRODUCT);
 
   assert.equal(result.target, DESIGN_CART_TARGET.ACCOUNT_MERGED);
-  assert.deepEqual(designsIn('ovenco_mock_cart_7').filter(Boolean), ['90']);
-  assert.equal(cartOf('ovenco_mock_cart_7').length, 2); // item tamu lama (digabung saat login) + desain
-  assert.equal(store.has('ovenco_mock_cart_guest'), false);
-  assert.equal(cartOf('ovenco_mock_cart_7').find((i) => i.design_id === '90').design_token, 'tok-90');
+  assert.deepEqual(designsIn('ovenco_api_cart_7').filter(Boolean), ['90']);
+  assert.equal(cartOf('ovenco_api_cart_7').length, 2); // item tamu lama (digabung saat login) + desain
+  assert.equal(store.has('ovenco_api_cart_guest'), false);
+  assert.equal(cartOf('ovenco_api_cart_7').find((i) => i.design_id === '90').design_token, 'tok-90');
   assert.equal(getDesignCartNotice(result).message, DESIGN_CART_NOTICE.account_merged);
 });
 
@@ -114,9 +114,9 @@ test('M-A: identitas berganti LAGI (X lalu Y) sebelum desain selesai → tidak d
 
   assert.equal(result.target, DESIGN_CART_TARGET.GUEST_CART);
   assert.equal(result.reason, GUEST_CART_REASON.NOT_MERGED);
-  assert.ok(!designsIn('ovenco_mock_cart_7').includes('91'));
-  assert.ok(!designsIn('ovenco_mock_cart_8').includes('91'));
-  assert.deepEqual(designsIn('ovenco_mock_cart_guest'), ['91']);
+  assert.ok(!designsIn('ovenco_api_cart_7').includes('91'));
+  assert.ok(!designsIn('ovenco_api_cart_8').includes('91'));
+  assert.deepEqual(designsIn('ovenco_api_cart_guest'), ['91']);
   const notice = getDesignCartNotice(result);
   assert.equal(notice.type, 'info');
   assert.equal(notice.message, DESIGN_CART_NOTICE.not_merged);
@@ -132,7 +132,7 @@ test('M-A: X masuk lalu keluar lagi sebelum desain selesai → keranjang tamu (a
 
   assert.equal(result.target, DESIGN_CART_TARGET.ACTIVE);
   assert.ok(useCartStore.getState().items.some((i) => i.design_id === '92'));
-  assert.ok(!designsIn('ovenco_mock_cart_7').includes('92'));
+  assert.ok(!designsIn('ovenco_api_cart_7').includes('92'));
 });
 
 test('M-A: idempoten — desain yang sama tidak membuat baris atau jumlah ganda', async () => {
@@ -148,7 +148,7 @@ test('M-A: idempoten — desain yang sama tidak membuat baris atau jumlah ganda'
   // Keranjang non-aktif juga idempoten (design_id dibandingkan sebagai string)
   assert.equal(useCartStore.getState().addItemToOwnerCart('5', { product_id: 6, design_id: 94, quantity: 1 }), true);
   assert.equal(useCartStore.getState().addItemToOwnerCart('5', { product_id: 6, design_id: '94', quantity: 1 }), true);
-  assert.deepEqual(cartOf('ovenco_mock_cart_5').map((i) => [i.design_id, i.quantity]), [[94, 1]]);
+  assert.deepEqual(cartOf('ovenco_api_cart_5').map((i) => [i.design_id, i.quantity]), [[94, 1]]);
 });
 
 test('M-A: desain milik akun A hanya ke keranjang A; desain tamu hanya ke pelanggan tunggal yang aktif (resolveDesignCart)', () => {
@@ -172,7 +172,7 @@ test('M-A: desain milik akun A hanya ke keranjang A; desain tamu hanya ke pelang
 
 test('L2: JWT A kedaluwarsa → desain disimpan sebagai tamu, masuk keranjang tamu yang TERLIHAT, lalu digabung ke A saat masuk lagi', async () => {
   signIn(customer(1), 'jwt-A');
-  store.set('ovenco_mock_cart_1', JSON.stringify([{ cart_item_id: 1, product_id: 2, quantity: 1 }]));
+  store.set('ovenco_api_cart_1', JSON.stringify([{ cart_item_id: 1, product_id: 2, quantity: 1 }]));
   scriptFetch([{ ...SESSION_INVALID }, created('95', 'tok-95')]);
 
   const result = await saveCustomCakeToCart(DESIGN, PRODUCT);
@@ -182,15 +182,15 @@ test('L2: JWT A kedaluwarsa → desain disimpan sebagai tamu, masuk keranjang ta
   assert.equal(result.reason, GUEST_CART_REASON.SESSION_EXPIRED);
   assert.equal(useAuthStore.getState().sessionExpired, true);
   // Keranjang aktif = keranjang tamu berisi desain (bukan keranjang akun A yang tidak terlihat)
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
   assert.ok(useCartStore.getState().items.some((i) => i.design_id === '95' && i.design_token === 'tok-95'));
-  assert.ok(!designsIn('ovenco_mock_cart_1').includes('95'));
+  assert.ok(!designsIn('ovenco_api_cart_1').includes('95'));
   const notice = getDesignCartNotice(result);
   assert.equal(notice.message, DESIGN_CART_NOTICE.session_expired);
   assert.equal(notice.replacesSessionNotice, true);
 
   thisTabLogin(customer(1), 'jwt-A2'); // masuk lagi → keranjang tamu digabung (FR-04), tanpa duplikat
-  assert.deepEqual(designsIn('ovenco_mock_cart_1').filter(Boolean), ['95']);
+  assert.deepEqual(designsIn('ovenco_api_cart_1').filter(Boolean), ['95']);
 });
 
 test('L2: JWT kedaluwarsa dan penyimpanan ulang sebagai tamu GAGAL → error, tidak ada item di keranjang mana pun', async () => {
@@ -199,8 +199,8 @@ test('L2: JWT kedaluwarsa dan penyimpanan ulang sebagai tamu GAGAL → error, ti
 
   await assert.rejects(saveCustomCakeToCart(DESIGN, PRODUCT), { message: 'Server sedang gangguan' });
   assert.equal(useCartStore.getState().items.length, 0);
-  assert.equal(store.has('ovenco_mock_cart_1'), false);
-  assert.equal(store.has('ovenco_mock_cart_guest'), false);
+  assert.equal(store.has('ovenco_api_cart_1'), false);
+  assert.equal(store.has('ovenco_api_cart_guest'), false);
 });
 
 test('L2: keranjang tujuan penuh → pesan error "desain tersimpan, belum masuk keranjang", bukan pesan berhasil', () => {
@@ -219,8 +219,8 @@ test('L3: tamu menyimpan desain, STAF masuk di tab lain → desain tamu di keran
 
   assert.equal(result.target, DESIGN_CART_TARGET.GUEST_CART);
   assert.equal(result.reason, GUEST_CART_REASON.STAFF_SESSION);
-  assert.deepEqual(designsIn('ovenco_mock_cart_guest'), ['96']);
-  assert.equal([...store.keys()].some((k) => /^ovenco_mock_cart_\d+$/.test(k)), false);
+  assert.deepEqual(designsIn('ovenco_api_cart_guest'), ['96']);
+  assert.equal([...store.keys()].some((k) => /^ovenco_api_cart_\d+$/.test(k)), false);
   assert.equal(getDesignCartNotice(result).message, DESIGN_CART_NOTICE.staff_session);
 });
 

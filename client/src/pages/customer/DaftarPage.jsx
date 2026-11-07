@@ -14,9 +14,8 @@ import CustomerAuthShell from '../../components/customer/CustomerAuthShell';
 import DaftarForm from '../../components/customer/DaftarForm';
 import { register } from '../../services/authService';
 import useAuthStore from '../../stores/useAuthStore';
-import useCartStore from '../../stores/useCartStore';
+import { syncCartAfterLogin } from '../../services/cartSync';
 import { CUSTOMER_ROUTES } from '../../constants/routes';
-import { getCartOwnerId } from '../../utils/sessionIdentity';
 import {
   validateName,
   validateEmail,
@@ -41,7 +40,6 @@ const EMPTY_FORM = {
 export default function DaftarPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const { mergeGuestCart } = useCartStore();
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
@@ -115,8 +113,8 @@ export default function DaftarPage() {
       setAuth(user, token);
 
       // FR-04: gabungkan keranjang tamu dengan akun pelanggan.
-      // Step 6.3: id pemilik keranjang dari helper bersama (mock user_id / API userId)
-      mergeGuestCart(getCartOwnerId(user));
+      // Step 6.6 (CP3): sebelum redirect (mock: mergeGuestCart; API: POST /cart/merge); gagal jaringan → pending
+      await syncCartAfterLogin(user);
 
       navigate(CUSTOMER_ROUTES.BERANDA, {
         replace: true,

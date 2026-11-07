@@ -26,6 +26,7 @@ import { orderPlacedNotice } from '../../constants/checkout';
 import { toOrderedLines } from '../../utils/rules/cart';
 import { CUSTOMER_ROUTES, buildPath } from '../../constants/routes';
 import { PAYMENT_OPTION } from '../../constants/orderStatus';
+import { flushCartSync } from '../../services/cartSync';
 
 const nextRoute = ({ order_number, payment_option }) =>
   buildPath(payment_option === PAYMENT_OPTION.PAY_AT_STORE ? CUSTOMER_ROUTES.PESANAN_BERHASIL : CUSTOMER_ROUTES.BAYAR, { orderNumber: order_number });
@@ -61,6 +62,9 @@ function NewOrderPayment({ ctx, cart, notify, onPlaced }) {
       // Hanya jumlah yang dipesan: tambahan jumlah & item lain dari tab lain selama checkout tetap di keranjang
       removeOrderedItems(orderedLines);
       resetCheckout();
+      // Step 6.6 (CP3): kirim keranjang yang sudah dikurangi ke server (mode API). Tidak pernah melempar dan tidak
+      // pernah mengirim ulang pesanan; gagal → tetap pending dan disinkronkan nanti.
+      await flushCartSync();
     } catch (e) {
       // M1: akun aktif sudah berbeda — pesanan milik akun sebelumnya, keranjang akun aktif tidak disentuh
       report(isCommittedForOtherSessionError(e) ? 'info' : 'error', e.message);

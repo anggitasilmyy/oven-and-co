@@ -104,7 +104,7 @@ test.beforeEach(() => {
 
 test('M1: POST pesanan berhasil, pengguna SAMA keluar-masuk lagi → hasil dipakai, halaman ditandai dipasang ulang', async () => {
   signIn(customer(1), 'jwt-A');
-  store.set('ovenco_mock_cart_1', JSON.stringify([line(1, 1), line(2, 2)]));
+  store.set('ovenco_api_cart_1', JSON.stringify([line(1, 1), line(2, 2)]));
   useCartStore.getState().loadCartForUser(customer(1));
   const report = createSessionBoundNotifier(() => {});
   scriptFetch([{ before: reLogin(customer(1), 'jwt-A2'), ...ORDER_OK }]);
@@ -117,14 +117,14 @@ test('M1: POST pesanan berhasil, pengguna SAMA keluar-masuk lagi → hasil dipak
   report('success', 'Pesanan dibuat');
   assert.equal(useNoticeStore.getState().notice.message, 'Pesanan dibuat');
   useCartStore.getState().removeItems([1, 2]);
-  assert.deepEqual(cartOf('ovenco_mock_cart_1'), []);
+  assert.deepEqual(cartOf('ovenco_api_cart_1'), []);
 });
 
 test('M1: POST pesanan berhasil, akun BERBEDA aktif → tidak ada detail untuk B, keranjang B utuh, item A yang dipesan dihapus', async () => {
   signIn(customer(1), 'jwt-A');
-  store.set('ovenco_mock_cart_1', JSON.stringify([line(1, 1), line(2, 2)]));
+  store.set('ovenco_api_cart_1', JSON.stringify([line(1, 1), line(2, 2)]));
   const cartB = JSON.stringify([line(9, 7)]);
-  store.set('ovenco_mock_cart_2', cartB);
+  store.set('ovenco_api_cart_2', cartB);
   useCartStore.getState().loadCartForUser(customer(1));
   // Yang dipesan hanya baris 1; baris 2 ditambahkan setelah checkout dimulai dan harus tetap ada
   const ordered = [useCartStore.getState().items[0]];
@@ -135,36 +135,36 @@ test('M1: POST pesanan berhasil, akun BERBEDA aktif → tidak ada detail untuk B
   assert.equal(isCommittedForOtherSessionError(error), true);
   assert.ok(!error.message.includes('OVC-'));
   assert.equal(calls.length, 1);
-  assert.equal(store.get('ovenco_mock_cart_2'), cartB);
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_2');
+  assert.equal(store.get('ovenco_api_cart_2'), cartB);
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_2');
   assert.deepEqual(useCartStore.getState().items.map((i) => i.cart_item_id), [9]);
-  assert.deepEqual(cartOf('ovenco_mock_cart_1').map((i) => i.cart_item_id), [2]);
+  assert.deepEqual(cartOf('ovenco_api_cart_1').map((i) => i.cart_item_id), [2]);
 });
 
 test('M1: POST pesanan berhasil, akun keluar (tanpa sesi) → COMMITTED, keranjang pemilik dirapikan, keranjang tamu utuh', async () => {
   signIn(customer(1), 'jwt-A');
-  store.set('ovenco_mock_cart_1', JSON.stringify([line(1, 1)]));
-  store.set('ovenco_mock_cart_guest', JSON.stringify([line(4, 3)]));
+  store.set('ovenco_api_cart_1', JSON.stringify([line(1, 1)]));
+  store.set('ovenco_api_cart_guest', JSON.stringify([line(4, 3)]));
   useCartStore.getState().loadCartForUser(customer(1));
   scriptFetch([{ before: () => store.delete(AUTH_PERSIST_KEY), ...ORDER_OK }]);
 
   await assert.rejects(createOrder(orderInput(useCartStore.getState().items)), COMMITTED);
-  assert.deepEqual(cartOf('ovenco_mock_cart_1'), []);
-  assert.deepEqual(cartOf('ovenco_mock_cart_guest').map((i) => i.cart_item_id), [4]);
+  assert.deepEqual(cartOf('ovenco_api_cart_1'), []);
+  assert.deepEqual(cartOf('ovenco_api_cart_guest').map((i) => i.cart_item_id), [4]);
 });
 
 test('M1: respons GAGAL tetap kegagalan — pengguna sama → error server; akun lain → CHANGED; keranjang tidak berubah', async () => {
   signIn(customer(1), 'jwt-A');
   const cartA = JSON.stringify([line(1, 1)]);
-  store.set('ovenco_mock_cart_1', cartA);
+  store.set('ovenco_api_cart_1', cartA);
   useCartStore.getState().loadCartForUser(customer(1));
   scriptFetch([{ before: reLogin(customer(1), 'jwt-A2'), status: 409, body: { message: 'Stok habis' } }]);
   await assert.rejects(createOrder(orderInput(useCartStore.getState().items)), { status: 409, message: 'Stok habis' });
-  assert.equal(store.get('ovenco_mock_cart_1'), cartA);
+  assert.equal(store.get('ovenco_api_cart_1'), cartA);
 
   scriptFetch([{ before: () => otherTabWrites(customer(2), 'jwt-B'), status: 409, body: { message: 'Stok habis' } }]);
-  await assert.rejects(createOrder(orderInput(cartOf('ovenco_mock_cart_1'))), CHANGED);
-  assert.equal(store.get('ovenco_mock_cart_1'), cartA);
+  await assert.rejects(createOrder(orderInput(cartOf('ovenco_api_cart_1'))), CHANGED);
+  assert.equal(store.get('ovenco_api_cart_1'), cartA);
 });
 
 test('M1: hasil tidak diketahui (jaringan putus / 401 token lama) → tidak pernah dikirim ulang otomatis', async () => {
@@ -193,7 +193,7 @@ test('M1: desain akun A tersimpan, pengguna SAMA keluar-masuk lagi → masuk ker
   }]);
   const result = await saveCustomCakeToCart(DESIGN, PRODUCT);
   assert.equal(result.target, DESIGN_CART_TARGET.ACTIVE);
-  assert.deepEqual(cartOf('ovenco_mock_cart_1').map((i) => i.design_id), ['71']);
+  assert.deepEqual(cartOf('ovenco_api_cart_1').map((i) => i.design_id), ['71']);
   assert.equal(calls.length, 1);
 });
 
@@ -204,7 +204,7 @@ test('M2: tab lain menulis desain ke keranjang X → event storage memuat ulang 
   useCartStore.getState().addItem({ product_id: 1, quantity: 1, name: 'Croissant', price: 28000 });
   otherTabCart.getState().addItemToOwnerCart('7', { product_id: 6, design_id: '90', quantity: 1, price: 1 });
 
-  deliverStorage('ovenco_mock_cart_7');
+  deliverStorage('ovenco_api_cart_7');
   assert.deepEqual(useCartStore.getState().items.map((i) => i.design_id), [null, '90']);
 });
 
@@ -219,7 +219,7 @@ test('M2: event belum tiba — ubah jumlah / hapus / tambah di tab ini TIDAK men
   useCartStore.getState().removeItem(bolu.cart_item_id);
   useCartStore.getState().addItem({ product_id: 3, quantity: 1, name: 'Tart', price: 50000 });
 
-  const saved = cartOf('ovenco_mock_cart_7');
+  const saved = cartOf('ovenco_api_cart_7');
   assert.deepEqual(saved.map((i) => [i.product_id, i.quantity]), [[1, 3], [6, 1], [3, 1]]);
   assert.equal(saved.filter((i) => i.design_id === '91').length, 1);
   assert.equal(new Set(saved.map((i) => i.cart_item_id)).size, saved.length);
@@ -228,15 +228,15 @@ test('M2: event belum tiba — ubah jumlah / hapus / tambah di tab ini TIDAK men
 test('M2: event untuk keranjang akun LAIN tidak mengganti keranjang aktif; muat ulang tidak menulis (tanpa loop)', () => {
   signIn(customer(7), 'jwt-X');
   useCartStore.getState().addItem({ product_id: 1, quantity: 1, name: 'Croissant', price: 28000 });
-  store.set('ovenco_mock_cart_8', JSON.stringify([line(5, 9)]));
+  store.set('ovenco_api_cart_8', JSON.stringify([line(5, 9)]));
 
-  deliverStorage('ovenco_mock_cart_8');
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_7');
+  deliverStorage('ovenco_api_cart_8');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_7');
   assert.deepEqual(useCartStore.getState().items.map((i) => i.product_id), [1]);
 
   const before = globalThis.localStorage.writes();
-  deliverStorage('ovenco_mock_cart_7');
-  deliverStorage('ovenco_mock_cart_7');
+  deliverStorage('ovenco_api_cart_7');
+  deliverStorage('ovenco_api_cart_7');
   assert.equal(globalThis.localStorage.writes(), before);
 });
 
@@ -245,18 +245,18 @@ test('M2: desain idempoten antar-tab — tab ini yang belum sinkron tidak membua
   const item = { product_id: 6, design_id: '92', quantity: 1, price: 1 };
   otherTabCart.getState().addItemToOwnerCart('7', item);
   assert.equal(useCartStore.getState().addItemToOwnerCart('7', item), true);
-  assert.equal(cartOf('ovenco_mock_cart_7').length, 1);
+  assert.equal(cartOf('ovenco_api_cart_7').length, 1);
 });
 
 test('M2: gabung keranjang tamu saat login tetap berjalan, lalu tab lain melihat hasil gabungan lewat event', () => {
   useCartStore.getState().addItem({ product_id: 1, quantity: 2, name: 'Croissant', price: 28000 });
-  store.set('ovenco_mock_cart_7', JSON.stringify([line(1, 4)]));
+  store.set('ovenco_api_cart_7', JSON.stringify([line(1, 4)]));
   // Tab lain sudah aktif sebagai X dengan isi lama
   otherTabCart.getState().loadUserCart('7');
 
   useAuthStore.getState().setAuth(customer(7), 'jwt-X');
   useCartStore.getState().mergeGuestCart('7');
-  assert.equal(store.has('ovenco_mock_cart_guest'), false);
+  assert.equal(store.has('ovenco_api_cart_guest'), false);
   assert.deepEqual(useCartStore.getState().items.map((i) => i.product_id).sort(), [1, 4]);
 
   // Tab lain menerima event → isinya sama dengan hasil gabung, tanpa duplikasi

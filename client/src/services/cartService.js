@@ -2,7 +2,7 @@
 // Step 5.3 · FR-11 · FR-04 · C-12 Keranjang — tampilan keranjang dengan harga, stok, dan tanggal siap terbaru.
 // Isi keranjang tetap disimpan useCartStore (tamu & pelanggan); service ini hanya memperkaya datanya.
 // Step 6.3 · FR-04 · BR-04: keranjang AKUN tersimpan di server (GET/PUT /api/cart/items, POST /api/cart/merge).
-// Keranjang tamu tetap di localStorage. useCartStore BELUM memanggil fungsi ini (disambungkan di Step 6.6).
+// Keranjang tamu tetap di localStorage. Step 6.6 (CP3): dipanggil engine sinkronisasi services/cartSync (mode API).
 
 import { apiClient } from './apiClient';
 import { getMockTodayKey } from './mock/mockClock';
@@ -71,12 +71,14 @@ export function getSavedCart() {
  * Ganti seluruh isi keranjang akun. Server mengembalikan baris yang tidak bisa disimpan di `skipped`
  * (produk/varian tidak ada, desain bukan milik pelanggan).
  * @param {Array} items — item useCartStore
+ * @param {{reconcileOwner?: Function}} [options] — Step 6.6 (CP3): hasil yang sudah di-commit saat sesi berganti
  * @returns {Promise<{items: Array, skipped: Array}>}
  */
-export function saveCart(items) {
+export function saveCart(items, { reconcileOwner } = {}) {
   return apiClient('/cart/items', {
     method: 'PUT',
     body: { items },
+    reconcileOwner,
     mockHandler: () => {
       const key = mockAccountCartKey();
       writeStoredCart(key, mergeCartItems([], items));
@@ -89,12 +91,14 @@ export function saveCart(items) {
  * FR-04: gabungkan keranjang tamu ke keranjang akun saat login. design_token item tamu dipakai server untuk
  * mengklaim desain custom cake tamu (mode mock tidak memeriksa token — lihat ROADMAP 6.3).
  * @param {Array} guestItems — item keranjang tamu (localStorage)
+ * @param {{reconcileOwner?: Function}} [options] — Step 6.6 (CP3): hasil yang sudah di-commit saat sesi berganti
  * @returns {Promise<{items: Array, skipped: Array}>}
  */
-export function mergeGuestCartToAccount(guestItems) {
+export function mergeGuestCartToAccount(guestItems, { reconcileOwner } = {}) {
   return apiClient('/cart/merge', {
     method: 'POST',
     body: { items: guestItems },
+    reconcileOwner,
     mockHandler: () => {
       const key = mockAccountCartKey();
       writeStoredCart(key, mergeCartItems(readStoredCart(key), guestItems));
