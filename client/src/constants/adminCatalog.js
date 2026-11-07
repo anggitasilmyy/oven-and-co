@@ -36,6 +36,12 @@ export const PRODUCT_FIELD_MAX = {
 export const MAX_PRICE = 9_999_999_999.99;
 export const MAX_MATERIAL_QTY = 99_999_999.99;
 
+/** Step 6.6 (CP6 · G7): koreksi stok bahan basi/tanpa stok awal form — pesan sama dengan server adminRawMaterial.service.js */
+export const MATERIAL_STOCK_MESSAGE = {
+  requiredMessage: 'Koreksi stok wajib menyertakan stok awal form (expected_stock). Muat ulang data lalu ulangi koreksi stok.',
+  changedMessage: 'Stok bahan sudah berubah (ada stok masuk atau perubahan lain). Muat ulang data lalu ulangi koreksi stok.',
+};
+
 /** Label tipe produk di tabel & form (UI/UX Spec Batch 7: Ready / Pre-order H-1 / Custom H-3) */
 export const AVAILABILITY_TYPE_LABEL = {
   [AVAILABILITY_TYPE.READY]: 'Ready',

@@ -47,6 +47,9 @@ export const CLIENT_REQUEST_ERROR_CODE = {
 
 /** Status error untuk kegagalan tanpa respons HTTP (sama dengan konvensi XMLHttpRequest.status) */
 export const NETWORK_ERROR_STATUS = 0;
+/** Step 6.6 (CP6): status HTTP validasi (400) & data berubah sejak form dibuka (409) — dipakai form admin & mock */
+export const HTTP_STATUS_BAD_REQUEST = 400;
+export const HTTP_STATUS_CONFLICT = 409;
 
 export const NETWORK_ERROR_MESSAGE = 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda dan coba kembali.';
 

@@ -29,3 +29,5 @@ export * from './rules/report';
 export * from './rules/adminPromo';
 export * from './rules/adminCustomer';
 export * from './rules/settings';
+// Step 6.6 (CP6): aturan nilai awal form (expected_stock AD-07 & expected_quota AD-09)
+export * from './rules/expectedValue';

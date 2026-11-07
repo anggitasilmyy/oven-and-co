@@ -1415,6 +1415,44 @@ Catatan khusus:
     44/44, CP3 browser 17/17, smoke API 55/55, e2e mock `step-5.1`–`5.8` lulus semua.
   - Keterbatasan yang tetap: foto dikompres ke JPEG di browser sebelum diunggah (perilaku lama); file unggahan yatim saat
     simpan gagal tidak dibersihkan (server, di luar CP5); alur unggah foto ulasan pelanggan tidak diubah.
+  **CP6 — kontrak form admin (G7, G8, G13, G17 · FR-32 · FR-34 · FR-36 · BR-10 · AD-07 · AD-09 · AD-11): selesai.** Tanpa
+  perubahan backend, schema, migrasi, kontrak API, atau dependensi; `useProductForm` & `DailyStockEditor` tidak diubah.
+  Kontrak aktual server: `expected_stock` milik form **Bahan Baku** AD-07 (`PUT /api/admin/raw-materials/:id`) dan
+  `expected_quota` milik **sisa kuota voucher** AD-09 (`PUT /api/admin/vouchers/:id`) — tidak ada kuota produk.
+  - **G7 (diperbaiki):** `RawMaterialFormModal` mode ubah mengirim stok form tanpa `expected_stock` → koreksi stok selalu
+    400; edit nama/satuan ditolak bila sejak form dibuka ada stok masuk. Kini mengirim `expected_stock` = stok saat form
+    dibuka (`withExpectedValue`, `utils/rules/expectedValue.js`); POST tanpa expected.
+  - **G8 (diperbaiki):** `VoucherFormModal` mode ubah tidak mengirim `expected_quota` → ubah kuota selalu 400; edit judul
+    ditolak bila kuota berubah karena checkout/pembatalan. Kini mengirim `expected_quota` = kuota saat form dibuka.
+  - **Mock = API:** `saveRawMaterial` & `saveAdminVoucher` memakai `resolveExpectedUpdate` (port `resolveStockUpdate` /
+    `resolveQuotaUpdate` server): nilai = awal form atau = database → kolom tidak ditulis (stok masuk / pemakaian sejak form
+    dibuka utuh); nilai berubah tanpa expected → 400; expected basi → 409; pesan & `fieldErrors.stock` / `.quota` sama
+    dengan server (`MATERIAL_STOCK_MESSAGE`, `VOUCHER_QUOTA_MESSAGE`; status `HTTP_STATUS_BAD_REQUEST/CONFLICT`). Dulu mock
+    selalu menimpa nilai absolut.
+  - **Konflik 409:** pesan tampil di field (Stok saat ini / Sisa kuota) + pesan umum; papan bahan baku / voucher dimuat
+    ulang (`onConflict`), sehingga form yang dibuka ulang memakai nilai terbaru.
+  - **G17 (diperbaiki):** `validateVoucher` (`utils/rules/adminPromo.js`) membandingkan `p.product_id === Number(id)`;
+    API mengirim id produk string → voucher khusus produk selalu "Produk tidak ditemukan" (tidak bisa dibuat/diubah, termasuk
+    edit judul WEEKEND15/CROISSANT20). Kini dibandingkan sebagai string; id angka (mock) tetap didukung; voucher umum tetap.
+  - **G13 (diperbaiki):** form voucher, bahan baku, dan staf hanya menampilkan `err.message`. Kini `fieldErrors` server/mock
+    tampil di field terkait (pola `useProductForm`), hilang saat field diubah; pesan umum tetap tampil (termasuk error
+    tanpa field).
+  - File: `components/admin/{RawMaterialFormModal,VoucherFormModal,AdminAccountFormModal,RawMaterialPanel}.jsx`,
+    `pages/admin/{StokPage,PromoPage}.jsx`, `services/mock/{stockAdmin,promoAdmin}.js`, `utils/rules/{expectedValue (baru),
+    adminPromo}.js`, `utils/businessRules.js`, `constants/{adminCatalog,adminPromo,apiErrors}.js`; uji baru
+    `tests/unit/adminFormContracts.test.mjs` (9, mode API) & `adminFormContractsMock.test.mjs` (8, mode mock).
+  - Uji: client unit 266/266 (+17); build ok; lint 0 error/2 warning (`Toast.jsx`). Browser mode API + MySQL uji (seed
+    baru), 390 & 1440 px: suite CP6 21/21 per lebar — edit nama bahan + stok masuk bersamaan (expected_stock dikirim, stok
+    masuk utuh), koreksi basi → 409 di field + muat ulang, buka ulang → koreksi tersimpan; nama bahan ganda → 400 di field;
+    edit voucher khusus produk + pemakaian bersamaan (expected_quota, kuota utuh), ubah kuota basi → 409 di field + muat
+    ulang, buka ulang → tersimpan; buat voucher khusus produk & umum → 201; kode ganda → 400 di field; staf dengan email
+    pelanggan → 400 di field Email, hilang saat diubah, lalu 201; 0 error halaman. Bukti G17 sebelum perbaikan: versi HEAD
+    `validateVoucher` dengan produk id string → "Produk tidak ditemukan". Mock browser 7/7 per lebar (aturan expected,
+    konflik, G17, fieldErrors staf; 0 request API). Regresi e2e mock `step-5.7` 90/90 & `step-5.8` 67/67.
+  - Keterbatasan yang tetap: form ubah yang tetap terbuka setelah 409 masih memakai nilai awal lama (pesan meminta
+    memuat ulang; buka ulang form memakai data terbaru); edit informasi yang mengirim kembali nilai awal tidak pernah
+    menimpa stok/kuota (desain server); cek email/HP ganda form staf tetap hanya terhadap akun admin di sisi form (server
+    memeriksa semua pengguna dan error-nya kini tampil di field).
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

@@ -10,7 +10,9 @@ import {
   normalizeVoucherInput, validateVoucher, getAdminVoucherStatus, countVoucherUsage,
   normalizeLoyaltyInput, validateLoyaltyRules,
 } from '../../utils/businessRules';
-import { LOYALTY_FIELDS } from '../../constants/adminPromo';
+import { LOYALTY_FIELDS, VOUCHER_QUOTA_MESSAGE } from '../../constants/adminPromo';
+import { resolveExpectedUpdate } from '../../utils/rules/expectedValue';
+import { createApiError } from '../../utils/apiErrors';
 
 const fail = (message) => { throw new Error(message); };
 const invalid = (errors) => Object.assign(new Error(Object.values(errors)[0]), { fieldErrors: errors });
@@ -41,7 +43,15 @@ export function saveAdminVoucher(voucherId, input) {
   const v = normalizeVoucherInput(input);
   const errors = validateVoucher(v, { vouchers: t.vouchers, voucherId: existing?.voucher_id ?? null, products: t.products });
   if (Object.keys(errors).length) throw invalid(errors);
-  const row = { voucher_id: existing?.voucher_id ?? nextUserRowId(t.vouchers, 'voucher_id'), ...v };
+  // Step 6.6 (CP6 · G8): ubah → aturan expected_quota sama dengan API (400/409 + fieldErrors.quota); kuota tidak
+  // ditimpa bila tidak diubah, sehingga pemakaian/pembatalan sejak form dibuka tetap utuh
+  let quota = v.quota;
+  if (existing) {
+    const check = resolveExpectedUpdate(v.quota, input.expected_quota, existing.quota, VOUCHER_QUOTA_MESSAGE);
+    if (check.status) throw createApiError(check.message, check.status, undefined, { fieldErrors: { quota: check.message } });
+    if (!check.write) quota = existing.quota;
+  }
+  const row = { voucher_id: existing?.voucher_id ?? nextUserRowId(t.vouchers, 'voucher_id'), ...v, quota };
   updateTable('vouchers', (rows) => (existing ? rows.map((x) => (x.voucher_id === row.voucher_id ? row : x)) : [...rows, row]));
   return row;
 }

@@ -1,6 +1,8 @@
 // components/admin/VoucherFormModal.jsx
 // Step 5.8 · FR-34 · BR-10 · AD-09 — form buat/ubah voucher (SPEC §8 vouchers) dengan validasi inline
 // "Kuota" = sisa pemakaian (berkurang saat voucher dipakai di checkout, kembali bila pesanan dibatalkan).
+// Step 6.6 (CP6 · G8 · G13): ubah mengirim `expected_quota` = kuota saat form dibuka (pemakaian sejak itu tidak tertimpa);
+// fieldErrors server tampil di field; 409 (kuota sudah berubah) → onConflict memuat ulang papan voucher.
 
 import { useState } from 'react';
 import Modal from '../ui/Modal';
@@ -9,18 +11,20 @@ import Switch from '../ui/Switch';
 import FormError from '../ui/FormError';
 import FormField from './FormField';
 import { fieldClass } from './fieldClass';
-import { normalizeVoucherInput, validateVoucher } from '../../utils/businessRules';
+import { normalizeVoucherInput, validateVoucher, withExpectedValue } from '../../utils/businessRules';
 import { saveVoucher } from '../../services/adminPromoService';
 import { DISCOUNT_TYPE, DISCOUNT_TYPE_LABEL, VOUCHER_FIELD_MAX } from '../../constants/adminPromo';
 import { addDaysToKey } from '../../utils/date';
+import { HTTP_STATUS_CONFLICT } from '../../constants/apiErrors';
 
 /**
  * @param {object|null} voucher — null = voucher baru
  * @param {{todayKey, rows, products}} board — data tabel voucher (cek kode ganda & pilihan produk)
  * @param {Function} onClose
  * @param {Function} onSaved — (message) → void
+ * @param {Function} [onConflict] — dipanggil saat 409 (kuota berubah sejak form dibuka) agar papan dimuat ulang
  */
-export default function VoucherFormModal({ voucher, board, onClose, onSaved }) {
+export default function VoucherFormModal({ voucher, board, onClose, onSaved, onConflict }) {
   const [values, setValues] = useState(() => ({
     code: voucher?.code ?? '', title: voucher?.title ?? '', discount_type: voucher?.discount_type ?? DISCOUNT_TYPE.PERCENT,
     discount_value: voucher ? String(voucher.discount_value) : '', product_id: voucher?.product_id != null ? String(voucher.product_id) : '',
@@ -30,13 +34,14 @@ export default function VoucherFormModal({ voucher, board, onClose, onSaved }) {
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [serverErrors, setServerErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
   const errors = validateVoucher(normalizeVoucherInput(values), {
     vouchers: board.rows, voucherId: voucher?.voucher_id ?? null, products: board.products,
   });
-  const errorOf = (f) => ((submitted || touched[f]) ? errors[f] : undefined);
-  const set = (f, v) => { setValues((x) => ({ ...x, [f]: v })); setError(''); };
+  const errorOf = (f) => serverErrors[f] || ((submitted || touched[f]) ? errors[f] : undefined);
+  const set = (f, v) => { setValues((x) => ({ ...x, [f]: v })); setError(''); setServerErrors((s) => ({ ...s, [f]: undefined })); };
   const bind = (f) => ({ value: values[f], onChange: (e) => set(f, e.target.value), onBlur: () => setTouched((t) => ({ ...t, [f]: true })) });
   const products = board.products.filter((p) => p.is_active || String(p.product_id) === values.product_id);
   const isPercent = values.discount_type === DISCOUNT_TYPE.PERCENT;
@@ -47,11 +52,14 @@ export default function VoucherFormModal({ voucher, board, onClose, onSaved }) {
     if (Object.keys(errors).length) return;
     setSaving(true);
     try {
-      const saved = await saveVoucher(voucher?.voucher_id ?? null, values);
+      // Ubah: kuota awal form ikut dikirim (kuota hanya ditulis bila diubah dan belum berubah sejak form dibuka)
+      const saved = await saveVoucher(voucher?.voucher_id ?? null, withExpectedValue(values, voucher, 'quota', 'expected_quota'));
       onSaved(`Voucher ${saved.code} ${voucher ? 'disimpan' : 'dibuat'}`);
     } catch (err) {
+      setServerErrors(err.fieldErrors ?? {});
       setError(err.message);
       setSaving(false);
+      if (err.status === HTTP_STATUS_CONFLICT) onConflict?.();
     }
   };
 

@@ -16,6 +16,12 @@ export const VOUCHER_CODE_PATTERN = /^[A-Z0-9]+$/;
 export const VOUCHER_MAX_QUOTA = 100_000;
 export const VOUCHER_MAX_PERCENT = 100;
 
+/** Step 6.6 (CP6 · G8): ubah kuota basi/tanpa kuota awal form — pesan sama dengan server adminPromoRules.service.js */
+export const VOUCHER_QUOTA_MESSAGE = {
+  requiredMessage: 'Perubahan kuota wajib menyertakan kuota awal form (expected_quota). Muat ulang data lalu ulangi perubahan kuota.',
+  changedMessage: 'Kuota voucher sudah berubah (ada pemakaian atau pembatalan pesanan). Muat ulang data lalu ulangi perubahan kuota.',
+};
+
 /** vouchers.discount_type (SPEC §8) */
 export const DISCOUNT_TYPE = { PERCENT: 'percent', AMOUNT: 'amount' };
 export const DISCOUNT_TYPE_LABEL = {

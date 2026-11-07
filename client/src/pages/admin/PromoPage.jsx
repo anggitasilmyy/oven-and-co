@@ -74,6 +74,7 @@ export default function PromoPage() {
           board={vouchers.data}
           onClose={() => setEditing(null)}
           onSaved={(message) => { showToast('success', message); setEditing(null); vouchers.reload(); }}
+          onConflict={vouchers.reload}
         />
       )}
       <Toast {...toast} onClose={hideToast} />

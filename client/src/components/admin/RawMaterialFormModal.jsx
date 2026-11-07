@@ -1,6 +1,8 @@
 // components/admin/RawMaterialFormModal.jsx
 // Step 5.7 · FR-32 · AD-07 — modal tambah/ubah bahan baku (raw_materials: name, unit, stock, min_stock)
 // Stok tidak boleh negatif; peringatan tampil bila stok ≤ batas minimum (validation rule Stok).
+// Step 6.6 (CP6 · G7 · G13): ubah mengirim `expected_stock` = stok saat form dibuka (stok masuk sejak itu tidak tertimpa);
+// fieldErrors server tampil di field; 409 (stok sudah berubah) → onConflict memuat ulang data bahan.
 
 import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
@@ -9,9 +11,10 @@ import Button from '../ui/Button';
 import FormError from '../ui/FormError';
 import FormField from './FormField';
 import { fieldClass } from './fieldClass';
-import { validateMaterial, isLowStock } from '../../utils/businessRules';
+import { validateMaterial, isLowStock, withExpectedValue } from '../../utils/businessRules';
 import { saveMaterial } from '../../services/stockService';
 import { PRODUCT_FIELD_MAX, MAX_MATERIAL_QTY, MATERIAL_UNIT_SUGGESTIONS } from '../../constants/adminCatalog';
+import { HTTP_STATUS_CONFLICT } from '../../constants/apiErrors';
 
 const LIMITS = { nameMax: PRODUCT_FIELD_MAX.materialName, unitMax: PRODUCT_FIELD_MAX.materialUnit, qtyMax: MAX_MATERIAL_QTY };
 
@@ -20,8 +23,9 @@ const LIMITS = { nameMax: PRODUCT_FIELD_MAX.materialName, unitMax: PRODUCT_FIELD
  * @param {Array} materials — semua bahan (cek nama ganda)
  * @param {Function} onClose
  * @param {Function} onSaved — (message) → void
+ * @param {Function} [onConflict] — dipanggil saat 409 (stok berubah sejak form dibuka) agar data dimuat ulang
  */
-export default function RawMaterialFormModal({ material, materials, onClose, onSaved }) {
+export default function RawMaterialFormModal({ material, materials, onClose, onSaved, onConflict }) {
   const [values, setValues] = useState({
     name: material?.name ?? '', unit: material?.unit ?? '',
     stock: material ? String(material.stock) : '', min_stock: material ? String(material.min_stock) : '',
@@ -29,13 +33,14 @@ export default function RawMaterialFormModal({ material, materials, onClose, onS
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [serverErrors, setServerErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
   const errors = validateMaterial(values, materials, material?.material_id ?? null, LIMITS);
-  const errorOf = (f) => ((submitted || touched[f]) ? errors[f] : undefined);
+  const errorOf = (f) => serverErrors[f] || ((submitted || touched[f]) ? errors[f] : undefined);
   const bind = (f) => ({
     value: values[f],
-    onChange: (e) => { setValues((v) => ({ ...v, [f]: e.target.value })); setError(''); },
+    onChange: (e) => { setValues((v) => ({ ...v, [f]: e.target.value })); setError(''); setServerErrors((s) => ({ ...s, [f]: undefined })); },
     onBlur: () => setTouched((t) => ({ ...t, [f]: true })),
   });
   const showLowWarning = !errors.stock && !errors.min_stock && isLowStock({ stock: values.stock, min_stock: values.min_stock });
@@ -46,11 +51,14 @@ export default function RawMaterialFormModal({ material, materials, onClose, onS
     if (Object.keys(errors).length) return;
     setSaving(true);
     try {
-      const saved = await saveMaterial(material?.material_id ?? null, values);
+      // Ubah: stok awal form ikut dikirim (server/mock hanya menulis stok bila dikoreksi dan stok belum berubah)
+      const saved = await saveMaterial(material?.material_id ?? null, withExpectedValue(values, material, 'stock', 'expected_stock'));
       onSaved(`${saved.name} ${material ? 'diperbarui' : 'ditambahkan'}`);
     } catch (err) {
+      setServerErrors(err.fieldErrors ?? {});
       setError(err.message);
       setSaving(false);
+      if (err.status === HTTP_STATUS_CONFLICT) onConflict?.();
     }
   };
 
