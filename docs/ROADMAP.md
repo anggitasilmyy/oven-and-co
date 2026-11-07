@@ -1390,6 +1390,31 @@ Catatan khusus:
     CP2 mock 39/39 per lebar.
   - Keterbatasan yang tetap: keranjang server setelah checkout saat paused (CP3); tampilan jam mengikuti zona perangkat
     (G12, CP7).
+  **CP5 — foto produk & unggahan (G5, G6 · FR-30 · FR-05 · FR-06 · FR-35 · AD-06 · AD-10 · C-04 · C-05 · C-10): selesai.**
+  Tanpa perubahan backend, schema, migrasi, kontrak API, atau dependensi; batas 5 foto tetap; mode mock tidak berubah.
+  - **Bug G5 (diperbaiki):** AD-06 mode API mengirim JSON dengan foto baru sebagai data URL di `image_url` → server
+    400 "Foto baru harus diunggah sebagai file, bukan data URL." dan foto tidak tersimpan. Perbaikan di
+    `services/adminProductService.js` (`toProductRequestBody`, hanya mode API): foto tersimpan → `{ image_id }`; foto baru
+    (data URL hasil kompresi yang sudah ada) → `dataUrlToBlob` → file `photos` + `{ file_index: n }`, data lain sebagai
+    string JSON `product` (multipart sesuai kontrak server); urutan = `sort_order`. Tanpa foto baru (termasuk hapus foto
+    / `photos: []`) tetap JSON; `photos` tidak dikirim → body apa adanya; data URL tak terbaca → "Foto produk tidak bisa
+    dibaca. Pilih ulang foto." tanpa request. `saveProduct` menjadi `async` (error → promise ditolak).
+  - **Bug G6 (diperbaiki):** path unggahan `/uploads/products/…` dimuat dari origin frontend (Vite menjawab `text/html`)
+    → placeholder di katalog/detail/keranjang/admin. `ProductImage` dan foto ulasan `AdminReviewCard` kini memakai
+    `toUploadUrl` (origin API); `/images/…`, data URL, dan URL absolut apa adanya. Pemeriksaan tambahan srcSet: tidak ada
+    bug — `productImageSrcSet` hanya membuat srcset untuk `/images/products/*.webp`, sehingga foto unggahan (termasuk
+    `.webp`) tidak punya kandidat srcset relatif; dikunci regression test `productImageUrls.test.mjs`.
+  - Uji: client unit 249/249 (+11: `adminProductPhotos` 7 mode API, `adminProductPhotosMock` 1, `productImageUrls` 3);
+    server 707/707; build ok; lint 0 error/2 warning (`Toast.jsx`). Browser mode API + MySQL uji, 390 & 1440 px: suite
+    CP5 15/15 per lebar (1 foto multipart 200 & tersaji dari API, 2 foto sekaligus, total 5, form "(5/5)" menolak foto
+    ke-6 tanpa request, edit foto lama + baru & jadikan utama, file yang dilepas 404, hapus foto JSON → 4, tampil dari
+    origin API di daftar admin, kartu katalog, galeri detail, keranjang, foto ulasan AD-10 & C-10; aset `/images` tetap
+    dari origin frontend; 0 error halaman); server menolak 6 file → 400 "Maksimal 5 foto". Audit srcSet (termasuk foto
+    unggahan `.webp` sementara): 29 gambar unggahan, 0 dengan srcset, 0 request `/uploads/` ke origin Vite, 43/43 gambar
+    lokal tetap ber-srcset. Mock: foto tersimpan sebagai data URL & tampil, 0 request API. Regresi: CP2 mock 39/39 & API
+    44/44, CP3 browser 17/17, smoke API 55/55, e2e mock `step-5.1`–`5.8` lulus semua.
+  - Keterbatasan yang tetap: foto dikompres ke JPEG di browser sebelum diunggah (perilaku lama); file unggahan yatim saat
+    simpan gagal tidak dibersihkan (server, di luar CP5); alur unggah foto ulasan pelanggan tidak diubah.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.
