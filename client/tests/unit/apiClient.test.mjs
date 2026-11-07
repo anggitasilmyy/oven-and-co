@@ -82,20 +82,20 @@ test('sesi kedaluwarsa pada endpoint akun: sesi dihapus, TIDAK diulang, pesan & 
   assert.equal(calls.length, 1);
   assert.equal(useAuthStore.getState().token, null);
   assert.equal(useAuthStore.getState().sessionExpired, true);
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
 });
 
 test('keranjang (POST /cart) TIDAK memakai fallback tamu: body keranjang akun tidak dikirim ulang sebagai tamu', async () => {
   login();
   useCartStore.getState().addItem({ product_id: 1, quantity: 3, name: 'Croissant', price: 28000 });
-  const accountCart = localStorage.getItem('ovenco_mock_cart_1');
+  const accountCart = localStorage.getItem('ovenco_api_cart_1');
   responses = [SESSION_INVALID];
 
   await assert.rejects(apiClient('/cart', { method: 'POST', body: { items: useCartStore.getState().items } }), EXPIRED);
   assert.equal(calls.length, 1);
   // Store pindah ke keranjang tamu; keranjang akun tetap utuh di perangkat untuk login berikutnya
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
-  assert.equal(localStorage.getItem('ovenco_mock_cart_1'), accountCart);
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
+  assert.equal(localStorage.getItem('ovenco_api_cart_1'), accountCart);
 });
 
 test('operasi ber-guestFallback (desain custom cake): diulang SEKALI tanpa token; ulangan tidak pernah lebih dari satu', async () => {
@@ -172,4 +172,186 @@ test('body FormData dikirim apa adanya tanpa Content-Type JSON (boundary diatur 
 
   assert.equal(calls[0].init.body, form);
   assert.equal(calls[0].init.headers['Content-Type'], undefined);
+});
+
+// ── Step 6.6 (CP1) · G3 fieldErrors & G4 gangguan jaringan / respons tak terbaca ─────────────────────────────────
+
+const {
+  CLIENT_REQUEST_ERROR_CODE, NETWORK_ERROR_STATUS, NETWORK_ERROR_MESSAGE, INVALID_RESPONSE_MESSAGE,
+} = await import('../../src/constants/apiErrors.js');
+const { createApiError, isNetworkError, isSessionError, isAbortError } = await import('../../src/utils/apiErrors.js');
+const { saveProduct } = await import('../../src/services/adminProductService.js');
+
+const PRODUCT_FIELD_ERRORS = { name: 'Nama produk wajib diisi.', price: 'Harga harus lebih dari 0.', 'variants[0]': 'Nama varian wajib diisi.' };
+
+test('CP1 #1: 400 dari server meneruskan message, status, code, dan fieldErrors apa adanya', async () => {
+  responses = [{ status: 400, body: { status: 'error', message: 'Nama produk wajib diisi.', fieldErrors: PRODUCT_FIELD_ERRORS } }];
+  const error = await apiClient('/admin/products', { method: 'POST', body: {} }).catch((e) => e);
+  assert.equal(error.status, 400);
+  assert.equal(error.message, 'Nama produk wajib diisi.');
+  assert.deepEqual(error.fieldErrors, PRODUCT_FIELD_ERRORS);
+  assert.equal(error.code, undefined);
+});
+
+test('CP1 #2: pemanggil (service form AD-06) membaca error per field dari err.fieldErrors', async () => {
+  useAuthStore.getState().setAuth({ userId: '2', role: 'staf' }, 'jwt-staf');
+  responses = [{ status: 400, body: { status: 'error', message: 'Harga harus lebih dari 0.', fieldErrors: { price: 'Harga harus lebih dari 0.' } } }];
+  // Pola sama dengan hooks/useProductForm: setServerErrors(err.fieldErrors ?? {})
+  const error = await saveProduct(7, { name: 'Croissant', price: '0' }).catch((e) => e);
+  assert.equal(calls[0].init.method, 'PUT');
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer jwt-staf');
+  assert.deepEqual(error.fieldErrors ?? {}, { price: 'Harga harus lebih dari 0.' });
+});
+
+test('CP1: error tanpa fieldErrors / fieldErrors bukan objek → tidak ada properti fieldErrors (form memakai ?? {})', async () => {
+  responses = [
+    { status: 400, body: { status: 'error', message: 'Format data JSON tidak valid.' } },
+    { status: 400, body: { status: 'error', message: 'x', fieldErrors: ['bukan', 'peta'] } },
+  ];
+  assert.equal((await apiClient('/admin/products', { method: 'POST', body: {} }).catch((e) => e)).fieldErrors, undefined);
+  assert.equal((await apiClient('/admin/products', { method: 'POST', body: {} }).catch((e) => e)).fieldErrors, undefined);
+  // createApiError tetap kompatibel dengan pemanggil lama (3 argumen)
+  const legacy = createApiError('pesan', 404, 'KODE');
+  assert.deepEqual([legacy.message, legacy.status, legacy.code, legacy.fieldErrors], ['pesan', 404, 'KODE', undefined]);
+});
+
+test('CP1 #3 & #4: server mati / koneksi ditolak / CORS → pesan Indonesia, status 0, kode jaringan, penyebab asli di cause', async () => {
+  login();
+  const original = new TypeError('Failed to fetch');
+  globalThis.fetch = async (url, init) => { calls.push({ url, init }); throw original; };
+
+  const error = await apiClient('/me/points').catch((e) => e);
+  assert.equal(error.message, NETWORK_ERROR_MESSAGE);
+  assert.equal(error.message, 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda dan coba kembali.');
+  assert.doesNotMatch(error.message, /Failed to fetch|TypeError/);
+  assert.equal(error.status, NETWORK_ERROR_STATUS);
+  assert.equal(error.status, 0);
+  assert.equal(error.code, CLIENT_REQUEST_ERROR_CODE.NETWORK_ERROR);
+  assert.equal(error.cause, original);
+  assert.equal(isNetworkError(error), true);
+  // Bukan error sesi: data yang tampil tidak dibuang (useServiceQuery), sesi & keranjang akun tetap
+  assert.equal(isSessionError(error), false);
+  assert.equal(useAuthStore.getState().token, 'jwt-lama');
+  assert.equal(useAuthStore.getState().sessionExpired, false);
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_1');
+  // Mutasi juga tidak dikirim ulang otomatis
+  calls.length = 0;
+  await assert.rejects(apiClient('/orders', { method: 'POST', body: {} }), { code: CLIENT_REQUEST_ERROR_CODE.NETWORK_ERROR });
+  assert.equal(calls.length, 1);
+});
+
+test('CP1: AbortError (request dibatalkan pemanggil) diteruskan apa adanya, TIDAK diklasifikasi sebagai error jaringan', async () => {
+  const abort = new DOMException('The operation was aborted.', 'AbortError');
+  globalThis.fetch = async () => { throw abort; };
+  const error = await apiClient('/products').catch((e) => e);
+  assert.equal(error, abort);
+  assert.equal(isAbortError(error), true);
+  assert.equal(isNetworkError(error), false);
+});
+
+test('CP1 #5: respons non-JSON (mis. HTML 502 proxy) → pesan Indonesia, status HTTP asli, kode respons tak terbaca', async () => {
+  globalThis.fetch = async () => ({
+    ok: false, status: 502, json: async () => { throw new SyntaxError('Unexpected token < in JSON at position 0'); },
+  });
+  const error = await apiClient('/products').catch((e) => e);
+  assert.equal(error.message, INVALID_RESPONSE_MESSAGE);
+  assert.doesNotMatch(error.message, /Unexpected token|SyntaxError/);
+  assert.equal(error.status, 502);
+  assert.equal(error.code, CLIENT_REQUEST_ERROR_CODE.INVALID_RESPONSE);
+});
+
+test('CP1 #5: 2xx dengan body tak terbaca / JSON bukan objek tidak dianggap sukses kosong', async () => {
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected end of JSON input'); } });
+  await assert.rejects(apiClient('/products'), { status: 200, code: CLIENT_REQUEST_ERROR_CODE.INVALID_RESPONSE, message: INVALID_RESPONSE_MESSAGE });
+  globalThis.fetch = async () => ({ ok: false, status: 500, json: async () => null });
+  await assert.rejects(apiClient('/products'), { status: 500, code: CLIENT_REQUEST_ERROR_CODE.INVALID_RESPONSE });
+});
+
+test('CP1 #6: 401 SESSION_INVALID tetap memicu mekanisme sesi (hapus sesi, notifikasi) — tanpa fieldErrors', async () => {
+  login();
+  responses = [SESSION_INVALID];
+  const error = await apiClient('/me/points').catch((e) => e);
+  assert.equal(error.status, 401);
+  assert.equal(error.code, CLIENT_ERROR_CODE.SESSION_EXPIRED);
+  assert.equal(error.message, SESSION_EXPIRED_MESSAGE);
+  assert.equal(useAuthStore.getState().token, null);
+  assert.equal(useAuthStore.getState().sessionExpired, true);
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
+});
+
+test('CP1 #7 & #8: 403 & 404 tidak berubah; 409 mempertahankan pesan, kode, dan fieldErrors backend', async () => {
+  login();
+  responses = [
+    { status: 403, body: { status: 'error', message: 'Anda tidak memiliki izin.' } },
+    { status: 404, body: { status: 'error', message: 'Produk tidak ditemukan.' } },
+    { status: 409, body: { status: 'error', message: 'Stok sudah berubah. Muat ulang data.', fieldErrors: { stock: 'Stok sudah berubah.' } } },
+  ];
+  await assert.rejects(apiClient('/admin/orders'), (e) => e.status === 403 && e.message === 'Anda tidak memiliki izin.' && e.fieldErrors === undefined);
+  await assert.rejects(apiClient('/admin/products/999'), { status: 404, message: 'Produk tidak ditemukan.' });
+  const conflict = await apiClient('/admin/raw-materials/1', { method: 'PUT', body: {} }).catch((e) => e);
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.message, 'Stok sudah berubah. Muat ulang data.');
+  assert.deepEqual(conflict.fieldErrors, { stock: 'Stok sudah berubah.' });
+  // 403/404/409 tidak menyentuh sesi
+  assert.equal(useAuthStore.getState().token, 'jwt-lama');
+  assert.equal(useAuthStore.getState().sessionExpired, false);
+});
+
+test('CP1 #9: FormData tetap terkirim apa adanya bersama Authorization; error 400 multipart membawa fieldErrors', async () => {
+  login();
+  responses = [{ status: 400, body: { status: 'error', message: 'Maksimal 5 foto.', fieldErrors: { photos: 'Maksimal 5 foto.' } } }];
+  const form = new FormData();
+  form.append('product', '{}');
+  const error = await apiClient('/admin/products', { method: 'POST', body: form }).catch((e) => e);
+  assert.equal(calls[0].init.body, form);
+  assert.equal(calls[0].init.headers['Content-Type'], undefined);
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer jwt-lama');
+  assert.deepEqual(error.fieldErrors, { photos: 'Maksimal 5 foto.' });
+});
+
+// ── Step 6.6 · hotfix N1: ekstraksi `data` — nilai `data` apa pun (termasuk null/false/0) dikembalikan apa adanya ──
+// Dulu `json.data ?? json`: `{ status: 'success', data: null }` (mis. GET /products/:id/reviews untuk produk yang
+// tidak ada) mengembalikan SELURUH body respons → UlasanProdukPage crash ("reading 'filter'").
+
+test('N1: data object & array dikembalikan apa adanya', async () => {
+  responses = [
+    { status: 200, body: { status: 'success', data: { product_id: '1', name: 'Croissant' } } },
+    { status: 200, body: { status: 'success', data: [{ category_id: 1 }, { category_id: 2 }] } },
+  ];
+  assert.deepEqual(await apiClient('/products/1'), { product_id: '1', name: 'Croissant' });
+  assert.deepEqual(await apiClient('/categories'), [{ category_id: 1 }, { category_id: 2 }]);
+});
+
+test('N1: data null dikembalikan sebagai null (bukan seluruh body respons)', async () => {
+  responses = [{ status: 200, body: { status: 'success', data: null } }];
+  assert.equal(await apiClient('/products/999999/reviews'), null);
+});
+
+test('N1: data false, 0, dan string kosong dikembalikan apa adanya', async () => {
+  responses = [
+    { status: 200, body: { status: 'success', data: false } },
+    { status: 200, body: { status: 'success', data: 0 } },
+    { status: 200, body: { status: 'success', data: '' } },
+  ];
+  assert.equal(await apiClient('/x'), false);
+  assert.equal(await apiClient('/x'), 0);
+  assert.equal(await apiClient('/x'), '');
+});
+
+test('N1: respons tanpa properti data → seluruh body (perilaku lama, mis. forgot/reset password)', async () => {
+  const body = { status: 'success', message: 'Kata sandi berhasil diubah.' };
+  responses = [{ status: 200, body }];
+  assert.deepEqual(await apiClient('/auth/reset-password', { method: 'POST', body: {} }), body);
+});
+
+test('N1: error HTTP & fieldErrors CP1 tidak berubah walau body membawa data: null', async () => {
+  responses = [
+    { status: 400, body: { status: 'error', message: 'Maksimal 2 angka desimal', fieldErrors: { price: 'Maksimal 2 angka desimal' }, data: null } },
+    { status: 404, body: { status: 'error', message: 'Produk tidak ditemukan.' } },
+  ];
+  const invalid = await apiClient('/admin/products/1', { method: 'PUT', body: {} }).catch((e) => e);
+  assert.ok(invalid instanceof Error);
+  assert.equal(invalid.status, 400);
+  assert.deepEqual(invalid.fieldErrors, { price: 'Maksimal 2 angka desimal' });
+  await assert.rejects(apiClient('/products/999999'), { status: 404, message: 'Produk tidak ditemukan.' });
 });

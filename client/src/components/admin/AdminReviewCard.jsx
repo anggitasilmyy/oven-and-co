@@ -1,11 +1,13 @@
 // components/admin/AdminReviewCard.jsx
 // Step 5.8 · FR-35 · BR-11 · AD-10 — satu ulasan untuk moderasi: produk, pengulas, bintang, tag, teks, foto,
 // balasan toko, aksi "Balas" dan "Sembunyikan"/"Tampilkan" (UI/UX Spec Batch 7).
+// Step 6.6 (CP5 · G6): foto ulasan unggahan server dimuat lewat toUploadUrl (origin API).
 
 import { Eye, EyeOff, MessageSquareReply } from 'lucide-react';
 import Badge from '../ui/Badge';
 import StarRating from '../ui/StarRating';
 import { formatDateShort } from '../../utils/format';
+import { toUploadUrl } from '../../services/apiClient';
 
 const actionClass =
   'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-lg border border-beige px-3 text-xs font-semibold ' +
@@ -40,7 +42,7 @@ export default function AdminReviewCard({ review, onReply, onToggleHidden, busy 
       {review.comment ? <p className="text-sm text-cocoa/85">{review.comment}</p> : <p className="text-sm italic text-cocoa/60">Tanpa komentar</p>}
       {review.photos.length > 0 && (
         <ul className="flex gap-2" aria-label="Foto ulasan">
-          {review.photos.map((src, i) => <li key={src}><img src={src} alt={`Foto ulasan ${i + 1}`} className="h-16 w-16 rounded-lg object-cover" loading="lazy" /></li>)}
+          {review.photos.map((src, i) => <li key={src}><img src={toUploadUrl(src)} alt={`Foto ulasan ${i + 1}`} className="h-16 w-16 rounded-lg object-cover" loading="lazy" /></li>)}
         </ul>
       )}
       {review.admin_reply && (

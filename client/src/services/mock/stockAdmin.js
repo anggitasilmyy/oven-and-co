@@ -8,7 +8,9 @@ import { getTables, updateTable, nextUserRowId, USER_ROW_ID_START } from './db';
 import { getMockTodayKey } from './mockClock';
 import { getRemainingStock, getDailyStockStatus, validateDailyPlan, getMaterialStatus, validateMaterial, validateStockIn, addDecimal } from '../../utils/businessRules';
 import { AVAILABILITY_TYPE } from '../../constants/product';
-import { PRODUCT_FIELD_MAX, MAX_MATERIAL_QTY } from '../../constants/adminCatalog';
+import { PRODUCT_FIELD_MAX, MAX_MATERIAL_QTY, MATERIAL_STOCK_MESSAGE } from '../../constants/adminCatalog';
+import { resolveExpectedUpdate } from '../../utils/rules/expectedValue';
+import { createApiError } from '../../utils/apiErrors';
 
 const fail = (message) => { throw new Error(message); };
 const MATERIAL_LIMITS = { nameMax: PRODUCT_FIELD_MAX.materialName, unitMax: PRODUCT_FIELD_MAX.materialUnit, qtyMax: MAX_MATERIAL_QTY };
@@ -92,11 +94,19 @@ export function saveRawMaterial(materialId, input) {
   const existing = materialId == null ? null : (materials.find((m) => m.material_id === Number(materialId)) ?? fail('Bahan baku tidak ditemukan'));
   const errors = validateMaterial(input, materials, existing?.material_id ?? null, MATERIAL_LIMITS);
   if (Object.keys(errors).length) throw Object.assign(new Error(Object.values(errors)[0]), { fieldErrors: errors });
+  // Step 6.6 (CP6 · G7): ubah → aturan expected_stock sama dengan API (400/409 + fieldErrors.stock); stok tidak ditimpa
+  // bila tidak dikoreksi, sehingga stok masuk sejak form dibuka tetap utuh
+  let stock = Number(input.stock);
+  if (existing) {
+    const check = resolveExpectedUpdate(input.stock, input.expected_stock, existing.stock, MATERIAL_STOCK_MESSAGE);
+    if (check.status) throw createApiError(check.message, check.status, undefined, { fieldErrors: { stock: check.message } });
+    if (!check.write) stock = existing.stock;
+  }
   const row = {
     material_id: existing?.material_id ?? nextUserRowId(materials, 'material_id'),
     name: String(input.name).trim(),
     unit: String(input.unit).trim(),
-    stock: Number(input.stock),
+    stock,
     min_stock: Number(input.min_stock),
   };
   updateTable('raw_materials', (rows) => (existing ? rows.map((m) => (m.material_id === row.material_id ? row : m)) : [...rows, row]));

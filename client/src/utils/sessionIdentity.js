@@ -22,6 +22,14 @@ export function getSessionUserId(user) {
 }
 
 /**
+ * Step 6.6 (CP2b): dua id pengguna sama — bentuk mock (angka) & API (string) dibandingkan sebagai string;
+ * id kosong / tidak sah tidak pernah dianggap sama.
+ */
+export function isSameUserId(a, b) {
+  return isValidUserId(a) && isValidUserId(b) && String(a) === String(b);
+}
+
+/**
  * Pemilik keranjang akun: hanya pelanggan dengan id sah. Staf/owner, tamu, atau user tanpa id → null
  * (memakai keranjang tamu). Keranjang akun TIDAK PERNAH memakai id kosong/"undefined".
  */

@@ -77,7 +77,7 @@ test.beforeEach(() => {
 // Review dc054bd (temuan M-A): desain tamu yang selesai setelah SATU pelanggan masuk (dan masih aktif) mengikuti
 // aturan penggabungan keranjang tamu FR-04 → masuk keranjang pelanggan itu (dulu: keranjang tamu yang tidak terlihat).
 test('H1/M-A (API): tamu menyimpan desain, pelanggan Y login di tab lain & masih aktif → desain masuk keranjang Y (FR-04), token desain ikut', async () => {
-  store.set('ovenco_mock_cart_7', JSON.stringify([{ cart_item_id: 1, product_id: 2, quantity: 1 }]));
+  store.set('ovenco_api_cart_7', JSON.stringify([{ cart_item_id: 1, product_id: 2, quantity: 1 }]));
   scriptFetch([{
     before: () => otherTabWrites(apiCustomer(7), 'jwt-Y'),
     status: 201, body: { data: { design_id: '55', price: 525000, ready_date: '2026-10-30', design_token: 'tok-tamu' } },
@@ -88,12 +88,12 @@ test('H1/M-A (API): tamu menyimpan desain, pelanggan Y login di tab lain & masih
   assert.equal(result.target, DESIGN_CART_TARGET.ACCOUNT_MERGED);
   assert.equal(result.added, true);
   assert.equal(result.saved.design_id, '55'); // hasil tidak dibuang: desain tamu memang sah
-  const yCart = JSON.parse(store.get('ovenco_mock_cart_7'));
+  const yCart = JSON.parse(store.get('ovenco_api_cart_7'));
   assert.equal(yCart.length, 2);
   assert.deepEqual(yCart.filter((i) => i.design_id === '55').map((i) => i.design_token), ['tok-tamu']);
-  assert.equal(store.has('ovenco_mock_cart_guest'), false);
+  assert.equal(store.has('ovenco_api_cart_guest'), false);
   // Tab ini kini mengikuti sesi Y; keranjang aktif (yang terlihat) = keranjang Y berisi desain
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_7');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_7');
   assert.ok(useCartStore.getState().items.some((i) => i.design_id === '55'));
   assert.equal(calls[0].init.headers.Authorization, undefined); // request tetap request tamu
 });
@@ -109,7 +109,7 @@ test('H1 (API): identitas tidak berubah → desain masuk keranjang aktif (tamu m
   scriptFetch([{ status: 201, body: { data: { design_id: '61', price: 1, ready_date: '2026-10-30', design_token: null } } }]);
   const customer = await saveCustomCakeToCart(DESIGN, PRODUCT);
   assert.equal(customer.target, DESIGN_CART_TARGET.ACTIVE);
-  assert.deepEqual(cartDesigns('ovenco_mock_cart_3'), ['61']);
+  assert.deepEqual(cartDesigns('ovenco_api_cart_3'), ['61']);
 });
 
 test('H1/M1 (API): desain A tersimpan, lalu beralih ke B → hasil tidak untuk B; desain masuk keranjang A, keranjang B utuh', async () => {
@@ -122,15 +122,15 @@ test('H1/M1 (API): desain A tersimpan, lalu beralih ke B → hasil tidak untuk B
 
   await assert.rejects(saveCustomCakeToCart(DESIGN, PRODUCT), COMMITTED);
   // Rekonsiliasi pemilik asli: desain milik A (tanpa token) masuk keranjang A, bukan keranjang aktif B
-  assert.deepEqual(JSON.parse(store.get('ovenco_mock_cart_1')).map((i) => i.design_id), ['70']);
-  assert.equal(store.has('ovenco_mock_cart_2'), false);
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_2');
+  assert.deepEqual(JSON.parse(store.get('ovenco_api_cart_1')).map((i) => i.design_id), ['70']);
+  assert.equal(store.has('ovenco_api_cart_2'), false);
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_2');
   assert.equal(useCartStore.getState().items.length, 0);
 });
 
 test('H1/M-A (API): batas baris keranjang TUJUAN tetap ditegakkan', async () => {
   const full = Array.from({ length: 50 }, (_, i) => ({ cart_item_id: i + 1, product_id: 1, quantity: 1, note: `n${i}` }));
-  store.set('ovenco_mock_cart_7', JSON.stringify(full));
+  store.set('ovenco_api_cart_7', JSON.stringify(full));
   scriptFetch([{
     before: () => otherTabWrites(apiCustomer(7), 'jwt-Y'),
     status: 201, body: { data: { design_id: '80', price: 1, ready_date: '2026-10-30', design_token: 'tok' } },
@@ -139,8 +139,8 @@ test('H1/M-A (API): batas baris keranjang TUJUAN tetap ditegakkan', async () => 
   const result = await saveCustomCakeToCart(DESIGN, PRODUCT);
   assert.equal(result.target, DESIGN_CART_TARGET.ACCOUNT_MERGED);
   assert.equal(result.added, false);
-  assert.equal(JSON.parse(store.get('ovenco_mock_cart_7')).length, 50);
-  assert.equal(store.has('ovenco_mock_cart_guest'), false);
+  assert.equal(JSON.parse(store.get('ovenco_api_cart_7')).length, 50);
+  assert.equal(store.has('ovenco_api_cart_guest'), false);
 });
 
 /** Desain sah dari data mock nyata (opsi aktif pertama per kelompok, tanggal tercepat) */

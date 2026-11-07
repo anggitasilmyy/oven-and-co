@@ -68,25 +68,25 @@ test('#1: id pengguna dibaca dari bentuk mock (user_id) & API (userId); id tidak
   assert.equal(getCartOwnerId(null), null);
 });
 
-test('#1: login bentuk API menggabungkan keranjang tamu ke keranjang akun yang benar, BUKAN "ovenco_mock_cart_undefined"', () => {
+test('#1: login bentuk API menggabungkan keranjang tamu ke keranjang akun yang benar, BUKAN "ovenco_api_cart_undefined"', () => {
   useCartStore.getState().addItem({ product_id: 9, quantity: 1, name: 'Roti', price: 15000 });
   useAuthStore.getState().setAuth(apiCustomer(42), 'jwt-42');
   useCartStore.getState().mergeGuestCart(getCartOwnerId(apiCustomer(42))); // alur MasukPage/DaftarPage
 
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_42');
-  assert.deepEqual(cartItems('ovenco_mock_cart_42'), [9]);
-  assert.equal(store.has('ovenco_mock_cart_undefined'), false);
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_42');
+  assert.deepEqual(cartItems('ovenco_api_cart_42'), [9]);
+  assert.equal(store.has('ovenco_api_cart_undefined'), false);
 });
 
 test('#1: id tidak sah tidak pernah memakai key bersama; keranjang tamu tetap utuh', () => {
   useCartStore.getState().addItem({ product_id: 9, quantity: 1, name: 'Roti', price: 15000 });
   useCartStore.getState().mergeGuestCart(undefined);
   useCartStore.getState().mergeGuestCart('undefined');
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
-  assert.deepEqual(cartItems('ovenco_mock_cart_guest'), [9]);
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
+  assert.deepEqual(cartItems('ovenco_api_cart_guest'), [9]);
 
   useCartStore.getState().loadUserCart(undefined);
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
   assert.ok(![...store.keys()].some((key) => /cart_(undefined|null|NaN)$/.test(key)));
 });
 
@@ -104,12 +104,12 @@ test('#1: dua pelanggan bergantian di satu perangkat (bentuk API) tidak pernah b
   useCartStore.getState().mergeGuestCart(getCartOwnerId(apiCustomer(7)));
 
   assert.deepEqual(useCartStore.getState().items.map((i) => i.product_id), [5]);
-  assert.deepEqual(cartItems('ovenco_mock_cart_3'), [1]);
-  assert.deepEqual(cartItems('ovenco_mock_cart_7'), [5]);
+  assert.deepEqual(cartItems('ovenco_api_cart_3'), [1]);
+  assert.deepEqual(cartItems('ovenco_api_cart_7'), [5]);
 });
 
 test('#1: login tab ini & sinkron tab lain memakai key keranjang yang SAMA (mock & API), staf → keranjang tamu', () => {
-  for (const [user, key] of [[apiCustomer(42), 'ovenco_mock_cart_42'], [mockCustomer(42), 'ovenco_mock_cart_42']]) {
+  for (const [user, key] of [[apiCustomer(42), 'ovenco_api_cart_42'], [mockCustomer(42), 'ovenco_api_cart_42']]) {
     useAuthStore.setState({ user: null, token: null });
     useCartStore.getState().resetToGuest();
     otherTabWrites(user, `jwt-${Math.random()}`);
@@ -118,7 +118,7 @@ test('#1: login tab ini & sinkron tab lain memakai key keranjang yang SAMA (mock
   }
 
   useCartStore.getState().loadCartForUser({ userId: '2', role: 'owner' });
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
 });
 
 // ── #2/#4 Data pengguna lama ──────────────────────────────────────────────────────────────────────────────────────

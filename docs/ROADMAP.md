@@ -192,7 +192,7 @@ saling terhubung; laporan terintegrasi (penjualan, bahan, pembelian, produksi) d
 sesuai hak akses yang ditetapkan dalam CR.
 **Sudah terverifikasi (per `5b74ba6`):** migrasi & seed pada MySQL 8.0.46 lewat harness `tests-mysql/run.sh`, integrasi
 51/51 (lihat catatan 6.1). **Belum terverifikasi:** aplikasi penuh di mode API (6.6), data tetap ada setelah server
-restart, dan pemeriksaan Prisma Studio.
+restart, dan pemeriksaan Prisma Studio. → **Ketiganya terverifikasi di 6.6 CP8** (lihat catatan 6.6 CP8).
 
 Catatan khusus:
 - 6.1: Status: skema & seed selesai; **harness migrasi & seed berhasil dijalankan pada MySQL 8.0.46** dengan hasil
@@ -219,7 +219,7 @@ Catatan khusus:
   `GET /payment-methods` (Staf/Owner, filter AD-03), ulasan (`GET|POST /orders/:no/reviews`,
   `GET /products/:id/reviews`), notifikasi (`GET /me/notifications`, `GET /me/notifications/unread-count`,
   `PATCH /me/notifications/:id/read`), keranjang akun tersimpan (`GET|PUT /cart/items`, `POST /cart/merge`).
-  Penyambungan `useCartStore` ke API keranjang server menyusul di 6.6.
+  Penyambungan `useCartStore` ke API keranjang server menyusul di 6.6 → selesai di 6.6 CP3 (lihat catatan 6.6).
   - Keranjang akun (C-12, FR-04, BR-04): hanya pelanggan login (tamu 401, staf/owner 403), disimpan di
     `carts.user_id` + `cart_items`; keranjang tamu tetap di localStorage (`carts.session_token` tidak dipakai).
     `PUT` mengganti seluruh isi; `merge` menggabung item tamu dengan aturan identitas yang sama dengan client
@@ -232,7 +232,12 @@ Catatan khusus:
     (`selectClaimableGuestDesignIds()` + kunci desain + `updateMany` bersyarat). Mode mock: keranjang akun = key
     localStorage pelanggan, tanpa cek token (sama dengan catatan desain di bawah).
     Catatan untuk 6.6: `cart_item_id` dibuat ulang setiap simpan (hapus + buat), jadi store perlu memakai id dari
-    respons terakhir. Diuji di MySQL 8 sementara (21 skenario, termasuk merge & klaim bersamaan) dan browser mode mock.
+    respons terakhir. **Direvisi di 6.6 CP3 (disetujui): id lokal milik klien dan TIDAK diganti id hasil PUT.** Alasan:
+    server tidak memakai `cart_item_id` untuk operasi apa pun (PUT mengganti seluruh isi; `POST /api/orders` hanya
+    mewajibkan id unik), sedangkan mengganti id setelah setiap PUT membuat `removeOrderedItems` (pengurangan baris yang
+    dipesan per `cart_item_id`) salah sasaran bila simpan selesai di tengah checkout (temuan G2). Id dari server hanya
+    dipakai untuk baris yang baru muncul dari GET/merge. Diuji di MySQL 8 sementara (21 skenario, termasuk merge & klaim
+    bersamaan) dan browser mode mock.
   - Notifikasi (C-24): hanya baca & tandai dibaca milik pelanggan login (staf/owner 403); milik pelanggan lain → 404
     (sama dengan tidak ada); tandai dibaca idempoten; respons `{ items, unread, today_key }` sesuai
     `client/src/services/notificationService.js`. Pembuatan notifikasi saat status berubah tetap Step 6.5.
@@ -1228,6 +1233,296 @@ Catatan khusus:
   - Keterbatasan: (1) audit tidak menyimpan nilai lama/baru (kolom tidak ada di SPEC §8); (2) admin yang dinonaktifkan
     setelah transaksinya memperoleh kunci pelaku tetap menyelesaikan transaksi itu (A6) — penonaktifan berlaku untuk
     request berikutnya; (3) tidak ada layar/endpoint baca audit (FR-37 tanpa layar).
+- 6.6 (**selesai — CP0 – CP8**; branch `feat/step-6.6-frontend-api-integration` dari `origin/main` `cbab4cf`). Urutan
+  disetujui: CP0 lingkungan & baseline → CP1 error API → CP2 identitas & autentikasi → CP3 sinkron keranjang akun →
+  CP4 checkout & pembayaran → CP5 foto & upload → CP6 kontrak form admin → CP7 "tidak ditemukan" & zona waktu → CP8
+  verifikasi seluruh layar. Gap audit G1 – G16 (lihat laporan audit 6.6); butir di bawah hanya yang sudah dikerjakan.
+  **CP0 — lingkungan & baseline: selesai (tanpa perubahan kode).** `npm ci` client & server dari lockfile (tanpa
+  ketidaksesuaian), MySQL 8.0.46 di container terpisah (tmpfs) + `migrate deploy` + seed, `/api/health` ok, CORS dari
+  `localhost:5173` ok. Baseline: client unit 142/142, server 707/707, build ok, lint 0 error/2 warning (`Toast.jsx`),
+  smoke API 55/55, harness MySQL 01–16 **124/125**. Pengecualian baseline: `14-auto-cancel-pay-at-store` P1b gagal bila
+  dijalankan setelah 17.00 WIB — fixture (`helpers/autoCancelFixtures.js`) mengasumsikan tanggal siap pre-order = besok,
+  padahal setelah batas jam pre-order menjadi H+2 = hari `D()` yang ditutup uji; bukan bug BR-07 (tidak diubah). Seed
+  default `SEED_ANCHOR_DATE` 2026-10-16 membuat job membatalkan pesanan contoh lama saat server start; uji layar penuh
+  (CP8) memakai database baru dengan `SEED_ANCHOR_DATE` = hari uji.
+  **CP1 — penanganan error API (G3, G4): selesai, commit `b9e7390`.** `apiClient` meneruskan `fieldErrors` 4xx
+  (`createApiError(message, status, code, { fieldErrors, cause })`); gagal tanpa respons HTTP → status 0, kode
+  `CLIENT_NETWORK_ERROR`, pesan "Tidak dapat terhubung ke server. Periksa koneksi internet Anda dan coba kembali.";
+  respons tak terbaca → `CLIENT_INVALID_RESPONSE` dengan status HTTP asli; `AbortError` diteruskan apa adanya. Kode baru
+  di `CLIENT_REQUEST_ERROR_CODE` (bukan `CLIENT_ERROR_CODE`) agar gangguan jaringan tidak membuang data yang tampil.
+  Diuji: unit 156/156; browser mode API — AD-06 harga 3 desimal → `fieldErrors.price` tampil di field; API dimatikan →
+  pesan koneksi di Dashboard & C-02.
+  **CP2 — identitas & autentikasi (FR-01 – FR-03 · FR-26 · BR-04 · SPEC §2/§6/§7/§10): selesai.** Tanpa perubahan
+  backend, schema, kontrak API, atau dependensi.
+  - CP2a guard rute (`utils/routeAccess.js`, satu tabel peran per halaman untuk `AppRoutes`, `ProtectedRoute`,
+    `RoleRoute`, dan validasi return path): tamu & sesi berakhir di `/admin/*` → `/admin/login` (sebelumnya `/masuk`);
+    halaman khusus pelanggan (checkout, bayar, pesanan, akun, notifikasi) hanya peran customer — Staf/Owner dialihkan ke
+    halaman awal perannya SEBELUM halaman memanggil API (dulu 403 tampil di layar); halaman publik tetap terbuka.
+    Return path setelah login (C-02 & AD-01) hanya path internal yang boleh dibuka peran tersebut: URL absolut, `//host`,
+    backslash, karakter kontrol, path admin tak dikenal, dan halaman login ditolak; path dinormalisasi dulu (traversal
+    `/katalog/../admin/laporan` ditolak untuk Staf). Proteksi server (`auth` + `requireRole`) tidak berubah.
+  - CP2b identitas: `PengaturanPage`/`AdminAccountsPanel` ("Akun Anda", temuan 6.4.10 (1)), `AkunPage`, `BerandaPage`,
+    `useWishlist` memakai `getSessionUserId` / `isSameUserId` (mock `user_id` angka & API `userId` string).
+  - CP2c: tombol Google tetap tampil (SPEC §10); di mode API hanya informasi "belum tersedia" tanpa request (dulu
+    `POST /auth/google` → 404); mode mock tetap masuk sebagai pelanggan demo. Petunjuk OTP C-04 sesuai mode (console
+    browser / console server) dengan kalimat netral "Jika … terdaftar".
+  - CP2d: HP AKUN (daftar, ubah profil, akun staf) = aturan server `^\+62\d{8,13}$` setelah spasi/()/- dihapus
+    (`validateAccountPhone`); dulu client menerima +62 + 7 digit (ditolak server) dan menolak +62 + 12–13 digit (sah di
+    server). Temuan: server punya DUA aturan HP — HP penerima alamat & WhatsApp toko memakai 9–13 digit total
+    (`address.validator`, `adminSettingsRules`), jadi `validatePhone` untuk keduanya TIDAK diubah. Pesan gagal
+    autentikasi mode mock = server: login (akun tidak ada/sandi salah/nonaktif) "Email/HP atau kata sandi salah.",
+    registrasi ganda "Email atau nomor HP sudah terdaftar.", lupa sandi selalu pesan yang sama (OTP hanya dibuat untuk
+    akun yang ada), reset "OTP tidak valid, kedaluwarsa, atau sudah digunakan." Uji e2e lama `step-5.8` (akun nonaktif)
+    disesuaikan.
+  - Masa berlaku OTP mock = server (penyesuaian akhir CP2): server `auth.service` → `expiresAt` = permintaan + 10 menit,
+    OTP sah hanya selama `expiresAt > now` (tepat di batas sudah ditolak), sekali pakai, dan permintaan baru menonaktifkan
+    OTP aktif sebelumnya. Mock sebelumnya 5 menit dan masih menerima tepat di batas (`now > expires_at`); kini
+    `OTP_VALID_MINUTES` = 10 (`constants/auth.js`) dan ditolak bila `now >= expires_at`. Permintaan baru tetap
+    menggantikan OTP lama (satu record per email). Hitung mundur kirim ulang 60 detik hanya di UI (server tidak
+    membatasi kirim ulang — lihat backlog keamanan). Backend tidak berubah.
+  - Uji: client unit 186/186 (+30: `routeAccess` 9, `sessionUserId` 2, `authService` API 5 & mock 11 — termasuk 5 uji
+    batas OTP: 10 menit, 1 ms sebelum batas sah, tepat di batas & sesudahnya ditolak, sekali pakai, permintaan baru
+    menggantikan yang lama; sensitivitas: aturan lama 5 menit → 3 uji gagal, `>` di batas → 1 uji gagal —
+    `accountPhone` 3);
+    server 707/707; build ok; lint 0 error/2 warning; smoke API 55/55. Browser 390 & 1440 px — mode API 44/44 per lebar
+    (login 3 peran, registrasi + reset sandi dengan OTP dari console server, sesi kedaluwarsa pelanggan & owner kembali
+    ke halaman asal, akses per peran tanpa request API pelanggan, return path & penolakan open redirect, Google tanpa
+    request); mode mock 39/39 per lebar tanpa request ke API. Data uji MySQL: akun baru tersimpan (HP dinormalisasi),
+    `password_resets` terpakai. Regresi e2e mode mock lama (`tests/step-5.x`): 5.1 cart 40/40, func 55/55, unit 37/37,
+    5.2 56/56, 5.3 76/76, 5.5 56/56, 5.6 80/80 + regresi 18/18, 5.7 90/90, 5.8 67/67.
+  - **Backlog keamanan — pekerjaan terpisah (checkpoint/CR backend sendiri, TIDAK dikerjakan di CP2):** hasil uji CP2:
+    10 login salah beruntun semuanya 401 tanpa pembatasan. Middleware `rateLimit` sudah ada (dipakai simpan desain
+    custom cake) dan bisa dipakai ulang.
+    · SEC-1 Pembatas laju `POST /api/auth/login` (per IP dan per identifier) — mencegah tebak sandi.
+    · SEC-2 Pembatas laju `POST /api/auth/forgot-password` — mencegah banjir permintaan OTP; server saat ini tidak
+      membatasi kirim ulang (hitung mundur 60 detik hanya di UI).
+    · SEC-3 Pembatas laju `POST /api/auth/reset-password`.
+    · SEC-4 Perlindungan percobaan OTP berulang: OTP 6 digit (10⁶ kemungkinan) bisa dicoba tanpa batas selama 10 menit;
+      perlu batas percobaan gagal per OTP/akun (mis. OTP dinonaktifkan setelah N kali salah). SPEC §8 `password_resets`
+      tidak punya kolom hitungan percobaan — keputusan desain (penyimpanan in-memory vs kolom baru lewat CR) termasuk
+      pekerjaan ini.
+    Tetap tercatat sebagai asumsi prototype (6.3): JWT di localStorage dan tanpa pencabutan token saat keluar/ganti
+    sandi.
+  **Hotfix N1 — `data: null` (temuan audit CP3, terpisah dari CP3): selesai.** `apiClient` mengembalikan
+  `json.data ?? json`, sehingga respons sah `{ status: 'success', data: null }` (`GET /api/products/:id/reviews` untuk
+  produk tidak ada/nonaktif) berubah menjadi seluruh body respons dan C-10 `/produk/999999/ulasan` crash di mode API
+  ("reading 'filter'"); mode mock menampilkan "Produk tidak ditemukan". Kini properti `data` yang ADA dikembalikan apa
+  adanya (termasuk null/false/0); body tanpa `data` (forgot/reset password) tetap utuh. Uji: 5 regresi di
+  `apiClient.test.mjs` (kode lama: kasus null gagal), client unit 191/191, browser API & mock 390/1440 px tanpa error
+  halaman dan tanpa request API di mode mock. Id tidak valid (400 `INVALID_ID`) di ulasan tetap pekerjaan G11/CP7.
+  **CP3 — sinkronisasi keranjang akun (FR-04 · FR-11 · BR-04 · G1/G2): selesai.** Tanpa perubahan backend, schema,
+  migrasi, kontrak API, atau dependensi. Titik integrasi CP2 yang diubah hanya satu baris di `MasukPage`/`DaftarPage`
+  (`await syncCartAfterLogin(user)` menggantikan `mergeGuestCart`); CP1, N1, dan logika autentikasi CP2 lain tidak berubah.
+  - Arsitektur "lokal dulu, dikonfirmasi server": UI tetap membaca/menulis `useCartStore` secara sinkron; engine
+    (`services/cartSync.js` siklus hidup, `cartSyncReconcile.js` + `cartSyncSteps.js` algoritma, `cartSyncState.js` status
+    lokal, `cartSyncLock.js` kunci antar-tab, `cartStorage.js` kunci & journal, aturan murni `utils/rules/cartSync.js` &
+    `cartSyncErrors.js`) menyalin ke `GET|PUT /api/cart/items` dan `POST /api/cart/merge` hanya di mode API untuk pelanggan
+    login. Mode mock, tamu, dan staf/owner: tanpa request keranjang akun. Satu engine per tab (`useCartSync` di App; start
+    ganda aman, stop ditunda satu tick → React StrictMode tidak menggandakan).
+  - Namespace penyimpanan: mode mock tetap `ovenco_mock_cart_*`; mode API `ovenco_api_cart_*` + catatan
+    `ovenco_api_cartsync_*` (base, provenance tamu, attempt, blocked, generasi, journal). **Data lama `ovenco_mock_cart_*`
+    tidak dipindahkan ke namespace API** (sumbernya tidak bisa dibedakan antara mode mock dan API) **dan tidak dihapus/diubah.**
+    Tujuh berkas uji unit mode API diperbarui hanya kunci penyimpanannya.
+  - Rekonsiliasi (di dalam kunci antar-tab per pemilik; Web Locks, cadangan lease localStorage): NO_BASE (perangkat/lokal
+    belum pernah sinkron) → GET bila kosong, selain itu `POST /cart/merge` — tidak pernah PUT ke snapshot yang belum
+    sinkron; CLEAN → GET dan adopsi perubahan perangkat lain; LOCAL_CHANGED → GET → merge3(base, bagian akun lokal, server)
+    → PUT hasilnya; item tamu (provenance per id lokal + design_token) SELALU lewat `POST /cart/merge` setelah PUT.
+    Common ancestor: GET = base sebelum request; PUT = payload yang dikirim; merge = perkiraan hasil server
+    (`predictServerMerge`, port aturan server: jumlah dijumlah per kunci, token null) atau seluruh lokal saat NO_BASE.
+    Setelah setiap await lokal dibaca ulang + journal di-fold, jadi perubahan selama GET/PUT tidak tertimpa.
+    Identitas baris lintas perangkat = `lineKey` (desain: `d:{design_id}` — design_id tidak berubah saat klaim, hanya
+    user_id; dibuktikan kode & MySQL), signature konten kanonik mencakup ketujuh field bisnis dan diurutkan per lineKey.
+  - Hasil tidak pasti (konservatif, dari pemeriksaan transaksi server): status 0, 2xx tak terbaca, semua 5xx, 4xx tanpa
+    body server kita → UNKNOWN; hanya 4xx dari server kita (sebelum commit) = gagal pasti. Attempt `sending` ditulis
+    sebelum fetch; ditemukan di dalam kunci = crash → UNKNOWN. **Merge tidak pernah dikirim ulang otomatis:** GET = hasil
+    yang diharapkan → applied; selain itu UNCONFIRMED → sinkronisasi akun di perangkat itu **paused** (tanpa PUT/POST
+    otomatis; GET boleh; item tamu & perubahan lokal tetap tersimpan dan terlihat; notifikasi sekali). Tidak ada
+    rekonsiliasi manual implisit; pemulihan manual butuh persetujuan terpisah. PUT tidak pasti → GET → ancestor per baris
+    (server = payload → P; server = sebelum PUT → B0; lainnya → P) → merge3 → hasil gabungan dikirim (bukan payload lama).
+  - Multi-tab: setiap perubahan keranjang akun ditulis dulu sebagai entri journal immutable (kunci unik per tab + seq),
+    lalu kunci keranjang, lalu token generasi; engine mem-fold entri urut (ts, tab, seq) dan menghapus HANYA kunci yang
+    sudah diproses. Temuan saat uji: dua tab yang menambah baris pada milidetik yang sama mendapat `cart_item_id` sama
+    (Date.now) sehingga satu baris hilang saat fold → baris BARU kini diberi id ber-garam per tab
+    (`useCartStore.withTabUniqueNewIds`, tetap bilangan bulat aman; aturan `nextCartItemId` Step 5.1 tidak diubah).
+  - Checkout memakai keranjang lokal (dibuktikan: `POST /api/orders` memvalidasi `items` request, tidak membaca
+    `cart_items`; desain tamu belum diklaim tetap sah lewat token). Setelah pesanan berhasil, `PembayaranPage` menunggu
+    `flushCartSync()` (tidak pernah melempar, tidak pernah memicu pesanan ulang; gagal → pending).
+  - Uji: client unit **233/233** (+42: `cartSyncRules` 9, `cartSync` 25 engine, `cartSyncTabs` 5 dua store nyata dengan
+    interleaving dipaksa — lost update, tulis selama fold, crash di antara journal & kunci, crash engine sebelum hapus,
+    baris sama dua tab; `cartSyncMock` 3); server 707/707; build ok; lint 0 error/2 warning (`Toast.jsx`); smoke API 55/55.
+    Integrasi MySQL dengan engine & `apiClient` asli (17/17): merge tamu ke server berisi, PUT, perangkat baru + nama,
+    klaim desain tamu (design_id tetap, user_id terisi), respons merge hilang setelah commit (recovery, POST 1×, tidak
+    ganda), merge tidak terkirim (paused, MySQL tidak berubah), checkout saat paused (seluruh isi lokal masuk pesanan, 1×),
+    PUT respons hilang + perubahan perangkat lain dipertahankan, checkout sebagian. Browser mode API 390 & 1440 px
+    (17/17 per lebar): tamu → login → MySQL ∪, perangkat baru, stepper, dua tab, merge respons dibuang (route) → reload →
+    tidak ganda, merge diblokir → paused + notifikasi, logout dengan PUT gagal → login → terkirim, staf tanpa request,
+    checkout UI dengan tab kedua menambah item saat `POST /orders` diproses → server tinggal item itu. Regresi: CP2 browser
+    API 44/44 & mock 39/39 per lebar, N1 8/8, e2e mode mock lama `step-5.1`–`5.8` semua lulus (40/40, 55/55, 37/37, 56/56,
+    76/76, 56/56, 80/80, 18/18, 90/90, 67/67). Uji MySQL/browser memakai database uji `ovenco_step66_today` (seed hari uji).
+  - **Keterbatasan (tanpa perubahan backend):** (1) setelah checkout saat paused, keranjang server tetap berisi item yang
+    sudah dipesan (subtract-only PUT tidak dikerjakan — keputusan pemilik project); perangkat lain akun yang sama masih
+    melihatnya; (2) paused bisa berlangsung lama (tidak ada aksi pemulihan); (3) dua perangkat menulis tumpang tindih →
+    last-write-wins (GET→PUT tidak atomik, tanpa versi/ETag); merge3 best-effort, konflik baris sama: lokal menang,
+    perubahan tanggal/catatan = identitas baru; (4) 500 yang pasti rollback tetap UNKNOWN (body server tidak membedakan
+    fase); (5) perangkat yang belum pernah sinkron dan merge-nya tidak pasti hanya menampilkan isi lokalnya sampai merge
+    dikonfirmasi; (6) pesanan tanpa idempotensi di server (dua POST identik → dua pesanan) — frontend menjamin satu kali
+    kirim (tombol terkunci, apiClient tidak mengirim ulang); (7) keranjang tamu antar-tab tetap tanpa journal (perilaku
+    lama); (8) keranjang akun tetap di localStorage setelah logout (keputusan 4; hanya dimuat untuk pemiliknya).
+  **CP4 — checkout & pembayaran mode API (FR-12 – FR-16 · FR-18 · FR-20 · BR-05 – BR-07 · BR-09 · BR-10 · C-13 – C-18 ·
+  C-24): selesai.** Verifikasi end-to-end di browser mode API + MySQL uji (database baru, seed hari uji; akun demo
+  pelanggan; pembayaran hanya simulasi), viewport 390 & 1440 px: pickup, delivery (alamat utama + ongkir; alamat di luar
+  radius diblokir), voucher WEEKEND15, tukar poin, QRIS, ganti metode (QRIS → GoPay), Bayar di Toko, Simulasikan Lunas →
+  Dikonfirmasi, batal pelanggan (stok, klaim voucher + kuota, dan poin kembali; payment `failed`), auto-cancel BR-06
+  (`expired_at` digeser ke masa lalu) dan BR-07 (`ready_date` digeser ke kemarin) oleh job — payment `expired` sesuai
+  desain 6.5 K2, riwayat status & notifikasi C-24 tercatat dan tampil. Tanpa perubahan backend, schema, kontrak API, atau
+  dependensi.
+  - **Bug G15 (diperbaiki):** slot hari ini dihitung dengan zona waktu PERANGKAT (`getTimeSlotOptions` membaca
+    `getHours()`/`toDateKey()` dari `new Date(ctx.now)`), sedangkan server memvalidasi dalam WIB. Browser UTC pada 10.xx WIB
+    menawarkan slot 07–09 & 09–11 lalu ditolak server ("Pilih slot waktu dalam jam operasional."); perangkat di depan WIB
+    (WITA/WIT) menonaktifkan slot yang masih sah. Perbaikan minimal: `useCheckoutForm` mode API memakai
+    `toZonedWallClock(ctx.now)` (`utils/date.js`, `Intl.DateTimeFormat` zona `STORE_TIME_ZONE = 'Asia/Jakarta'` di
+    `constants/storeConfig.js`); mode mock tetap `new Date(ctx.now)` (jam perangkat, sama dengan mockClock).
+    `getTimeSlotOptions` dan `isPastPreorderCutoff` tidak diubah (batas pre-order mode API berasal dari server).
+  - Uji: client unit 238/238 (+5 `zonedWallClock`: zona proses UTC, Jakarta, Tokyo, New York, Makassar; lewat tengah malam
+    WIB; bukti perilaku lama salah); server 707/707; build ok; lint 0 error/2 warning; smoke API 55/55; suite CP4 browser
+    36/36 per lebar (13 skenario + G15 di browser UTC, Asia/Jakarta, Asia/Tokyo — slot lewat tidak ditawarkan, slot
+    mendatang tersedia, pesanan dengan slot pertama diterima server); regresi mock: e2e `step-5.1`–`5.8` lulus semua,
+    CP2 mock 39/39 per lebar.
+  - Keterbatasan yang tetap: keranjang server setelah checkout saat paused (CP3); tampilan jam mengikuti zona perangkat
+    (G12, CP7).
+  **CP5 — foto produk & unggahan (G5, G6 · FR-30 · FR-05 · FR-06 · FR-35 · AD-06 · AD-10 · C-04 · C-05 · C-10): selesai.**
+  Tanpa perubahan backend, schema, migrasi, kontrak API, atau dependensi; batas 5 foto tetap; mode mock tidak berubah.
+  - **Bug G5 (diperbaiki):** AD-06 mode API mengirim JSON dengan foto baru sebagai data URL di `image_url` → server
+    400 "Foto baru harus diunggah sebagai file, bukan data URL." dan foto tidak tersimpan. Perbaikan di
+    `services/adminProductService.js` (`toProductRequestBody`, hanya mode API): foto tersimpan → `{ image_id }`; foto baru
+    (data URL hasil kompresi yang sudah ada) → `dataUrlToBlob` → file `photos` + `{ file_index: n }`, data lain sebagai
+    string JSON `product` (multipart sesuai kontrak server); urutan = `sort_order`. Tanpa foto baru (termasuk hapus foto
+    / `photos: []`) tetap JSON; `photos` tidak dikirim → body apa adanya; data URL tak terbaca → "Foto produk tidak bisa
+    dibaca. Pilih ulang foto." tanpa request. `saveProduct` menjadi `async` (error → promise ditolak).
+  - **Bug G6 (diperbaiki):** path unggahan `/uploads/products/…` dimuat dari origin frontend (Vite menjawab `text/html`)
+    → placeholder di katalog/detail/keranjang/admin. `ProductImage` dan foto ulasan `AdminReviewCard` kini memakai
+    `toUploadUrl` (origin API); `/images/…`, data URL, dan URL absolut apa adanya. Pemeriksaan tambahan srcSet: tidak ada
+    bug — `productImageSrcSet` hanya membuat srcset untuk `/images/products/*.webp`, sehingga foto unggahan (termasuk
+    `.webp`) tidak punya kandidat srcset relatif; dikunci regression test `productImageUrls.test.mjs`.
+  - Uji: client unit 249/249 (+11: `adminProductPhotos` 7 mode API, `adminProductPhotosMock` 1, `productImageUrls` 3);
+    server 707/707; build ok; lint 0 error/2 warning (`Toast.jsx`). Browser mode API + MySQL uji, 390 & 1440 px: suite
+    CP5 15/15 per lebar (1 foto multipart 200 & tersaji dari API, 2 foto sekaligus, total 5, form "(5/5)" menolak foto
+    ke-6 tanpa request, edit foto lama + baru & jadikan utama, file yang dilepas 404, hapus foto JSON → 4, tampil dari
+    origin API di daftar admin, kartu katalog, galeri detail, keranjang, foto ulasan AD-10 & C-10; aset `/images` tetap
+    dari origin frontend; 0 error halaman); server menolak 6 file → 400 "Maksimal 5 foto". Audit srcSet (termasuk foto
+    unggahan `.webp` sementara): 29 gambar unggahan, 0 dengan srcset, 0 request `/uploads/` ke origin Vite, 43/43 gambar
+    lokal tetap ber-srcset. Mock: foto tersimpan sebagai data URL & tampil, 0 request API. Regresi: CP2 mock 39/39 & API
+    44/44, CP3 browser 17/17, smoke API 55/55, e2e mock `step-5.1`–`5.8` lulus semua.
+  - Keterbatasan yang tetap: foto dikompres ke JPEG di browser sebelum diunggah (perilaku lama); file unggahan yatim saat
+    simpan gagal tidak dibersihkan (server, di luar CP5); alur unggah foto ulasan pelanggan tidak diubah.
+  **CP6 — kontrak form admin (G7, G8, G13, G17 · FR-32 · FR-34 · FR-36 · BR-10 · AD-07 · AD-09 · AD-11): selesai.** Tanpa
+  perubahan backend, schema, migrasi, kontrak API, atau dependensi; `useProductForm` & `DailyStockEditor` tidak diubah.
+  Kontrak aktual server: `expected_stock` milik form **Bahan Baku** AD-07 (`PUT /api/admin/raw-materials/:id`) dan
+  `expected_quota` milik **sisa kuota voucher** AD-09 (`PUT /api/admin/vouchers/:id`) — tidak ada kuota produk.
+  - **G7 (diperbaiki):** `RawMaterialFormModal` mode ubah mengirim stok form tanpa `expected_stock` → koreksi stok selalu
+    400; edit nama/satuan ditolak bila sejak form dibuka ada stok masuk. Kini mengirim `expected_stock` = stok saat form
+    dibuka (`withExpectedValue`, `utils/rules/expectedValue.js`); POST tanpa expected.
+  - **G8 (diperbaiki):** `VoucherFormModal` mode ubah tidak mengirim `expected_quota` → ubah kuota selalu 400; edit judul
+    ditolak bila kuota berubah karena checkout/pembatalan. Kini mengirim `expected_quota` = kuota saat form dibuka.
+  - **Mock = API:** `saveRawMaterial` & `saveAdminVoucher` memakai `resolveExpectedUpdate` (port `resolveStockUpdate` /
+    `resolveQuotaUpdate` server): nilai = awal form atau = database → kolom tidak ditulis (stok masuk / pemakaian sejak form
+    dibuka utuh); nilai berubah tanpa expected → 400; expected basi → 409; pesan & `fieldErrors.stock` / `.quota` sama
+    dengan server (`MATERIAL_STOCK_MESSAGE`, `VOUCHER_QUOTA_MESSAGE`; status `HTTP_STATUS_BAD_REQUEST/CONFLICT`). Dulu mock
+    selalu menimpa nilai absolut.
+  - **Konflik 409:** pesan tampil di field (Stok saat ini / Sisa kuota) + pesan umum; papan bahan baku / voucher dimuat
+    ulang (`onConflict`), sehingga form yang dibuka ulang memakai nilai terbaru.
+  - **G17 (diperbaiki):** `validateVoucher` (`utils/rules/adminPromo.js`) membandingkan `p.product_id === Number(id)`;
+    API mengirim id produk string → voucher khusus produk selalu "Produk tidak ditemukan" (tidak bisa dibuat/diubah, termasuk
+    edit judul WEEKEND15/CROISSANT20). Kini dibandingkan sebagai string; id angka (mock) tetap didukung; voucher umum tetap.
+  - **G13 (diperbaiki):** form voucher, bahan baku, dan staf hanya menampilkan `err.message`. Kini `fieldErrors` server/mock
+    tampil di field terkait (pola `useProductForm`), hilang saat field diubah; pesan umum tetap tampil (termasuk error
+    tanpa field).
+  - File: `components/admin/{RawMaterialFormModal,VoucherFormModal,AdminAccountFormModal,RawMaterialPanel}.jsx`,
+    `pages/admin/{StokPage,PromoPage}.jsx`, `services/mock/{stockAdmin,promoAdmin}.js`, `utils/rules/{expectedValue (baru),
+    adminPromo}.js`, `utils/businessRules.js`, `constants/{adminCatalog,adminPromo,apiErrors}.js`; uji baru
+    `tests/unit/adminFormContracts.test.mjs` (9, mode API) & `adminFormContractsMock.test.mjs` (8, mode mock).
+  - Uji: client unit 266/266 (+17); build ok; lint 0 error/2 warning (`Toast.jsx`). Browser mode API + MySQL uji (seed
+    baru), 390 & 1440 px: suite CP6 21/21 per lebar — edit nama bahan + stok masuk bersamaan (expected_stock dikirim, stok
+    masuk utuh), koreksi basi → 409 di field + muat ulang, buka ulang → koreksi tersimpan; nama bahan ganda → 400 di field;
+    edit voucher khusus produk + pemakaian bersamaan (expected_quota, kuota utuh), ubah kuota basi → 409 di field + muat
+    ulang, buka ulang → tersimpan; buat voucher khusus produk & umum → 201; kode ganda → 400 di field; staf dengan email
+    pelanggan → 400 di field Email, hilang saat diubah, lalu 201; 0 error halaman. Bukti G17 sebelum perbaikan: versi HEAD
+    `validateVoucher` dengan produk id string → "Produk tidak ditemukan". Mock browser 7/7 per lebar (aturan expected,
+    konflik, G17, fieldErrors staf; 0 request API). Regresi e2e mock `step-5.7` 90/90 & `step-5.8` 67/67.
+  - Keterbatasan yang tetap: form ubah yang tetap terbuka setelah 409 masih memakai nilai awal lama (pesan meminta
+    memuat ulang; buka ulang form memakai data terbaru); edit informasi yang mengirim kembali nilai awal tidak pernah
+    menimpa stok/kuota (desain server); cek email/HP ganda form staf tetap hanya terhadap akun admin di sisi form (server
+    memeriksa semua pengguna dan error-nya kini tampil di field).
+  **CP7 — "tidak ditemukan", zona waktu, Best Sellers (G11, G12, G14 · FR-05 · FR-09 · FR-10 · FR-27 · FR-30 · C-05 · C-10 ·
+  C-11 · AD-02 · AD-06): selesai.** Tanpa perubahan backend, schema, migrasi, kontrak API, atau dependensi; G16 tetap
+  diterima sebagai dokumentasi.
+  - **G11 (diperbaiki):** respons "tidak ditemukan" server tidak dipetakan sehingga layar menampilkan ErrorState, padahal
+    mock mengembalikan null: C-10 `GET /products/abc/reviews` → 400 `INVALID_ID`; C-11 `GET /custom-options` → 404
+    "Custom cake sedang tidak tersedia." (produk custom nonaktif/tidak ada); AD-06 `GET /admin/products/:id` → 404 /
+    400 `INVALID_ID`. `getProductReviews`, `getCustomCakeBuilder`, `getAdminProduct` kini memakai `isMissingResourceError`
+    (pola `productDetailService`) → null → "Produk tidak ditemukan" / "Custom cake belum tersedia" / "Produk tidak
+    ditemukan." Jaringan (status 0), 500, 401/403, dan 400 lain tetap dilempar (ErrorState). `data: null` (N1) tidak berubah.
+  - **G12 (diperbaiki):** `formatDate`/`formatDateFull`/`formatDateShort`/`formatTime` memakai zona perangkat, sehingga di
+    browser non-WIB mode API waktu pesanan bergeser (UTC: 02.48 untuk 09.48 WIB; New York: tanggal kemarin), dan
+    `dateKeyOf` mengelompokkan notifikasi "Hari ini" menurut tanggal perangkat padahal `today_key` dari server (WIB). Kini
+    timestamp (string ISO) mode API ditampilkan dalam `STORE_TIME_ZONE` dan `dateKeyOf` mode API memakai tanggal WIB
+    (`toZonedWallClock`). Kolom DATE (ready_date, valid_from/valid_to, tanggal grafik) lewat `parseDateKey` (objek Date
+    lokal) tetap zona perangkat → tidak pernah bergeser; string "YYYY-MM-DD" juga tidak bergeser. Mode mock tidak berubah
+    (timestamp mock = jam dinding perangkat/mockClock, keputusan sama dengan CP4). Perhitungan tanggal bisnis tidak diubah.
+  - **G14 (diperbaiki):** mock `computeBestSellers` memotong ke `limit` lalu C-05 menyaring produk nonaktif (daftar < 5),
+    dan Dashboard AD-02 ikut menampilkan produk nonaktif. Kini sama dengan server (keputusan 6.4.6): nonaktif disaring
+    SEBELUM dipotong, urut jumlah turun lalu id naik; C-05 & AD-02 memakai daftar yang sama. Produk terlaris laporan
+    AD-08 (keputusan 6.4.7, termasuk produk nonaktif) tidak diubah.
+  - File: `services/{reviewService,customCakeService,adminProductService,productService}.js`, `utils/format.js`,
+    `utils/date.js`; uji baru `tests/unit/cp7NotFound.test.mjs` (6, API), `cp7Timezone.test.mjs` (7, API, zona perangkat
+    UTC/Jakarta/Tokyo/New York/Makassar), `cp7TimezoneMock.test.mjs` (2, mock), `cp7Mock.test.mjs` (8, mock: G14 + G11).
+    Kode lama (stash) gagal di uji bug: G11 2, G14 2, G12 4; uji regresi lulus di kedua versi.
+  - Uji: client unit 289/289 (+23); build ok; lint 0 error/2 warning (`Toast.jsx`). Browser mode API + MySQL uji, 390 &
+    1440 px: suite CP7 19/19 per lebar (C-10 `abc`/`999999` → tidak ditemukan, jaringan putus → ErrorState; C-11 custom
+    nonaktif → belum tersedia, 500 → ErrorState, aktif → builder; AD-06 404 asli server → "Produk tidak ditemukan.", 500
+    → ErrorState, produk ada → form; AD-03 di browser UTC/Tokyo/New York → waktu pesanan WIB & ready_date tidak bergeser;
+    C-05 & panel AD-02 tanpa produk nonaktif, daftar penuh 5; 0 error halaman). Mock browser 7/7 per lebar (G11, G14, waktu
+    mock tetap jam perangkat di browser UTC/Tokyo; 0 request API). Regresi: suite CP4 API 36/36 per lebar; e2e mock
+    `step-5.1` (cart 40, func 55, unit 37), `5.2` 56, `5.3` 76, `5.5` 56, `5.6` 80 + regresi 18, `5.7` 90, `5.8` 67 lulus semua.
+  - Keterbatasan yang tetap: mode mock tetap memakai zona perangkat (kontrak data mock); jam/tanggal yang tidak berasal
+    dari timestamp server (sapaan Beranda, label bulan kalender dari kunci tanggal) tetap zona perangkat; pengujian zona
+    waktu browser memakai `timezoneId` Playwright (UTC, Asia/Tokyo, America/New_York), bukan perangkat fisik.
+  **CP8 — uji integrasi akhir (seluruh layar, responsive, mode API, persistence, Prisma Studio): selesai. Step 6.6
+  selesai.** Tanpa perubahan kode aplikasi (tidak ada bug penghalang); tanpa perubahan backend, schema, migrasi, atau
+  dependensi. Lingkungan: MySQL 8.0.46 di container dengan volume disk (database uji terisolasi `ovenco_step66`,
+  `migrate deploy` + seed `SEED_ANCHOR_DATE` = hari uji), API :4000, Vite :5173 `VITE_USE_MOCK=false`
+  (`VITE_API_URL` → `http://localhost:4000/api`).
+  - **Seluruh layar (mode API), 390 / 768 / 1440 px: 80/80 per lebar.** C-01 – C-24 (onboarding kunjungan pertama &
+    Lewati; masuk termasuk sandi salah → pesan API; daftar; lupa sandi; Beranda; Katalog dari API; filter C-07 sebagai
+    bottom sheet/dialog < 1024 px & panel di desktop; pencarian; detail; ulasan; Custom Cake Builder; keranjang tersimpan di
+    `cart_items` → checkout pickup → QRIS → Bayar → Simulasikan Lunas → Pesanan Berhasil (MySQL: `menunggu_pembayaran` →
+    `paid`) → riwayat → detail → form ulasan → akun & ubah profil → voucher & poin → alamat → wishlist → notifikasi pesanan
+    baru) dan AD-01 – AD-11 (Staf: AD-03 – AD-07, AD-10, form ubah produk; Owner: AD-02 – AD-11, ekspor Excel/PDF tersedia,
+    modal Buat Voucher muat di layar). Per layar: teks penanda, tanpa ErrorState, tanpa overflow horizontal, tanpa gambar
+    rusak; tanpa error JavaScript; respons API ≥ 400 yang tidak disengaja: **0** (satu-satunya 401 adalah uji sandi salah).
+  - **Hak akses:** tamu → `/pesanan` → `/masuk`, `/admin/*` → `/admin/login`; pelanggan → `/admin/dashboard` ditolak;
+    Staf → Dashboard/Laporan/Promo/Pengaturan → `/admin/pesanan` (menu tanpa keempatnya); Owner → `/checkout` ditolak.
+  - **Responsive:** bottom nav 4 tab < 768 px, top nav ≥ 768 px; sidebar admin ≥ 1024 px, < 1024 px drawer (posisi nyata:
+    di luar layar sebelum dibuka, di dalam layar saat dibuka, tertutup setelah navigasi); tabel admin di `TableScroll`;
+    pemeriksaan visual screenshot C-13, AD-02, AD-03, AD-09 tanpa elemen terpotong.
+  - **Mode API:** semua request data ke `:4000` (tanpa sumber lain), tidak ada tabel `ovenco_mock_*` di localStorage (tanpa
+    fallback mock), login ketiga peran lewat API, katalog/dashboard/keranjang/pesanan/pembayaran sesuai MySQL; log API tanpa
+    error/5xx. Endpoint gagal: tidak ada.
+  - **Persistence setelah restart API:** akun uji khusus dibuat lewat C-03 (`cp8.persist.*@demo.test`), keranjang (produk
+    1 × 2, produk 2 × 1), wishlist (produk 3), dan profil disimpan lewat UI → dicatat lewat API & MySQL → HANYA proses API
+    dihentikan (health 000; container MySQL tetap berjalan, `StartedAt` sama) → API dijalankan ulang dengan `.env` yang sama
+    → browser baru (localStorage kosong) login ulang: keranjang & wishlist tampil dari server; data API sebelum = sesudah
+    (**identik**), semua 200, 0 error halaman.
+  - **Prisma Studio** (Prisma 6.19.3, Studio 0.511.0, `prisma/schema.prisma` + `.env` server): berjalan di :5555; model
+    Product (12), User (14, termasuk 3 akun demo), Order (15, termasuk pesanan uji CP8), OrderItem (18) terbaca, sesuai
+    MySQL; hanya membaca (tanpa edit). `CHECKSUM TABLE` 30 tabel identik sebelum & sesudah; proses dihentikan.
+  - **Regresi:** client unit 289/289; server unit 707/707; build ok; lint 0 error/2 warning (`Toast.jsx`); smoke API
+    55/55. Harness MySQL 01 – 16 tidak diulang (tanpa perubahan backend sejak baseline CP0). Bukti mendalam per fitur:
+    CP1 – CP7 (lihat catatan masing-masing).
+  - Keterbatasan & catatan (di luar scope, tidak diperbaiki): label sumbu Y grafik penjualan AD-02 ("800 rb") terbungkus
+    dua baris di desktop (kosmetik); peringatan Prisma `package.json#prisma` deprecated (Prisma 7); uji responsive memakai
+    viewport Playwright, bukan perangkat fisik; pembayaran tetap simulasi dan OAuth Google tidak tersedia di mode API
+    (keputusan CP2/SPEC §10); backlog SEC dan open issue distribusi voucher tetap seperti tercatat.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.

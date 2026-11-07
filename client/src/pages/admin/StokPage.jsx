@@ -68,7 +68,7 @@ export default function StokPage() {
         )}
 
         {tab === STOCK_TAB.BAHAN && materials.data && (
-          <RawMaterialPanel board={materials.data} onChanged={(message) => { showToast('success', message); materials.reload(); }} />
+          <RawMaterialPanel board={materials.data} onChanged={(message) => { showToast('success', message); materials.reload(); }} onReload={materials.reload} />
         )}
       </div>
       <Toast {...toast} onClose={hideToast} />

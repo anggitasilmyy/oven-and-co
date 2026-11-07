@@ -5,6 +5,7 @@
 // Validation rules SPEC §6: email valid; HP diawali +62; unik; sandi ≥ 8; S&K dicentang
 // Step 2.5 (PR B): split-screen ≥ lg lewat CustomerAuthShell
 // Step 6.2: termsAccepted dikirim ke API (auth.service mewajibkan persetujuan S&K)
+// Step 6.6 (CP2d): HP dicek validateAccountPhone (+62 diikuti 8–13 digit, sama dengan server)
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -13,20 +14,19 @@ import CustomerAuthShell from '../../components/customer/CustomerAuthShell';
 import DaftarForm from '../../components/customer/DaftarForm';
 import { register } from '../../services/authService';
 import useAuthStore from '../../stores/useAuthStore';
-import useCartStore from '../../stores/useCartStore';
+import { syncCartAfterLogin } from '../../services/cartSync';
 import { CUSTOMER_ROUTES } from '../../constants/routes';
-import { getCartOwnerId } from '../../utils/sessionIdentity';
 import {
   validateName,
   validateEmail,
-  validatePhone,
+  validateAccountPhone,
   validatePassword,
 } from '../../utils/authValidation';
 
 /** Validasi inline per field saat pengguna mengetik */
 const INLINE_VALIDATORS = {
   email: validateEmail,
-  phone: validatePhone,
+  phone: validateAccountPhone,
   password: validatePassword,
 };
 
@@ -40,7 +40,6 @@ const EMPTY_FORM = {
 export default function DaftarPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const { mergeGuestCart } = useCartStore();
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
@@ -72,7 +71,7 @@ export default function DaftarPage() {
     const e = {
       name: validateName(form.name),
       email: validateEmail(form.email),
-      phone: validatePhone(form.phone),
+      phone: validateAccountPhone(form.phone),
       password: validatePassword(form.password),
     };
 
@@ -85,7 +84,7 @@ export default function DaftarPage() {
   const canSubmit =
     !validateName(form.name) &&
     !validateEmail(form.email) &&
-    !validatePhone(form.phone) &&
+    !validateAccountPhone(form.phone) &&
     !validatePassword(form.password) &&
     agreeTerms;
 
@@ -114,8 +113,8 @@ export default function DaftarPage() {
       setAuth(user, token);
 
       // FR-04: gabungkan keranjang tamu dengan akun pelanggan.
-      // Step 6.3: id pemilik keranjang dari helper bersama (mock user_id / API userId)
-      mergeGuestCart(getCartOwnerId(user));
+      // Step 6.6 (CP3): sebelum redirect (mock: mergeGuestCart; API: POST /cart/merge); gagal jaringan → pending
+      await syncCartAfterLogin(user);
 
       navigate(CUSTOMER_ROUTES.BERANDA, {
         replace: true,

@@ -21,8 +21,9 @@ const actionClass =
 /**
  * @param {{rows, summary}} board — dari getRawMaterials
  * @param {Function} onChanged — (message) → void, setelah data berubah
+ * @param {Function} [onReload] — Step 6.6 (CP6 · G7): muat ulang data tanpa toast (konflik stok 409)
  */
-export default function RawMaterialPanel({ board, onChanged }) {
+export default function RawMaterialPanel({ board, onChanged, onReload }) {
   const [editing, setEditing] = useState(null); // { material|null }
   const [stockIn, setStockIn] = useState(null);
   const { rows, summary } = board;
@@ -97,7 +98,7 @@ export default function RawMaterialPanel({ board, onChanged }) {
         </>
       )}
 
-      {editing && <RawMaterialFormModal material={editing.material} materials={rows} onClose={() => setEditing(null)} onSaved={done} />}
+      {editing && <RawMaterialFormModal material={editing.material} materials={rows} onClose={() => setEditing(null)} onSaved={done} onConflict={onReload} />}
       {stockIn && <StockInModal material={stockIn} onClose={() => setStockIn(null)} onSaved={done} />}
     </div>
   );

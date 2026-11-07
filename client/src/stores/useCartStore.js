@@ -3,12 +3,15 @@
 // FR-04 · BR-04 · Zustand store untuk keranjang (tamu & pengguna login)
 //
 // Strategi penyimpanan:
-//   - Tamu   : localStorage key "ovenco_mock_cart_guest"
-//   - Login  : localStorage key "ovenco_mock_cart_{userId}"
+//   - Tamu   : localStorage key "ovenco_mock_cart_guest" (mode API: "ovenco_api_cart_guest", Step 6.6 CP3)
+//   - Login  : localStorage key "ovenco_mock_cart_{userId}" (mode API: "ovenco_api_cart_{userId}")
 // Saat login, keranjang tamu digabung ke keranjang akun (FR-04).
 // Review c53a11c (M2): tab lain bisa menulis key keranjang yang sama. Setiap perubahan membaca isi TERBARU dari
 // localStorage (bukan salinan memori) sebelum menulis, dan keranjang aktif dimuat ulang saat event `storage` untuk
 // key-nya tiba (services/sessionSync) — item dari tab lain tidak tertimpa data lama.
+// Step 6.6 (CP3): kunci per mode data (services/cartStorage — mock tetap `ovenco_mock_cart_*`, API `ovenco_api_cart_*`).
+// Mode API: setiap perubahan keranjang AKUN dicatat dulu di journal antar-tab (kunci immutable per entri), lalu kunci
+// keranjang, lalu token generasi — engine sinkronisasi (services/cartSync) mem-fold journal sebelum mengirim ke server.
 
 import { create } from 'zustand';
 // Step 5.1 (review PR #5): identitas item (termasuk tanggal pre-order & catatan) dan id unik
@@ -17,12 +20,41 @@ import {
   mergeCartItems, normalizeCartItems, wouldExceedLineLimit, hasUnstableCartIds, subtractOrderedItems,
 } from '../utils/rules/cart';
 import { isValidUserId, getCartOwnerId } from '../utils/sessionIdentity';
+import {
+  GUEST_CART_KEY, userCartKey, ownerOfCartKey, isSyncStorageEnabled, appendJournal, bumpGeneration,
+} from '../services/cartStorage';
 
-/** Key localStorage keranjang tamu */
-const GUEST_CART_KEY = 'ovenco_mock_cart_guest';
+/**
+ * Step 6.6 (CP3): garam id per tab (instance modul). Dua tab yang menambah baris pada milidetik yang sama tanpa melihat
+ * tulisan satu sama lain dulu bisa mendapat cart_item_id yang SAMA (Date.now) — journal antar-tab memakai id sebagai
+ * identitas baris, jadi baris baru diberi id `floor(now/10)·10000 + garam` (tetap bilangan bulat aman, > id terbesar).
+ */
+const TAB_ID_SALT = Math.floor(Math.random() * 10_000);
 
-/** Key localStorage keranjang pengguna tertentu */
-const userCartKey = (userId) => `ovenco_mock_cart_${userId}`;
+/** Id baris BARU yang unik antar-tab (id baris yang sudah ada tidak diubah) */
+function withTabUniqueNewIds(previous, next) {
+  const known = new Set(previous.map((item) => item.cart_item_id));
+  const result = [];
+  for (const item of next) {
+    if (known.has(item.cart_item_id)) {
+      result.push(item);
+      continue;
+    }
+    const maxId = [...previous, ...next, ...result].reduce((m, i) => (Number.isFinite(i.cart_item_id) ? Math.max(m, i.cart_item_id) : m), 0);
+    result.push({ ...item, cart_item_id: Math.max(Math.floor(Date.now() / 10) * 10_000 + TAB_ID_SALT, maxId + 1) });
+  }
+  return result;
+}
+
+/** Isi mentah kunci keranjang (tanpa normalisasi) — pembanding journal */
+function readRawCart(key) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) ?? '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Baca items keranjang dari localStorage.
@@ -44,7 +76,7 @@ function readCart(key) {
   // hapus/ubah jumlah yang membaca ulang) memakai id yang sama. Keranjang yang sudah valid tidak ditulis ulang.
   if (hasUnstableCartIds(parsed)) {
     try {
-      writeCart(key, items);
+      writeCart(key, items, { journal: false });
     } catch {
       // Penyimpanan penuh/diblokir: isi tetap dipakai di memori
     }
@@ -54,11 +86,16 @@ function readCart(key) {
 
 /**
  * Simpan items keranjang ke localStorage.
+ * Step 6.6 (CP3): mode API + keranjang akun + perubahan pengguna (`journal`) → journal → kunci → token generasi.
  * @param {string} key
  * @param {Array} items
+ * @param {{journal?: boolean}} [options] — false untuk tulisan engine/normalisasi (bukan perubahan pengguna)
  */
-function writeCart(key, items) {
+function writeCart(key, items, { journal = true } = {}) {
+  const owner = journal && isSyncStorageEnabled() ? ownerOfCartKey(key) : null;
+  if (owner) appendJournal(owner, readRawCart(key), items);
   localStorage.setItem(key, JSON.stringify(items));
+  if (owner) bumpGeneration(owner);
 }
 
 const useCartStore = create((set, get) => ({
@@ -88,7 +125,7 @@ const useCartStore = create((set, get) => ({
     if (wouldExceedLineLimit(items, entry)) return false;
     // Item dengan produk, varian, desain, tanggal pre-order, dan catatan yang sama dijumlahkan;
     // selain itu menjadi item baru dengan cart_item_id unik.
-    const next = mergeCartItems(items, [
+    const next = withTabUniqueNewIds(items, mergeCartItems(items, [
       {
         ...entry,
         // Step 6.3: bukti akses desain custom cake tamu (dari POST /custom-cake-designs)
@@ -99,7 +136,7 @@ const useCartStore = create((set, get) => ({
         price: item.price ?? 0,
         image_url: item.image_url ?? null,
       },
-    ]);
+    ]));
     writeCart(_storageKey, next);
     set({ items: next });
     return true;
@@ -243,7 +280,7 @@ const useCartStore = create((set, get) => ({
     if (designId !== null && items.some((i) => i.design_id != null && String(i.design_id) === designId)) return true;
     if (isActive) return get().addItem(item);
     if (wouldExceedLineLimit(items, item)) return false;
-    writeCart(key, mergeCartItems(items, [item]));
+    writeCart(key, withTabUniqueNewIds(items, mergeCartItems(items, [item])));
     return true;
   },
 
@@ -258,6 +295,19 @@ const useCartStore = create((set, get) => ({
     else get().resetToGuest();
   },
 
+  /**
+   * Step 6.6 (CP3): ganti isi keranjang akun pemilik tertentu atas nama engine sinkronisasi (hasil rekonsiliasi server).
+   * Bukan perubahan pengguna → tidak dicatat di journal. Keranjang aktif ikut diperbarui bila pemiliknya sama.
+   * @param {string} ownerId
+   * @param {Array} items
+   */
+  replaceOwnerCart: (ownerId, items) => {
+    if (!isValidUserId(ownerId)) return;
+    const key = userCartKey(ownerId);
+    writeCart(key, items, { journal: false });
+    if (key === get()._storageKey) set({ items });
+  },
+
   /** Jumlah total item (untuk badge keranjang) */
   totalItems: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
 
@@ -266,7 +316,7 @@ const useCartStore = create((set, get) => ({
 }));
 
 // Step 6.3: dipakai mockHandler services/cartService.js — di mode mock "keranjang akun tersimpan" adalah key
-// localStorage pelanggan yang sama dengan store ini (store sendiri belum memanggil API; disambungkan di Step 6.6)
-export { userCartKey, readCart as readStoredCart, writeCart as writeStoredCart };
+// localStorage pelanggan yang sama dengan store ini. Step 6.6 (CP3): mode API disinkronkan services/cartSync.
+export { GUEST_CART_KEY, userCartKey, readCart as readStoredCart, writeCart as writeStoredCart };
 
 export default useCartStore;

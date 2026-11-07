@@ -4,10 +4,12 @@
 // FR-02 · UC-02 · Masuk email/HP + sandi atau Google
 // Validation rules SPEC §6: "Email/HP atau kata sandi salah"
 // Step 2.5 (PR B): split-screen ≥ lg lewat CustomerAuthShell
+// Step 6.6 (CP2a): tujuan setelah login dari utils/routeAccess (return path aman sesuai peran)
+// Step 6.6 (CP2c): tombol Google tetap tampil; di mode API hanya menampilkan informasi (tanpa request)
 
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Mail } from 'lucide-react';
+import { Mail, Info } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import PasswordInput from '../../components/ui/PasswordInput';
@@ -15,21 +17,22 @@ import FormError from '../../components/ui/FormError';
 import AuthHeader from '../../components/customer/AuthHeader';
 import CustomerAuthShell from '../../components/customer/CustomerAuthShell';
 import GoogleLoginButton from '../../components/customer/GoogleLoginButton';
-import { login, loginWithGoogle } from '../../services/authService';
+import { login, loginWithGoogle, isGoogleLoginAvailable } from '../../services/authService';
+import { GOOGLE_LOGIN_UNAVAILABLE_MESSAGE } from '../../constants/auth';
 import useAuthStore from '../../stores/useAuthStore';
-import useCartStore from '../../stores/useCartStore';
-import { ROLE_LANDING, ROLES } from '../../constants/roles';
-import { getCartOwnerId } from '../../utils/sessionIdentity';
+import { syncCartAfterLogin } from '../../services/cartSync';
 import { CUSTOMER_ROUTES } from '../../constants/routes';
+import { postLoginTarget } from '../../utils/routeAccess';
 
 export default function MasukPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const { mergeGuestCart } = useCartStore();
 
   const [form, setForm] = useState({ identifier: '', password: '' });
   const [error, setError] = useState('');
+  // Step 6.6 (CP2c): informasi (bukan error) bila login Google belum tersedia di mode API
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
@@ -39,17 +42,12 @@ export default function MasukPage() {
   const handleChange = (field) => (e) => {
     setForm((f) => ({ ...f, [field]: e.target.value }));
     setError('');
+    setInfo('');
   };
 
-  const redirectAfterLogin = (user) => {
-    // Admin (staf/owner) → halaman admin
-    if (user.role === ROLES.STAF || user.role === ROLES.OWNER) {
-      navigate(ROLE_LANDING[user.role], { replace: true });
-      return;
-    }
-    // Pelanggan → returnTo atau beranda
-    navigate(returnTo ?? CUSTOMER_ROUTES.BERANDA, { replace: true });
-  };
+  // Step 6.6 (CP2a): return path hanya dipakai bila internal & boleh dibuka peran tersebut; selain itu halaman awal
+  // peran (Staf/Owner → admin, pelanggan → Beranda)
+  const redirectAfterLogin = (user) => navigate(postLoginTarget(user, returnTo), { replace: true });
 
   /** Jalankan aksi login, lalu simpan sesi + gabung keranjang tamu (FR-04) */
   const runLogin = async (loginFn, setBusy) => {
@@ -58,8 +56,9 @@ export default function MasukPage() {
     try {
       const { user, token } = await loginFn();
       setAuth(user, token);
-      // Step 6.3: id pemilik keranjang dari helper bersama (mock user_id / API userId)
-      mergeGuestCart(getCartOwnerId(user));
+      // Step 6.6 (CP3): keranjang tamu diintegrasikan sebelum redirect (mock: mergeGuestCart; API: POST /cart/merge);
+      // gagal jaringan → pending, login tetap berhasil
+      await syncCartAfterLogin(user);
       redirectAfterLogin(user);
     } catch (err) {
       // Pesan error persis sesuai SPEC §6
@@ -75,7 +74,16 @@ export default function MasukPage() {
     runLogin(() => login(form.identifier.trim(), form.password), setLoading);
   };
 
-  const handleGoogle = () => runLogin(loginWithGoogle, setGoogleLoading);
+  const handleGoogle = () => {
+    // Mode API: tanpa request ke endpoint OAuth yang belum ada (SPEC §10) — cukup informasi
+    if (!isGoogleLoginAvailable()) {
+      setError('');
+      setInfo(GOOGLE_LOGIN_UNAVAILABLE_MESSAGE);
+      return;
+    }
+    setInfo('');
+    runLogin(loginWithGoogle, setGoogleLoading);
+  };
 
   const isFormValid = form.identifier.trim() && form.password.length >= 1;
 
@@ -137,6 +145,11 @@ export default function MasukPage() {
       </div>
 
       <GoogleLoginButton onClick={handleGoogle} loading={googleLoading} />
+      {info && (
+        <p id="masuk-google-info" role="status" className="mt-3 flex items-start gap-1.5 text-sm text-cocoa/75">
+          <Info size={16} className="mt-0.5 shrink-0" aria-hidden="true" /> {info}
+        </p>
+      )}
 
       <p className="text-center text-sm text-cocoa/60 mt-6">
         Belum punya akun?{' '}

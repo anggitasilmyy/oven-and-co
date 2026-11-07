@@ -79,3 +79,36 @@ export const CART_UNAVAILABLE_MESSAGE = {
 };
 
 export const CART_UNAVAILABLE_DEFAULT_MESSAGE = 'Produk ini sudah tidak tersedia. Hapus dari keranjang.';
+
+/**
+ * Step 6.6 (CP3) · FR-04 · BR-04 — sinkronisasi keranjang akun (mode API). Nilai waktu = asumsi prototype.
+ */
+export const CART_SYNC = {
+  /** Jeda setelah perubahan lokal sebelum dikirim (perubahan beruntun digabung) */
+  DEBOUNCE_MS: 300,
+  /** Batas tunggu sinkronisasi saat login/registrasi sebelum redirect (gagal/lewat → pending, login tetap berhasil) */
+  LOGIN_TIMEOUT_MS: 8000,
+  /** Batas tunggu flushCartSync setelah checkout berhasil */
+  FLUSH_TIMEOUT_MS: 5000,
+  /** Putaran rekonsiliasi maksimum dalam satu kunci */
+  MAX_ROUNDS: 3,
+  /** Jeda percobaan ulang otomatis bila tertunda (bukan paused) */
+  RETRY_DELAYS_MS: [5000, 15000, 45000],
+};
+
+/** Status hasil sinkronisasi keranjang akun */
+export const CART_SYNC_STATUS = {
+  SYNCED: 'synced',
+  PENDING: 'pending',
+  /** Hasil merge tamu tidak bisa dipastikan → tidak ada PUT/POST otomatis */
+  PAUSED: 'paused',
+  /** Tidak ada sinkronisasi (mode mock, tamu, staf/owner) */
+  IDLE: 'idle',
+};
+
+export const CART_SYNC_MESSAGE = {
+  SKIPPED: 'Sebagian item tidak bisa disimpan ke keranjang akun karena produk atau desain tidak tersedia, dan dihapus dari keranjang.',
+  BLOCKED: 'Isi keranjang tidak bisa disimpan ke akun. Periksa catatan atau jumlah item, lalu ubah keranjang.',
+  PAUSED:
+    'Sinkronisasi keranjang akun dihentikan sementara karena hasil penggabungan keranjang belum bisa dipastikan. Isi keranjang di perangkat ini tetap tersimpan.',
+};

@@ -1,8 +1,11 @@
 // services/adminProductService.js
 // Step 5.7 · FR-30 · FR-31 · UC-23 · AD-06 — Produk & Opsi Custom Cake (Staf & Owner, SPEC §2)
 // Produk nonaktif disembunyikan dari web; hanya opsi aktif yang muncul di Custom Cake Builder.
+// Step 6.6 (CP5 · G5): mode API mengirim foto baru sebagai file multipart sesuai kontrak server (lihat saveProduct).
 
-import { apiClient } from './apiClient';
+import { apiClient, USE_MOCK } from './apiClient';
+import { isMissingResourceError } from '../utils/apiErrors';
+import { dataUrlToBlob } from '../utils/image';
 import { requireMockRole } from './mock/mockSession';
 import { buildAdminProductRows, buildAdminProductForm, buildAdminCustomOptions } from './mock/adminCatalogViews';
 import {
@@ -23,7 +26,39 @@ export function getAdminProducts() {
 
 /** @returns {Promise<object|null>} produk + foto + varian untuk form ubah */
 export function getAdminProduct(productId) {
-  return apiClient(`/admin/products/${productId}`, { mockHandler: asAdmin(() => buildAdminProductForm(productId)) });
+  return apiClient(`/admin/products/${productId}`, { mockHandler: asAdmin(() => buildAdminProductForm(productId)) }).catch((err) => {
+    // Step 6.6 (CP7 · G11): API 404 (produk tidak ada) atau 400 INVALID_ID → null, sama dengan mode mock; jaringan, 500, & error lain tetap dilempar
+    if (isMissingResourceError(err)) return null;
+    throw err;
+  });
+}
+
+const PHOTO_EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+
+/**
+ * Step 6.6 (CP5 · G5) · kontrak server (routes/admin/product.routes.js, adminProductSave.service.js): foto tersimpan →
+ * `{ image_id }`; foto baru (data URL hasil kompresi ProductPhotosField) → file ke-n pada field multipart `photos` +
+ * `{ file_index: n }`, data lain sebagai string JSON `product`. Tanpa foto baru tetap JSON biasa. Urutan = sort_order.
+ * @param {object} input
+ * @returns {object|FormData}
+ */
+function toProductRequestBody(input) {
+  if (!Array.isArray(input.photos)) return input;
+  const files = [];
+  const photos = input.photos.map((photo) => {
+    if (photo.image_id != null) return { image_id: photo.image_id };
+    const blob = dataUrlToBlob(photo.image_url);
+    const extension = PHOTO_EXTENSIONS[blob?.type];
+    if (!extension) throw new Error('Foto produk tidak bisa dibaca. Pilih ulang foto.');
+    files.push({ blob, name: `foto-${files.length + 1}.${extension}` });
+    return { file_index: files.length - 1 };
+  });
+  const product = { ...input, photos };
+  if (files.length === 0) return product;
+  const form = new FormData();
+  form.append('product', JSON.stringify(product));
+  for (const file of files) form.append('photos', file.blob, file.name);
+  return form;
 }
 
 /**
@@ -31,10 +66,11 @@ export function getAdminProduct(productId) {
  * @param {number|null} productId
  * @param {object} input — field form produk + photos [{image_id?, image_url}] + variants
  */
-export function saveProduct(productId, input) {
+export async function saveProduct(productId, input) {
   return apiClient(productId == null ? '/admin/products' : `/admin/products/${productId}`, {
     method: productId == null ? 'POST' : 'PUT',
-    body: input,
+    // Mode mock: body tetap seperti sebelumnya (data URL disimpan apa adanya oleh mock)
+    body: USE_MOCK ? input : toProductRequestBody(input),
     mockHandler: asAdmin(() => saveAdminProduct(productId, input)),
   });
 }

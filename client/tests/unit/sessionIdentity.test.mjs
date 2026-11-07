@@ -102,7 +102,7 @@ test('F1: tab A = pelanggan A, tab B masuk sebagai B → request tab A TIDAK dik
   assert.equal(calls.length, 0); // request yang disusun untuk A tidak dikirim sama sekali
   // Tab ini kini mengikuti sesi kanonis (B) beserta keranjangnya
   assert.equal(useAuthStore.getState().token, 'jwt-B');
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_2');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_2');
 });
 
 test('F7: salinan ovenco_auth_token yang tidak sesuai tidak menentukan identitas; store tetap sumber token', async () => {
@@ -130,7 +130,7 @@ test('F7: store tab ini tidak sesuai sesi kanonis yang dihapus (kunci dihapus) �
 test('F2: logout di tab B disinkronkan ke tab A (store kosong, keranjang tamu, keranjang akun tidak dihapus)', () => {
   thisTabLogin('1', 'jwt-A');
   useCartStore.getState().addItem({ product_id: 1, quantity: 2, name: 'Croissant', price: 28000 });
-  const cartA = store.get('ovenco_mock_cart_1');
+  const cartA = store.get('ovenco_api_cart_1');
 
   otherTabLogout();
   deliverStorageEvent();
@@ -138,13 +138,13 @@ test('F2: logout di tab B disinkronkan ke tab A (store kosong, keranjang tamu, k
   assert.equal(useAuthStore.getState().token, null);
   assert.equal(useAuthStore.getState().user, null);
   assert.equal(useAuthStore.getState().sessionExpired, false);
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
-  assert.equal(store.get('ovenco_mock_cart_1'), cartA);
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
+  assert.equal(store.get('ovenco_api_cart_1'), cartA);
 });
 
 test('F3: pengguna baru masuk di tab B → sesi & keranjang tab A ikut berganti; tidak ada loop tulis storage', () => {
   thisTabLogin('1', 'jwt-A');
-  store.set('ovenco_mock_cart_2', JSON.stringify([{ cart_item_id: 5, product_id: 7, quantity: 1 }]));
+  store.set('ovenco_api_cart_2', JSON.stringify([{ cart_item_id: 5, product_id: 7, quantity: 1 }]));
   writes.length = 0;
 
   otherTabLogin('2', 'jwt-B')();
@@ -152,7 +152,7 @@ test('F3: pengguna baru masuk di tab B → sesi & keranjang tab A ikut berganti;
 
   assert.equal(useAuthStore.getState().token, 'jwt-B');
   assert.equal(useAuthStore.getState().user.user_id, '2');
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_2');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_2');
   assert.deepEqual(useCartStore.getState().items.map((i) => i.product_id), [7]);
   // Hidrasi ulang tidak menulis balik sesi kanonis (tidak memicu event di tab lain lagi)
   assert.equal(writes.filter((key) => key === AUTH_PERSIST_KEY).length, 0);
@@ -164,7 +164,7 @@ test('F3: pengguna baru masuk di tab B → sesi & keranjang tab A ikut berganti;
 
 test('F3: event storage untuk key lain diabaikan; localStorage.clear() (key null) mengeluarkan tab ini', () => {
   thisTabLogin('1', 'jwt-A');
-  deliverStorageEvent('ovenco_mock_cart_9');
+  deliverStorageEvent('ovenco_api_cart_9');
   assert.equal(useAuthStore.getState().token, 'jwt-A');
 
   store.clear();
@@ -330,7 +330,7 @@ test('F8: keranjang pelanggan B tidak dihapus, ditimpa, atau dikirim atas nama A
   useCartStore.getState().addItem({ product_id: 1, quantity: 3, name: 'Croissant', price: 28000 });
   const itemsA = useCartStore.getState().items;
   const cartB = JSON.stringify([{ cart_item_id: 5, product_id: 7, quantity: 2 }]);
-  store.set('ovenco_mock_cart_2', cartB);
+  store.set('ovenco_api_cart_2', cartB);
 
   for (const [response, expected] of [[SESSION_INVALID, CHANGED], [{ status: 200, body: { data: { lines: itemsA } } }, COMMITTED]]) {
     calls.length = 0;
@@ -339,9 +339,9 @@ test('F8: keranjang pelanggan B tidak dihapus, ditimpa, atau dikirim atas nama A
 
     await assert.rejects(apiClient('/cart', { method: 'POST', body: { items: itemsA } }), expected);
     assert.equal(calls.length, 1);
-    assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_2');
+    assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_2');
     assert.deepEqual(useCartStore.getState().items.map((i) => i.product_id), [7]);
-    assert.equal(store.get('ovenco_mock_cart_2'), cartB);
+    assert.equal(store.get('ovenco_api_cart_2'), cartB);
   }
 });
 
@@ -389,12 +389,12 @@ test('F10: setAuth/logout tetap bekerja; sesi bentuk API (userId string) memuat 
 
   otherTabWrites({ userId: '43', role: 'customer' }, 'jwt-api-2');
   deliverStorageEvent();
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_43');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_43');
 
   // Staf/owner tidak memakai keranjang akun → keranjang tamu
   otherTabWrites({ user_id: 2, role: 'staf' }, 'jwt-staf');
   deliverStorageEvent();
-  assert.equal(useCartStore.getState()._storageKey, 'ovenco_mock_cart_guest');
+  assert.equal(useCartStore.getState()._storageKey, 'ovenco_api_cart_guest');
 
   useAuthStore.getState().logout();
   assert.equal(useAuthStore.getState().isLoggedIn(), false);

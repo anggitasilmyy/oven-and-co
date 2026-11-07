@@ -2,7 +2,9 @@
 // Step 3 · Authentication
 // FR-01 · FR-03 · Validation rules SPEC §6 (registrasi & reset sandi) — fungsi murni
 
-import { PASSWORD_MIN_LENGTH, PASSWORD_STRENGTH } from '../constants/auth';
+import {
+  PASSWORD_MIN_LENGTH, PASSWORD_STRENGTH, ACCOUNT_PHONE_PATTERN, ACCOUNT_PHONE_SEPARATORS,
+} from '../constants/auth';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -16,11 +18,32 @@ export function validateEmail(val) {
   return '';
 }
 
+/**
+ * Nomor HP penerima alamat (C-22) & WhatsApp toko (AD-11): diawali +62, 9–13 digit total — sama dengan server
+ * (address.validator, adminSettingsRules). Untuk nomor HP AKUN pakai validateAccountPhone.
+ */
 export function validatePhone(val) {
   if (!val.trim()) return 'Nomor HP wajib diisi';
   if (!val.trim().startsWith('+62')) return 'Nomor HP harus diawali +62';
   const digitsOnly = val.replace(/\D/g, '');
   if (digitsOnly.length < 9 || digitsOnly.length > 13) return 'Nomor HP tidak valid';
+  return '';
+}
+
+/** Step 6.6 (CP2d): bentuk nomor HP akun yang diperiksa/disimpan server (spasi, tanda kurung, "-" dihapus) */
+export function normalizeAccountPhone(val) {
+  return String(val ?? '').trim().replace(ACCOUNT_PHONE_SEPARATORS, '');
+}
+
+/**
+ * Step 6.6 (CP2d) · nomor HP AKUN (daftar C-03, ubah profil C-20, akun staf AD-11): "+62" diikuti 8–13 digit,
+ * sama dengan server — nomor yang lolos di sini tidak ditolak server karena formatnya, dan sebaliknya.
+ */
+export function validateAccountPhone(val) {
+  const raw = String(val ?? '').trim();
+  if (!raw) return 'Nomor HP wajib diisi';
+  if (!raw.startsWith('+62')) return 'Nomor HP harus diawali +62';
+  if (!ACCOUNT_PHONE_PATTERN.test(normalizeAccountPhone(raw))) return 'Nomor HP harus +62 diikuti 8–13 angka';
   return '';
 }
 

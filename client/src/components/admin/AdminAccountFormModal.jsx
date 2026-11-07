@@ -1,6 +1,7 @@
 // components/admin/AdminAccountFormModal.jsx
 // Step 5.8 · FR-36 · FR-26 · AD-11 — tambah akun admin (Staf/Owner) dengan aturan validasi Registrasi
 // (email valid & unik, HP +62 & unik, kata sandi ≥ 8 karakter). Akun baru langsung bisa masuk di AD-01.
+// Step 6.6 (CP6 · G13): fieldErrors server (mis. email/HP sudah dipakai akun pelanggan) tampil di field.
 
 import { useState } from 'react';
 import Modal from '../ui/Modal';
@@ -24,12 +25,13 @@ export default function AdminAccountFormModal({ users, onClose, onSaved }) {
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [serverErrors, setServerErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const errors = validateAdminAccount(values, users);
-  const errorOf = (f) => ((submitted || touched[f]) ? errors[f] : undefined);
+  const errorOf = (f) => serverErrors[f] || ((submitted || touched[f]) ? errors[f] : undefined);
   const bind = (f) => ({
     value: values[f],
-    onChange: (e) => { setValues((v) => ({ ...v, [f]: e.target.value })); setError(''); },
+    onChange: (e) => { setValues((v) => ({ ...v, [f]: e.target.value })); setError(''); setServerErrors((s) => ({ ...s, [f]: undefined })); },
     onBlur: () => setTouched((t) => ({ ...t, [f]: true })),
   });
 
@@ -42,6 +44,7 @@ export default function AdminAccountFormModal({ users, onClose, onSaved }) {
       const saved = await addAdminAccount(values);
       onSaved(`Akun ${ROLE_LABEL[saved.role]} ${saved.name} ditambahkan`);
     } catch (err) {
+      setServerErrors(err.fieldErrors ?? {});
       setError(err.message);
       setSaving(false);
     }

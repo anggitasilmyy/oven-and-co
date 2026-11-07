@@ -48,7 +48,8 @@ export function validateVoucher(v, { vouchers, voucherId = null, products }) {
   else if (v.discount_type === DISCOUNT_TYPE.PERCENT && (v.discount_value > VOUCHER_MAX_PERCENT || !Number.isInteger(v.discount_value))) e.discount_value = `Persen diskon berupa bilangan bulat 1–${VOUCHER_MAX_PERCENT}`;
   else if (v.discount_type === DISCOUNT_TYPE.AMOUNT && (v.discount_value > MAX_PRICE || !Number.isInteger(v.discount_value))) e.discount_value = 'Nominal diskon berupa bilangan bulat rupiah';
 
-  if (v.product_id != null && !products.some((p) => p.product_id === v.product_id)) e.product_id = 'Produk tidak ditemukan';
+  // Step 6.6 (CP6 · G17): id produk dibandingkan sebagai string — API mengirim id string ("3"), mock angka (3)
+  if (v.product_id != null && !products.some((p) => String(p.product_id) === String(v.product_id))) e.product_id = 'Produk tidak ditemukan';
   if (!isInt(v.quota) || v.quota < 0 || v.quota > VOUCHER_MAX_QUOTA) e.quota = `Kuota berupa bilangan bulat 0–${VOUCHER_MAX_QUOTA.toLocaleString('id-ID')}`;
 
   if (!DATE_KEY.test(v.valid_from)) e.valid_from = 'Pilih tanggal mulai';

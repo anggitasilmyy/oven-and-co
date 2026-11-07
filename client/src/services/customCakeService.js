@@ -4,6 +4,7 @@
 // custom_cake_designs, custom_cake_design_options. Harga & tanggal dihitung ulang di sini (tidak percaya UI).
 
 import { apiClient, USE_MOCK } from './apiClient';
+import { isMissingResourceError } from '../utils/apiErrors';
 import { dataUrlToBlob } from '../utils/image';
 import { getTables, updateTable, nextUserRowId } from './mock/db';
 import { getMockTodayKey, getMockCurrentTime } from './mock/mockClock';
@@ -53,6 +54,10 @@ export function getCustomCakeBuilder() {
         earliest_ready_date: ctx.earliestKey,
       };
     },
+  }).catch((err) => {
+    // Step 6.6 (CP7 · G11): API 404 "Custom cake sedang tidak tersedia." (produk custom tidak ada/nonaktif) → null, sama dengan mode mock; jaringan, 500, & error lain tetap dilempar
+    if (isMissingResourceError(err)) return null;
+    throw err;
   });
 }
 

@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/useAuthStore';
+import { getSessionUserId } from '../utils/sessionIdentity';
 import { getMyWishlistIds, setWishlisted } from '../services/wishlistService';
 import { ROLES } from '../constants/roles';
 import { CUSTOMER_ROUTES } from '../constants/routes';
@@ -16,6 +17,8 @@ import { CUSTOMER_ROUTES } from '../constants/routes';
 export default function useWishlist(notify) {
   const user = useAuthStore((s) => s.user);
   const isCustomer = user?.role === ROLES.CUSTOMER;
+  // Step 6.6 (CP2b): id sesi untuk mode mock (user_id) & API (userId)
+  const userId = getSessionUserId(user);
   const navigate = useNavigate();
   const location = useLocation();
   const [ids, setIds] = useState(() => new Set());
@@ -33,7 +36,7 @@ export default function useWishlist(notify) {
     };
     // notify sengaja tidak menjadi dependency: hanya dimuat ulang saat pengguna berganti
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCustomer, user?.user_id]);
+  }, [isCustomer, userId]);
 
   const toggleWishlist = useCallback(
     async (product) => {
