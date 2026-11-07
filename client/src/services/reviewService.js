@@ -3,6 +3,7 @@
 // Step 5.4 · FR-21 · BR-11 · C-19 — form ulasan per item pesanan Selesai & kirim ulasan (+20 poin)
 
 import { apiClient, USE_MOCK } from './apiClient';
+import { isMissingResourceError } from '../utils/apiErrors';
 import { dataUrlToBlob } from '../utils/image';
 import { getTables } from './mock/db';
 import { getProductReviewViews } from './mock/reviewViews';
@@ -30,6 +31,10 @@ export function getProductReviews(productId) {
         reviews,
       };
     },
+  }).catch((err) => {
+    // Step 6.6 (CP7 · G11): API 400 INVALID_ID (id tidak valid, mis. /produk/abc/ulasan) atau 404 → null, sama dengan mode mock; jaringan, 500, & error lain tetap dilempar
+    if (isMissingResourceError(err)) return null;
+    throw err;
   });
 }
 

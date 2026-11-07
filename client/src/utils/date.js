@@ -3,6 +3,7 @@
 // Kunci tanggal "YYYY-MM-DD" sesuai tipe DATE di SPEC §8 (stock_date, ready_date).
 
 import { STORE_TIME_ZONE } from '../constants/storeConfig';
+import { IS_MOCK_MODE } from '../constants/dataMode';
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -44,9 +45,12 @@ export function addDaysToKey(key, days) {
   return toDateKey(d);
 }
 
-/** Kunci tanggal dari ISO datetime yang disimpan mock (waktu lokal) */
+/**
+ * Kunci tanggal dari ISO datetime. Mock: waktu lokal (timestamp mock = jam dinding perangkat).
+ * Step 6.6 (CP7 · G12) mode API: tanggal WIB, sama dengan `today_key` server (mis. grup "Hari ini" notifikasi C-24).
+ */
 export function dateKeyOf(isoString) {
-  return toDateKey(new Date(isoString));
+  return toDateKey(IS_MOCK_MODE ? new Date(isoString) : toZonedWallClock(isoString));
 }
 
 /** Daftar n kunci tanggal berurutan yang berakhir di endKey (inklusif) */

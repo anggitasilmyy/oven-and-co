@@ -4,6 +4,7 @@
 // Step 6.6 (CP5 · G5): mode API mengirim foto baru sebagai file multipart sesuai kontrak server (lihat saveProduct).
 
 import { apiClient, USE_MOCK } from './apiClient';
+import { isMissingResourceError } from '../utils/apiErrors';
 import { dataUrlToBlob } from '../utils/image';
 import { requireMockRole } from './mock/mockSession';
 import { buildAdminProductRows, buildAdminProductForm, buildAdminCustomOptions } from './mock/adminCatalogViews';
@@ -25,7 +26,11 @@ export function getAdminProducts() {
 
 /** @returns {Promise<object|null>} produk + foto + varian untuk form ubah */
 export function getAdminProduct(productId) {
-  return apiClient(`/admin/products/${productId}`, { mockHandler: asAdmin(() => buildAdminProductForm(productId)) });
+  return apiClient(`/admin/products/${productId}`, { mockHandler: asAdmin(() => buildAdminProductForm(productId)) }).catch((err) => {
+    // Step 6.6 (CP7 · G11): API 404 (produk tidak ada) atau 400 INVALID_ID → null, sama dengan mode mock; jaringan, 500, & error lain tetap dilempar
+    if (isMissingResourceError(err)) return null;
+    throw err;
+  });
 }
 
 const PHOTO_EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };

@@ -19,17 +19,23 @@ function loadCatalog() {
   return { tables, todayKey, ctx: buildProductContext(tables, todayKey) };
 }
 
-/** Produk terlaris 7 hari (dipakai juga Dashboard lewat dashboardService → angka sama) */
+/**
+ * Produk terlaris 7 hari (dipakai juga Dashboard lewat dashboardService → angka sama).
+ * Step 6.6 (CP7 · G14): sama dengan server `GET /api/products/best-sellers` (keputusan 6.4.6) — produk nonaktif disaring
+ * SEBELUM dipotong ke `limit`, sehingga posisinya diisi produk terlaris berikutnya (dulu dipotong dulu, lalu C-05 menyaring
+ * → daftar kurang dari limit; Dashboard ikut menampilkan produk nonaktif).
+ */
 export function computeBestSellers(limit = BEST_SELLER_LIMIT) {
   const { tables, todayKey, ctx } = loadCatalog();
   const { orders } = getTables('orders');
   const totals = getBestSellerTotals(
-    orders, tables.order_items, lastNDateKeys(todayKey, SALES_WINDOW_DAYS), limit
+    orders, tables.order_items, lastNDateKeys(todayKey, SALES_WINDOW_DAYS), Infinity
   );
-  return totals.map(({ product_id, quantity }) => ({
-    ...toProductView(tables.products.find((p) => p.product_id === product_id), ctx),
-    quantity_sold: quantity,
-  }));
+  return totals
+    .map(({ product_id, quantity }) => ({ product: tables.products.find((p) => p.product_id === product_id), quantity }))
+    .filter(({ product }) => product?.is_active)
+    .slice(0, limit)
+    .map(({ product, quantity }) => ({ ...toProductView(product, ctx), quantity_sold: quantity }));
 }
 
 /** @returns {Promise<Array<{category_id, name, sort_order}>>} */
@@ -56,7 +62,7 @@ export function getFreshFromOvenToday({ limit = HOME_SECTION_LIMIT } = {}) {
 /** Produk terlaris berdasarkan jumlah terjual 7 hari terakhir (pesanan lunas, tidak dibatalkan) */
 export function getBestSellers({ limit = BEST_SELLER_LIMIT } = {}) {
   return apiClient(`/products/best-sellers?limit=${limit}`, {
-    mockHandler: () => computeBestSellers(limit).filter((p) => p.is_active),
+    mockHandler: () => computeBestSellers(limit),
   });
 }
 

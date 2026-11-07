@@ -1453,6 +1453,40 @@ Catatan khusus:
     memuat ulang; buka ulang form memakai data terbaru); edit informasi yang mengirim kembali nilai awal tidak pernah
     menimpa stok/kuota (desain server); cek email/HP ganda form staf tetap hanya terhadap akun admin di sisi form (server
     memeriksa semua pengguna dan error-nya kini tampil di field).
+  **CP7 — "tidak ditemukan", zona waktu, Best Sellers (G11, G12, G14 · FR-05 · FR-09 · FR-10 · FR-27 · FR-30 · C-05 · C-10 ·
+  C-11 · AD-02 · AD-06): selesai.** Tanpa perubahan backend, schema, migrasi, kontrak API, atau dependensi; G16 tetap
+  diterima sebagai dokumentasi.
+  - **G11 (diperbaiki):** respons "tidak ditemukan" server tidak dipetakan sehingga layar menampilkan ErrorState, padahal
+    mock mengembalikan null: C-10 `GET /products/abc/reviews` → 400 `INVALID_ID`; C-11 `GET /custom-options` → 404
+    "Custom cake sedang tidak tersedia." (produk custom nonaktif/tidak ada); AD-06 `GET /admin/products/:id` → 404 /
+    400 `INVALID_ID`. `getProductReviews`, `getCustomCakeBuilder`, `getAdminProduct` kini memakai `isMissingResourceError`
+    (pola `productDetailService`) → null → "Produk tidak ditemukan" / "Custom cake belum tersedia" / "Produk tidak
+    ditemukan." Jaringan (status 0), 500, 401/403, dan 400 lain tetap dilempar (ErrorState). `data: null` (N1) tidak berubah.
+  - **G12 (diperbaiki):** `formatDate`/`formatDateFull`/`formatDateShort`/`formatTime` memakai zona perangkat, sehingga di
+    browser non-WIB mode API waktu pesanan bergeser (UTC: 02.48 untuk 09.48 WIB; New York: tanggal kemarin), dan
+    `dateKeyOf` mengelompokkan notifikasi "Hari ini" menurut tanggal perangkat padahal `today_key` dari server (WIB). Kini
+    timestamp (string ISO) mode API ditampilkan dalam `STORE_TIME_ZONE` dan `dateKeyOf` mode API memakai tanggal WIB
+    (`toZonedWallClock`). Kolom DATE (ready_date, valid_from/valid_to, tanggal grafik) lewat `parseDateKey` (objek Date
+    lokal) tetap zona perangkat → tidak pernah bergeser; string "YYYY-MM-DD" juga tidak bergeser. Mode mock tidak berubah
+    (timestamp mock = jam dinding perangkat/mockClock, keputusan sama dengan CP4). Perhitungan tanggal bisnis tidak diubah.
+  - **G14 (diperbaiki):** mock `computeBestSellers` memotong ke `limit` lalu C-05 menyaring produk nonaktif (daftar < 5),
+    dan Dashboard AD-02 ikut menampilkan produk nonaktif. Kini sama dengan server (keputusan 6.4.6): nonaktif disaring
+    SEBELUM dipotong, urut jumlah turun lalu id naik; C-05 & AD-02 memakai daftar yang sama. Produk terlaris laporan
+    AD-08 (keputusan 6.4.7, termasuk produk nonaktif) tidak diubah.
+  - File: `services/{reviewService,customCakeService,adminProductService,productService}.js`, `utils/format.js`,
+    `utils/date.js`; uji baru `tests/unit/cp7NotFound.test.mjs` (6, API), `cp7Timezone.test.mjs` (7, API, zona perangkat
+    UTC/Jakarta/Tokyo/New York/Makassar), `cp7TimezoneMock.test.mjs` (2, mock), `cp7Mock.test.mjs` (8, mock: G14 + G11).
+    Kode lama (stash) gagal di uji bug: G11 2, G14 2, G12 4; uji regresi lulus di kedua versi.
+  - Uji: client unit 289/289 (+23); build ok; lint 0 error/2 warning (`Toast.jsx`). Browser mode API + MySQL uji, 390 &
+    1440 px: suite CP7 19/19 per lebar (C-10 `abc`/`999999` → tidak ditemukan, jaringan putus → ErrorState; C-11 custom
+    nonaktif → belum tersedia, 500 → ErrorState, aktif → builder; AD-06 404 asli server → "Produk tidak ditemukan.", 500
+    → ErrorState, produk ada → form; AD-03 di browser UTC/Tokyo/New York → waktu pesanan WIB & ready_date tidak bergeser;
+    C-05 & panel AD-02 tanpa produk nonaktif, daftar penuh 5; 0 error halaman). Mock browser 7/7 per lebar (G11, G14, waktu
+    mock tetap jam perangkat di browser UTC/Tokyo; 0 request API). Regresi: suite CP4 API 36/36 per lebar; e2e mock
+    `step-5.1` (cart 40, func 55, unit 37), `5.2` 56, `5.3` 76, `5.5` 56, `5.6` 80 + regresi 18, `5.7` 90, `5.8` 67 lulus semua.
+  - Keterbatasan yang tetap: mode mock tetap memakai zona perangkat (kontrak data mock); jam/tanggal yang tidak berasal
+    dari timestamp server (sapaan Beranda, label bulan kalender dari kunci tanggal) tetap zona perangkat; pengujian zona
+    waktu browser memakai `timezoneId` Playwright (UTC, Asia/Tokyo, America/New_York), bukan perangkat fisik.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.
