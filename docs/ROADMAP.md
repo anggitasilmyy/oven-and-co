@@ -192,7 +192,7 @@ saling terhubung; laporan terintegrasi (penjualan, bahan, pembelian, produksi) d
 sesuai hak akses yang ditetapkan dalam CR.
 **Sudah terverifikasi (per `5b74ba6`):** migrasi & seed pada MySQL 8.0.46 lewat harness `tests-mysql/run.sh`, integrasi
 51/51 (lihat catatan 6.1). **Belum terverifikasi:** aplikasi penuh di mode API (6.6), data tetap ada setelah server
-restart, dan pemeriksaan Prisma Studio.
+restart, dan pemeriksaan Prisma Studio. → **Ketiganya terverifikasi di 6.6 CP8** (lihat catatan 6.6 CP8).
 
 Catatan khusus:
 - 6.1: Status: skema & seed selesai; **harness migrasi & seed berhasil dijalankan pada MySQL 8.0.46** dengan hasil
@@ -1233,7 +1233,7 @@ Catatan khusus:
   - Keterbatasan: (1) audit tidak menyimpan nilai lama/baru (kolom tidak ada di SPEC §8); (2) admin yang dinonaktifkan
     setelah transaksinya memperoleh kunci pelaku tetap menyelesaikan transaksi itu (A6) — penonaktifan berlaku untuk
     request berikutnya; (3) tidak ada layar/endpoint baca audit (FR-37 tanpa layar).
-- 6.6 (berjalan per checkpoint; branch `feat/step-6.6-frontend-api-integration` dari `origin/main` `cbab4cf`). Urutan
+- 6.6 (**selesai — CP0 – CP8**; branch `feat/step-6.6-frontend-api-integration` dari `origin/main` `cbab4cf`). Urutan
   disetujui: CP0 lingkungan & baseline → CP1 error API → CP2 identitas & autentikasi → CP3 sinkron keranjang akun →
   CP4 checkout & pembayaran → CP5 foto & upload → CP6 kontrak form admin → CP7 "tidak ditemukan" & zona waktu → CP8
   verifikasi seluruh layar. Gap audit G1 – G16 (lihat laporan audit 6.6); butir di bawah hanya yang sudah dikerjakan.
@@ -1487,6 +1487,42 @@ Catatan khusus:
   - Keterbatasan yang tetap: mode mock tetap memakai zona perangkat (kontrak data mock); jam/tanggal yang tidak berasal
     dari timestamp server (sapaan Beranda, label bulan kalender dari kunci tanggal) tetap zona perangkat; pengujian zona
     waktu browser memakai `timezoneId` Playwright (UTC, Asia/Tokyo, America/New_York), bukan perangkat fisik.
+  **CP8 — uji integrasi akhir (seluruh layar, responsive, mode API, persistence, Prisma Studio): selesai. Step 6.6
+  selesai.** Tanpa perubahan kode aplikasi (tidak ada bug penghalang); tanpa perubahan backend, schema, migrasi, atau
+  dependensi. Lingkungan: MySQL 8.0.46 di container dengan volume disk (database uji terisolasi `ovenco_step66`,
+  `migrate deploy` + seed `SEED_ANCHOR_DATE` = hari uji), API :4000, Vite :5173 `VITE_USE_MOCK=false`
+  (`VITE_API_URL` → `http://localhost:4000/api`).
+  - **Seluruh layar (mode API), 390 / 768 / 1440 px: 80/80 per lebar.** C-01 – C-24 (onboarding kunjungan pertama &
+    Lewati; masuk termasuk sandi salah → pesan API; daftar; lupa sandi; Beranda; Katalog dari API; filter C-07 sebagai
+    bottom sheet/dialog < 1024 px & panel di desktop; pencarian; detail; ulasan; Custom Cake Builder; keranjang tersimpan di
+    `cart_items` → checkout pickup → QRIS → Bayar → Simulasikan Lunas → Pesanan Berhasil (MySQL: `menunggu_pembayaran` →
+    `paid`) → riwayat → detail → form ulasan → akun & ubah profil → voucher & poin → alamat → wishlist → notifikasi pesanan
+    baru) dan AD-01 – AD-11 (Staf: AD-03 – AD-07, AD-10, form ubah produk; Owner: AD-02 – AD-11, ekspor Excel/PDF tersedia,
+    modal Buat Voucher muat di layar). Per layar: teks penanda, tanpa ErrorState, tanpa overflow horizontal, tanpa gambar
+    rusak; tanpa error JavaScript; respons API ≥ 400 yang tidak disengaja: **0** (satu-satunya 401 adalah uji sandi salah).
+  - **Hak akses:** tamu → `/pesanan` → `/masuk`, `/admin/*` → `/admin/login`; pelanggan → `/admin/dashboard` ditolak;
+    Staf → Dashboard/Laporan/Promo/Pengaturan → `/admin/pesanan` (menu tanpa keempatnya); Owner → `/checkout` ditolak.
+  - **Responsive:** bottom nav 4 tab < 768 px, top nav ≥ 768 px; sidebar admin ≥ 1024 px, < 1024 px drawer (posisi nyata:
+    di luar layar sebelum dibuka, di dalam layar saat dibuka, tertutup setelah navigasi); tabel admin di `TableScroll`;
+    pemeriksaan visual screenshot C-13, AD-02, AD-03, AD-09 tanpa elemen terpotong.
+  - **Mode API:** semua request data ke `:4000` (tanpa sumber lain), tidak ada tabel `ovenco_mock_*` di localStorage (tanpa
+    fallback mock), login ketiga peran lewat API, katalog/dashboard/keranjang/pesanan/pembayaran sesuai MySQL; log API tanpa
+    error/5xx. Endpoint gagal: tidak ada.
+  - **Persistence setelah restart API:** akun uji khusus dibuat lewat C-03 (`cp8.persist.*@demo.test`), keranjang (produk
+    1 × 2, produk 2 × 1), wishlist (produk 3), dan profil disimpan lewat UI → dicatat lewat API & MySQL → HANYA proses API
+    dihentikan (health 000; container MySQL tetap berjalan, `StartedAt` sama) → API dijalankan ulang dengan `.env` yang sama
+    → browser baru (localStorage kosong) login ulang: keranjang & wishlist tampil dari server; data API sebelum = sesudah
+    (**identik**), semua 200, 0 error halaman.
+  - **Prisma Studio** (Prisma 6.19.3, Studio 0.511.0, `prisma/schema.prisma` + `.env` server): berjalan di :5555; model
+    Product (12), User (14, termasuk 3 akun demo), Order (15, termasuk pesanan uji CP8), OrderItem (18) terbaca, sesuai
+    MySQL; hanya membaca (tanpa edit). `CHECKSUM TABLE` 30 tabel identik sebelum & sesudah; proses dihentikan.
+  - **Regresi:** client unit 289/289; server unit 707/707; build ok; lint 0 error/2 warning (`Toast.jsx`); smoke API
+    55/55. Harness MySQL 01 – 16 tidak diulang (tanpa perubahan backend sejak baseline CP0). Bukti mendalam per fitur:
+    CP1 – CP7 (lihat catatan masing-masing).
+  - Keterbatasan & catatan (di luar scope, tidak diperbaiki): label sumbu Y grafik penjualan AD-02 ("800 rb") terbungkus
+    dua baris di desktop (kosmetik); peringatan Prisma `package.json#prisma` deprecated (Prisma 7); uji responsive memakai
+    viewport Playwright, bukan perangkat fisik; pembayaran tetap simulasi dan OAuth Google tidak tersedia di mode API
+    (keputusan CP2/SPEC §10); backlog SEC dan open issue distribusi voucher tetap seperti tercatat.
 
 ```
 Kerjakan Step 6.1 dari docs/ROADMAP.md.
