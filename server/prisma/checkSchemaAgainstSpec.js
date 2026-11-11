@@ -1,6 +1,6 @@
 // prisma/checkSchemaAgainstSpec.js
-// Step 6.1 · Pemeriksa skema: membandingkan SQL migrasi awal dengan Data Dictionary docs/SPEC.md §8
-// (29 tabel, nama kolom, tipe & panjang, nullable, PK/composite key, UNIQUE, FK + tabel tujuan, nilai ENUM).
+// Step 6.1 · Pemeriksa skema: membandingkan SQL seluruh migrasi dengan Data Dictionary docs/SPEC.md §8
+// (30 tabel sejak CR-03 CP2 — + product_materials; nama kolom, tipe & panjang, nullable, PK/composite key, UNIQUE, FK + tabel tujuan, nilai ENUM).
 // Tidak butuh database. Jalankan: npm run db:check-spec  (keluar dengan kode 1 bila ada selisih).
 
 const fs = require('fs');
@@ -9,6 +9,8 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const SPEC_PATH = path.join(ROOT, 'docs', 'SPEC.md');
 const MIGRATIONS = path.join(__dirname, 'migrations');
+// 29 tabel dokumen Analisis v1.0 + product_materials (CR-03)
+const TABLE_COUNT = 30;
 
 // SPEC §4: nilai order_status (SPEC §8 menulis "ENUM(lihat bagian 4)")
 const ORDER_STATUS = ['menunggu_pembayaran', 'dikonfirmasi', 'sedang_disiapkan', 'siap_diambil', 'dalam_pengiriman', 'selesai', 'dibatalkan'];
@@ -17,6 +19,7 @@ const FK_TARGET_BY_COLUMN = {
   user_id: 'users', order_id: 'orders', product_id: 'products', category_id: 'categories', variant_id: 'product_variants',
   design_id: 'custom_cake_designs', option_id: 'custom_options', cart_id: 'carts', address_id: 'addresses',
   voucher_id: 'vouchers', review_id: 'reviews', order_item_id: 'order_items', method_code: 'payment_methods', changed_by: 'users',
+  material_id: 'raw_materials', // CR-03 product_materials
 };
 // SPEC §8 store_settings hanya menyebut nama kolom; tipe diambil dari PDF Data Dictionary (Bab 4.5, entity store_settings)
 const STORE_SETTINGS_TYPES = {
@@ -102,8 +105,9 @@ function parseSql() {
     }
     tables[m[1]] = t;
   }
-  for (const m of sql.matchAll(/ALTER TABLE `(\w+)` ADD CONSTRAINT `\w+` FOREIGN KEY \(`(\w+)`\) REFERENCES `(\w+)`\(`\w+`\)/g)) {
+  for (const m of sql.matchAll(/ALTER TABLE `(\w+)` ADD CONSTRAINT `\w+` FOREIGN KEY \(`(\w+)`\) REFERENCES `(\w+)`\(`\w+`\)(?: ON DELETE (\w+))?/g)) {
     tables[m[1]].fks[m[2]] = m[3];
+    (tables[m[1]].onDelete ??= {})[m[2]] = m[4] ?? null;
   }
   return tables;
 }
@@ -115,8 +119,12 @@ function main() {
   const fail = (msg) => problems.push(msg);
   const specNames = Object.keys(spec).sort();
   const sqlNames = Object.keys(sql).sort();
-  if (specNames.length !== 29) fail(`SPEC berisi ${specNames.length} tabel (harus 29)`);
-  if (sqlNames.length !== 29) fail(`Migrasi berisi ${sqlNames.length} tabel (harus 29)`);
+  if (specNames.length !== TABLE_COUNT) fail(`SPEC berisi ${specNames.length} tabel (harus ${TABLE_COUNT})`);
+  if (sqlNames.length !== TABLE_COUNT) fail(`Migrasi berisi ${sqlNames.length} tabel (harus ${TABLE_COUNT})`);
+  // CR-03 (SPEC §8): FK product_materials wajib ON DELETE RESTRICT
+  for (const [col, action] of Object.entries(sql.product_materials?.onDelete ?? {})) {
+    if (action !== 'RESTRICT') fail(`product_materials.${col}: ON DELETE ${action ?? '(tidak ada)'} ≠ SPEC RESTRICT`);
+  }
   specNames.filter((t) => !sql[t]).forEach((t) => fail(`Tabel ${t} tidak ada di migrasi`));
   sqlNames.filter((t) => !spec[t]).forEach((t) => fail(`Tabel ${t} tidak ada di SPEC`));
 

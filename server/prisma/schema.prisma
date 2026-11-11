@@ -233,6 +233,7 @@ model Product {
   orderItems        OrderItem[]
   vouchers          Voucher[]
   wishlists         Wishlist[]
+  productMaterials  ProductMaterial[]
 
   @@map("products")
 }
@@ -285,7 +286,22 @@ model RawMaterial {
   stock      Decimal @db.Decimal(10, 2)
   minStock   Decimal @map("min_stock") @db.Decimal(10, 2)
 
+  productMaterials ProductMaterial[]
+
   @@map("raw_materials")
+}
+
+/// CR-03 · FR-39 · BR-13: komposisi bahan per produk — takaran per 1 unit produk dalam raw_materials.unit
+model ProductMaterial {
+  productId  BigInt  @map("product_id")
+  materialId BigInt  @map("material_id")
+  qtyPerUnit Decimal @map("qty_per_unit") @db.Decimal(10, 3)
+
+  product  Product     @relation(fields: [productId], references: [productId])
+  material RawMaterial @relation(fields: [materialId], references: [materialId])
+
+  @@id([productId, materialId])
+  @@map("product_materials")
 }
 
 /// Opsi Custom Cake Builder
