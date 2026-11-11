@@ -137,6 +137,11 @@ tidak diubah):
   (BigInt di server), tanpa pembulatan dini. Request `qty_per_unit` **wajib string desimal** (JSON number ditolak 400),
   divalidasi sebagai teks sebelum konversi; respons angka berupa JSON number (takaran & kebutuhan maks. 3 desimal,
   stok maks. 2 desimal), ID berupa string.
+- Fail-safe presisi (keputusan pemilik project, ketentuan implementasi CP3): sebelum dikirim sebagai JSON number, setiap
+  nilai milli-satuan diperiksa round-trip — representasi JSON aktualnya (`JSON.stringify`) harus kembali tepat ke
+  milli-satuan yang sama (termasuk tanda negatif dan notasi eksponen). Bila tidak, aturan murni melempar error
+  `MILLI_PRECISION_LOST`; nilai tidak pernah dibulatkan, dipotong, atau diubah menjadi string. Pemetaan error ini ke
+  kontrak API ditetapkan pada CP4/CP5.
 
 ## 6. Validation Rules
 

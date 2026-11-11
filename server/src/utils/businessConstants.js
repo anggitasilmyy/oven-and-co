@@ -317,6 +317,14 @@ const CATALOG_FIELD_MAX = Object.freeze({
 const MAX_PRICE = 9999999999.99;
 const MAX_MATERIAL_QTY = 99999999.99;
 
+// CR-03 · FR-39/FR-40 · BR-13 – BR-15 (SPEC §5, §6, §10) — komposisi bahan & estimasi kebutuhan bahan
+// Status pesanan yang masih membutuhkan bahan (terpisah dari PRODUCTION_STATUSES AD-05, yang tidak diubah)
+const MATERIAL_DEMAND_STATUSES = Object.freeze([ORDER_STATUS.DIKONFIRMASI, ORDER_STATUS.SEDANG_DISIAPKAN]);
+const RECIPE_MAX_ITEMS = 30; // maks. bahan per produk (asumsi prototype, SPEC §10)
+const RECIPE_QTY_DECIMALS = 3; // takaran DECIMAL(10,3) — maks. 9.999.999,999
+const MATERIAL_REQUIREMENT_WINDOW_DAYS = 30; // hari ini s.d. hari ini + 29 (SPEC §6, §10)
+const MATERIAL_DEMAND_STATUS = Object.freeze({ KURANG: 'kurang', MENIPIS: 'menipis', CUKUP: 'cukup' });
+
 // Lead time per tipe (SPEC §8: 0 ready, 1 pre-order, 3 custom · BR-02). Maksimum = asumsi prototype client
 // LEAD_TIME_MAX_DAYS: tanggal siap tercepat harus tetap di jendela tanggal Detail Produk & Checkout (14 hari).
 const LEAD_TIME_MAX_DAYS = PREORDER_DATE_WINDOW_DAYS - 2;
@@ -399,6 +407,11 @@ const ADMIN_ACCOUNT_ROLES = Object.freeze(['staf', 'owner']);
 const OWNER_ROLE = 'owner';
 
 module.exports = {
+  MATERIAL_DEMAND_STATUSES,
+  RECIPE_MAX_ITEMS,
+  RECIPE_QTY_DECIMALS,
+  MATERIAL_REQUIREMENT_WINDOW_DAYS,
+  MATERIAL_DEMAND_STATUS,
   AVAILABILITY_TYPE,
   ORDER_STATUS,
   ORDER_STATUS_LABEL,

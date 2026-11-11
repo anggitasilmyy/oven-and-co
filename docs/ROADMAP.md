@@ -181,7 +181,7 @@ Catatan khusus:
 | 6.4 | API admin: pesanan & status, kalender, produk, stok, pelanggan, dashboard, laporan, promo, pengaturan | `routes/admin/*` |
 | 6.5 | Payment simulasi + webhook, job `autoCancelOrders` (BR-06, BR-07), notifikasi, riwayat status, audit log | `services/paymentService.js`, `jobs/` |
 | 6.6 | Ganti `VITE_USE_MOCK=false`, sesuaikan service frontend, uji semua layar | `client/src/services/*` |
-| 6.7 | Komposisi bahan (resep ringan) & estimasi kebutuhan bahan — CR-03: FR-39 (AD-06), FR-40 (AD-07), tabel `product_materials` | lihat "Step 6.7 – 6.10" di bawah (CP0 – CP2 selesai) |
+| 6.7 | Komposisi bahan (resep ringan) & estimasi kebutuhan bahan — CR-03: FR-39 (AD-06), FR-40 (AD-07), tabel `product_materials` | lihat "Step 6.7 – 6.10" di bawah (CP0 – CP3 selesai) |
 | 6.8 | Supplier & Purchasing Management — **ditunda, di luar lingkup** (CR-03) | — |
 | 6.9 | Manufacturing Management — **ditunda, di luar lingkup** (CR-03) | — |
 | 6.10 | Advanced Reporting — **laporan lanjutan baru ditunda** (CR-03); laporan penjualan AD-08 & KPI AD-02 tetap berlaku | — |
@@ -1555,7 +1555,7 @@ berlaku. Persetujuan akademik formal (kelompok/dosen) atas CR-03 **belum dikonfi
 
 **Step 6.7 — Komposisi Bahan (Resep Ringan) & Estimasi Kebutuhan Bahan (CR-03)**
 - Status: CR-03 Revisi 8 **disetujui pemilik project 11 Nov 2026**; persetujuan akademik formal belum dikonfirmasi.
-  CP0 – CP2 selesai; **CP3 belum dimulai** dan menunggu persetujuan pemilik project.
+  CP0 – CP3 selesai; **CP4 belum dimulai** dan menunggu persetujuan pemilik project.
 - Ruang lingkup: FR-39 (kelola komposisi bahan per produk, AD-06) dan FR-40 (estimasi kebutuhan bahan, AD-07) dengan
   BR-13 – BR-16, validation rules, tabel `product_materials`, asumsi & keterbatasan E-1 – E-10 (`docs/SPEC.md` bagian
   2, 3, 5, 6, 7, 8, 9, 10, 12). Master bahan tetap `raw_materials` AD-07; satuan tetap `raw_materials.unit`; stok
@@ -1582,7 +1582,7 @@ berlaku. Persetujuan akademik formal (kelompok/dosen) atas CR-03 **belum dikonfi
 | CP0 | Draft CR-03 + persetujuan pemilik project | Selesai (11 Nov 2026) |
 | CP1 | Perbarui SPEC.md, AGENTS.md, ROADMAP.md | Selesai (11 Nov 2026) |
 | CP2 | Schema, migrasi baru, seed, `db:check-spec` 30 tabel, harness MySQL | Selesai (11 Nov 2026) — migrasi `20261111000000_cr03_product_materials`; uji upgrade 29 → 30 tabel & instalasi baru di MySQL 8.0.46; seed idempoten (24 baris komposisi contoh); `db:check-spec` lulus; `npm test` 707/707; harness `tests-mysql` 124/125 — 1 gagal (14 P1b) juga gagal di HEAD tanpa CP2 (bergantung jam uji) |
-| CP3 | Aturan murni server & client + unit test | Belum dimulai |
+| CP3 | Aturan murni server & client + unit test | Selesai (11 Nov 2026) — server `services/recipeRules.service.js` & `materialRequirementRules.service.js`, client `utils/rules/recipe.js` & `materialRequirement.js`; uji `server/tests/recipeRules.test.js` 12/12 (node:test), `client/tests/vitest/recipeRules.test.mjs` 8/8 (Vitest, `npm test` di client; termasuk uji silang client = server, 300 kasus acak); server `npm test` 721/721; client `npm run test:unit` 289/289. Presisi JSON number: Opsi A fail-safe (keputusan pemilik project) — round-trip `JSON.stringify` → milli-satuan, error `MILLI_PRECISION_LOST` bila tidak eksak (SPEC §5); pemetaan ke API pada CP4/CP5 |
 | CP4 | API komposisi + audit + route & integrasi MySQL (CS-1 – CS-7) | Belum dimulai |
 | CP5 | API kebutuhan bahan + rekonsiliasi AD-05 | Belum dimulai |
 | CP6 | Modal Komposisi AD-06 (mock & API) | Belum dimulai |
