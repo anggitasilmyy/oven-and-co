@@ -8,8 +8,12 @@ Baca file ini, `docs/SPEC.md`, dan `docs/ROADMAP.md` sebelum mengerjakan tugas a
 - Sumber kebenaran: `docs/Oven_and_Co_Analisis_Perancangan_Sistem.pdf` (diringkas di `docs/SPEC.md`).
 - Desain visual per layar: file export Google Stitch di `docs/stitch/` (jika tersedia).
 - JANGAN membuat fitur, halaman, tabel, kolom, atau menu baru yang tidak ada di dokumen.
-  Contoh yang DILARANG: menu Bantuan, chat in-app, multi-cabang, langganan, modul keuangan/resep,
-  halaman profil pribadi admin, layar audit log.
+  Contoh yang DILARANG: menu Bantuan, chat in-app, multi-cabang, langganan, modul keuangan, pembelian bahan/supplier,
+  produksi/work order, halaman profil pribadi admin, layar audit log. **Resep hanya sebatas CR-03** (komposisi bahan
+  per produk & estimasi kebutuhan bahan; tanpa varian, konversi satuan, alokasi tersimpan, atau pengurangan stok
+  otomatis).
+- Perubahan requirement yang disetujui dicatat di `docs/SPEC.md` (CR-01, CR-03, …) dan berlaku sebagai bagian dokumen
+  sumber.
 - Jika dokumen ambigu atau masih open issue, JANGAN mengarang. Pakai asumsi yang tercantum di
   `docs/SPEC.md` bagian "Asumsi Prototype", simpan sebagai konstanta/konfigurasi, lalu sebutkan di ringkasan.
 - Setiap file fitur diberi komentar kode traceability di bagian atas, contoh:

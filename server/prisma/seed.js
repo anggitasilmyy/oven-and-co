@@ -45,6 +45,8 @@ async function main() {
   counts.product_images = await ensureAll('productImage', C.PRODUCT_IMAGES, (r) => ({ imageId: r.imageId }));
   counts.product_variants = await ensureAll('productVariant', C.PRODUCT_VARIANTS, (r) => ({ variantId: r.variantId }));
   counts.raw_materials = await ensureAll('rawMaterial', C.RAW_MATERIALS, (r) => ({ materialId: r.materialId }));
+  counts.product_materials = await ensureAll('productMaterial', C.PRODUCT_MATERIALS,
+    (r) => ({ productId_materialId: { productId: r.productId, materialId: r.materialId } }));
   counts.custom_options = await ensureAll('customOption', C.CUSTOM_OPTIONS, (r) => ({ optionId: r.optionId }));
   counts.payment_methods = await ensureAll('paymentMethod', C.PAYMENT_METHODS, (r) => ({ methodCode: r.methodCode }));
   counts.store_settings = await ensureAll('storeSetting', [C.STORE_SETTINGS], (r) => ({ settingId: r.settingId }));

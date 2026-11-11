@@ -3,6 +3,7 @@
 // Stok tidak boleh negatif; peringatan tampil bila stok ≤ batas minimum (validation rule Stok).
 // Step 6.6 (CP6 · G7 · G13): ubah mengirim `expected_stock` = stok saat form dibuka (stok masuk sejak itu tidak tertimpa);
 // fieldErrors server tampil di field; 409 (stok sudah berubah) → onConflict memuat ulang data bahan.
+// CR-03 CP6 · K-06 · BR-13: form ubah menampilkan peringatan di bawah Satuan bila satuan diubah (tidak memblokir Simpan).
 
 import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
@@ -15,6 +16,8 @@ import { validateMaterial, isLowStock, withExpectedValue } from '../../utils/bus
 import { saveMaterial } from '../../services/stockService';
 import { PRODUCT_FIELD_MAX, MAX_MATERIAL_QTY, MATERIAL_UNIT_SUGGESTIONS } from '../../constants/adminCatalog';
 import { HTTP_STATUS_CONFLICT } from '../../constants/apiErrors';
+import { MATERIAL_UNIT_CHANGE_WARNING } from '../../constants/recipe';
+import { isMaterialUnitChanged } from '../../utils/rules/recipe';
 
 const LIMITS = { nameMax: PRODUCT_FIELD_MAX.materialName, unitMax: PRODUCT_FIELD_MAX.materialUnit, qtyMax: MAX_MATERIAL_QTY };
 
@@ -81,6 +84,12 @@ export default function RawMaterialFormModal({ material, materials, onClose, onS
         <FormField id="material-unit" label="Satuan" error={errorOf('unit')} hint="Contoh: gram, kg, ml, pcs">
           <input className={fieldClass(errorOf('unit'))} maxLength={LIMITS.unitMax} list="material-unit-options" {...bind('unit')} />
         </FormField>
+        {isMaterialUnitChanged(material, values.unit) && (
+          <p className="-mt-2 flex items-start gap-2 rounded-btn bg-peach/40 px-3 py-2 text-xs text-cocoa" role="status">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-error" aria-hidden="true" />
+            {MATERIAL_UNIT_CHANGE_WARNING}
+          </p>
+        )}
         <datalist id="material-unit-options">
           {MATERIAL_UNIT_SUGGESTIONS.map((u) => <option key={u} value={u} />)}
         </datalist>

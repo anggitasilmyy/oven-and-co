@@ -83,6 +83,19 @@ export const RAW_MATERIALS = [
   { material_id: 8, name: 'Cream cheese', unit: 'kg', stock: 4, min_stock: 2.5 },
 ];
 
+// product_materials — CR-03 CP6 · FR-39 · BR-13: komposisi contoh = server prisma/seed/catalog.js (takaran string desimal
+// 3 angka, satuan = raw_materials.unit). Produk tanpa baris = belum punya komposisi (E-7). // data contoh
+export const PRODUCT_MATERIALS = [
+  // 1 Classic Butter Croissant (ready)
+  [1, 1, '0.060'], [1, 2, '0.015'], [1, 3, '0.005'], [1, 4, '0.100'], [1, 6, '0.020'], [1, 7, '1.500'],
+  // 2 Signature Cinnamon Roll (ready)
+  [2, 1, '0.070'], [2, 2, '0.012'], [2, 3, '0.015'], [2, 4, '0.150'], [2, 6, '0.025'], [2, 7, '1.200'], [2, 8, '0.010'],
+  // 5 Premium Birthday Cake (pre-order)
+  [5, 1, '0.300'], [5, 2, '0.250'], [5, 3, '0.250'], [5, 4, '4.000'], [5, 6, '0.150'],
+  // 6 Custom Celebration Cake (custom, ukuran standar — BR-16)
+  [6, 1, '0.350'], [6, 2, '0.300'], [6, 3, '0.300'], [6, 4, '5.000'], [6, 5, '0.100'], [6, 6, '0.200'],
+].map(([product_id, material_id, qty_per_unit]) => ({ product_id, material_id, qty_per_unit }));
+
 // payment_methods — SPEC §8
 export const PAYMENT_METHODS = [
   { method_code: 'qris', name: 'QRIS', method_group: 'qris', is_active: true },

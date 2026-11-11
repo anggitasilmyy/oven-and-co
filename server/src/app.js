@@ -16,6 +16,8 @@ const paymentRoutes = require('./routes/customer/payment.routes');
 const adminOrderRoutes = require('./routes/admin/order.routes');
 const adminCalendarRoutes = require('./routes/admin/calendar.routes');
 const adminProductRoutes = require('./routes/admin/product.routes');
+const adminRecipeRoutes = require('./routes/admin/recipe.routes'); // CR-03 CP4
+const adminMaterialRequirementRoutes = require('./routes/admin/materialRequirement.routes'); // CR-03 CP5
 const adminCustomOptionRoutes = require('./routes/admin/customOption.routes');
 const adminStockRoutes = require('./routes/admin/stock.routes');
 const adminRawMaterialRoutes = require('./routes/admin/rawMaterial.routes');
@@ -90,10 +92,12 @@ app.use('/api/payments', paymentRoutes);
 // Admin API
 app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/calendar', adminCalendarRoutes);
+app.use('/api/admin/products', adminRecipeRoutes); // CR-03 CP4: /:id/materials (sebelum router produk)
 app.use('/api/admin/products', adminProductRoutes);
 app.use('/api/admin/custom-options', adminCustomOptionRoutes);
 app.use('/api/admin/stocks', adminStockRoutes);
 app.use('/api/admin/raw-materials', adminRawMaterialRoutes);
+app.use('/api/admin/material-requirements', adminMaterialRequirementRoutes); // CR-03 CP5
 app.use('/api/admin/dashboard', adminDashboardRoutes);
 app.use('/api/admin/reports', adminReportRoutes);
 app.use('/api/admin/customers', adminCustomerRoutes);

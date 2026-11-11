@@ -74,6 +74,20 @@ const RAW_MATERIALS = [
   [7, 'Ragi instan', 'gram', 900, 500], [8, 'Cream cheese', 'kg', 4, 2.5],
 ].map(([materialId, name, unit, stock, minStock]) => ({ materialId, name, unit, stock, minStock }));
 
+// product_materials — CR-03 · FR-39 · BR-13: takaran per 1 unit produk dalam satuan bahan (DECIMAL(10,3), ditulis
+// sebagai string agar presisi 3 desimal tidak melewati float). Hanya sebagian produk; Assorted Cookies Box (4), yang
+// punya rencana stok harian, sengaja tanpa komposisi untuk demo "Belum ada komposisi" (E-7). // data contoh
+const PRODUCT_MATERIALS = [
+  // 1 Classic Butter Croissant (ready)
+  [1, 1, '0.060'], [1, 2, '0.015'], [1, 3, '0.005'], [1, 4, '0.100'], [1, 6, '0.020'], [1, 7, '1.500'],
+  // 2 Signature Cinnamon Roll (ready)
+  [2, 1, '0.070'], [2, 2, '0.012'], [2, 3, '0.015'], [2, 4, '0.150'], [2, 6, '0.025'], [2, 7, '1.200'], [2, 8, '0.010'],
+  // 5 Premium Birthday Cake (pre-order)
+  [5, 1, '0.300'], [5, 2, '0.250'], [5, 3, '0.250'], [5, 4, '4.000'], [5, 6, '0.150'],
+  // 6 Custom Celebration Cake (custom, ukuran standar — BR-16)
+  [6, 1, '0.350'], [6, 2, '0.300'], [6, 3, '0.300'], [6, 4, '5.000'], [6, 5, '0.100'], [6, 6, '0.200'],
+].map(([productId, materialId, qtyPerUnit]) => ({ productId, materialId, qtyPerUnit }));
+
 // payment_methods — SPEC §8
 const PAYMENT_METHODS = [
   ['qris', 'QRIS', 'qris'], ['gopay', 'GoPay', 'ewallet'], ['ovo', 'OVO', 'ewallet'], ['dana', 'DANA', 'ewallet'],
@@ -137,7 +151,7 @@ const ADDRESSES = [
 ];
 
 module.exports = {
-  ANCHOR_DATE, CATEGORIES, PRODUCTS, PRODUCT_IMAGES, PRODUCT_VARIANTS, DAILY_STOCK_PLAN, RAW_MATERIALS, PAYMENT_METHODS,
+  ANCHOR_DATE, CATEGORIES, PRODUCTS, PRODUCT_IMAGES, PRODUCT_VARIANTS, DAILY_STOCK_PLAN, RAW_MATERIALS, PRODUCT_MATERIALS, PAYMENT_METHODS,
   CUSTOM_OPTIONS, STORE_SETTINGS, OPERATING_HOURS, DEMO_PASSWORD, DEMO_USERS, SAMPLE_CUSTOMERS, DEMO_CUSTOMER_ID,
   DEMO_POINT_BALANCE, ADDRESSES,
 };

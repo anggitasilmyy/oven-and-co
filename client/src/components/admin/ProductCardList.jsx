@@ -6,11 +6,12 @@ import ProductImage from '../ui/ProductImage';
 import ProductTypeBadge from './ProductTypeBadge';
 import ProductRating from './ProductRating';
 import ProductEditButton from './ProductEditButton';
+import ProductRecipeButton from './ProductRecipeButton';
 import { stockTodayText } from './productColumns';
 import { formatRupiah } from '../../utils/format';
 
-/** @param {{rows, onToggle, onEdit, pendingId}} props */
-export default function ProductCardList({ rows, onToggle, onEdit, pendingId }) {
+/** @param {{rows, onToggle, onEdit, onRecipe, pendingId}} props — CR-03 CP6: aksi "Komposisi" */
+export default function ProductCardList({ rows, onToggle, onEdit, onRecipe, pendingId }) {
   return (
     <ul className="space-y-3">
       {rows.map((r) => (
@@ -37,7 +38,10 @@ export default function ProductCardList({ rows, onToggle, onEdit, pendingId }) {
               onChange={(checked) => onToggle(r, checked)}
               label={`${r.is_active ? 'Nonaktifkan' : 'Aktifkan'} ${r.name}`}
             />
-            <ProductEditButton row={r} onEdit={onEdit} />
+            <div className="flex gap-2">
+              <ProductRecipeButton row={r} onRecipe={onRecipe} />
+              <ProductEditButton row={r} onEdit={onEdit} />
+            </div>
           </div>
         </li>
       ))}

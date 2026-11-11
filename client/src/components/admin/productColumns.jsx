@@ -1,12 +1,13 @@
 // components/admin/productColumns.jsx
 // Step 5.7 · FR-30 · AD-06 — kolom tabel produk (UI/UX Spec Batch 7): foto, nama, kategori, tipe, harga,
-// stok hari ini, rating, toggle aktif, aksi ubah. Dipakai DataTable (≥ md) dan ProductCardList (< md).
+// stok hari ini, rating, toggle aktif, aksi ubah. CR-03 CP6: aksi "Komposisi" (FR-39). Dipakai DataTable (≥ md) dan ProductCardList (< md).
 
 import Switch from '../ui/Switch';
 import ProductImage from '../ui/ProductImage';
 import ProductTypeBadge from './ProductTypeBadge';
 import ProductRating from './ProductRating';
 import ProductEditButton from './ProductEditButton';
+import ProductRecipeButton from './ProductRecipeButton';
 import { AVAILABILITY_TYPE } from '../../constants/product';
 import { formatRupiah, formatNumber } from '../../utils/format';
 
@@ -18,10 +19,10 @@ export function stockTodayText(row) {
 }
 
 /**
- * @param {{onToggle: Function, onEdit: Function, pendingId: number|null}} handlers
+ * @param {{onToggle: Function, onEdit: Function, onRecipe: Function, pendingId: number|null}} handlers
  * @returns {Array} kolom DataTable
  */
-export function buildProductColumns({ onToggle, onEdit, pendingId }) {
+export function buildProductColumns({ onToggle, onEdit, onRecipe, pendingId }) {
   return [
     {
       key: 'image', header: 'Foto',
@@ -52,6 +53,14 @@ export function buildProductColumns({ onToggle, onEdit, pendingId }) {
         />
       ),
     },
-    { key: 'action', header: 'Aksi', align: 'right', render: (r) => <ProductEditButton row={r} onEdit={onEdit} /> },
+    {
+      key: 'action', header: 'Aksi', align: 'right',
+      render: (r) => (
+        <div className="flex justify-end gap-2">
+          <ProductRecipeButton row={r} onRecipe={onRecipe} />
+          <ProductEditButton row={r} onEdit={onEdit} />
+        </div>
+      ),
+    },
   ];
 }

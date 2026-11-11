@@ -55,6 +55,8 @@ function baseTables(today) {
       { materialId: 2n, name: 'Butter', unit: 'kg', stock: '4.50', minStock: '5.00' },
       { materialId: 3n, name: 'Telur', unit: 'butir', stock: '0.00', minStock: '30.00' },
     ],
+    // CR-03 CP4: product_materials (takaran DECIMAL(10,3) disimpan sebagai string seperti nilai Prisma Decimal)
+    productMaterials: [{ productId: 1n, materialId: 2n, qtyPerUnit: '0.015' }],
     reviews: [{ productId: 1n, rating: 5, isHidden: false }, { productId: 1n, rating: 4, isHidden: false }, { productId: 1n, rating: 1, isHidden: true }],
   };
 }
@@ -222,6 +224,27 @@ function installCatalogDb(fakePrisma, today) {
         return m ? [{ stock: m.stock }] : [];
       }
       throw new Error(`catalogDb: SQL tidak dikenal: ${sql}`);
+    },
+    // CR-03 CP4: product_materials
+    productMaterial: {
+      findMany: async ({ where, include, orderBy } = {}) => {
+        fail('productMaterial.findMany');
+        const rows = sortBy(state.t.productMaterials.filter((r) => matchesWhere(r, where)), orderBy ?? []);
+        return rows.map((r) => (include?.material
+          ? { ...r, material: pick(state.t.materials.find((m) => m.materialId === r.materialId), include.material.select) }
+          : { ...r }));
+      },
+      deleteMany: async ({ where }) => {
+        fail('productMaterial.deleteMany');
+        const before = state.t.productMaterials.length;
+        state.t.productMaterials = state.t.productMaterials.filter((r) => !matchesWhere(r, where));
+        return { count: before - state.t.productMaterials.length };
+      },
+      createMany: async ({ data }) => {
+        fail('productMaterial.createMany');
+        data.forEach((r) => state.t.productMaterials.push({ ...r, qtyPerUnit: String(r.qtyPerUnit) }));
+        return { count: data.length };
+      },
     },
     // Step 6.5 C5: audit_logs
     auditLog: {
