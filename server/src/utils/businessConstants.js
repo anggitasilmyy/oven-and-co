@@ -234,6 +234,7 @@ const AUDIT_ACTION = Object.freeze({
   UPDATE_DAILY_STOCK_PLAN: 'update_daily_stock_plan',
   CORRECT_RAW_MATERIAL_STOCK: 'correct_raw_material_stock',
   RAW_MATERIAL_STOCK_IN: 'raw_material_stock_in',
+  UPDATE_PRODUCT_RECIPE: 'update_product_recipe', // CR-03 · FR-39 (entity products)
 });
 const AUDIT_ENTITY = Object.freeze({
   ORDERS: 'orders',
