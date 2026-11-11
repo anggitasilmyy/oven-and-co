@@ -22,3 +22,23 @@ export const MATERIAL_DEMAND_STATUS = Object.freeze({ KURANG: 'kurang', MENIPIS:
 /** K-06 (CR-03 §B8): peringatan teks di form ubah bahan AD-07 saat satuan diubah — tidak memblokir Simpan */
 export const MATERIAL_UNIT_CHANGE_WARNING =
   'Satuan ini juga menjadi satuan takaran di komposisi produk. Mengubah satuan tidak mengubah angka takaran yang sudah tersimpan; periksa kembali komposisi produk yang memakai bahan ini.';
+
+/** CR-03 §B3.8: label & badge status kebutuhan (menilai sisa setelah dialokasikan; beda dari Aman/Menipis/Habis) */
+export const MATERIAL_DEMAND_STATUS_META = Object.freeze({
+  [MATERIAL_DEMAND_STATUS.KURANG]: { label: 'Kurang', variant: 'error' },
+  [MATERIAL_DEMAND_STATUS.MENIPIS]: { label: 'Menipis', variant: 'preorder' },
+  [MATERIAL_DEMAND_STATUS.CUKUP]: { label: 'Cukup', variant: 'ready' },
+});
+
+/** K-14 (CR-03 §B3.7): teks keterangan wajib tab Kebutuhan Bahan — memuat E-1 – E-10, selalu tampil, tidak dapat disembunyikan */
+export const MATERIAL_REQUIREMENT_NOTE =
+  'Angka ini estimasi, bukan catatan pemakaian bahan. Dihitung dari pesanan pre-order & custom yang sudah dikonfirmasi '
+  + 'atau sedang disiapkan — pesanan yang sedang disiapkan dihitung penuh — ditambah seluruh rencana produk ready hari '
+  + 'ini, termasuk yang mungkin sudah dibuat. Produk ready untuk tanggal mendatang belum termasuk. Produk ready dalam '
+  + 'pesanan campuran dihitung pada tanggal pesanan dibuat, bukan tanggal siap. Custom cake dihitung dengan ukuran '
+  + 'standar, dan varian produk tidak dihitung terpisah. Produk tanpa komposisi tidak dihitung dan ditampilkan terpisah. '
+  + 'Jenis produk dibaca dari data produk saat ini; bila diubah setelah pesanan dibuat, estimasi dapat kurang atau '
+  + 'berlebih. Stok bahan tidak dikurangi otomatis; perbarui lewat Catat Stok Masuk atau koreksi stok.';
+
+/** SPEC §5 fail-safe presisi — pesan aman sama dengan server (CR-03 CP5) */
+export const MILLI_PRECISION_LOST_TEXT = 'Hasil perhitungan tidak dapat direpresentasikan secara aman.';

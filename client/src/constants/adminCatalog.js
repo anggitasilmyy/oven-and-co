@@ -14,11 +14,12 @@ export const PRODUCT_ADMIN_TABS = [
   { key: PRODUCT_ADMIN_TAB.OPSI, label: 'Opsi Custom Cake' },
 ];
 
-/** Tab AD-07 (UI/UX Spec Batch 7: "Stok Produk Harian" & "Bahan Baku") */
-export const STOCK_TAB = { HARIAN: 'harian', BAHAN: 'bahan' };
+/** Tab AD-07 (UI/UX Spec Batch 7: "Stok Produk Harian" & "Bahan Baku"; CR-03 CP7: "Kebutuhan Bahan" ?tab=kebutuhan) */
+export const STOCK_TAB = { HARIAN: 'harian', BAHAN: 'bahan', KEBUTUHAN: 'kebutuhan' };
 export const STOCK_TABS = [
   { key: STOCK_TAB.HARIAN, label: 'Stok Produk Harian' },
   { key: STOCK_TAB.BAHAN, label: 'Bahan Baku' },
+  { key: STOCK_TAB.KEBUTUHAN, label: 'Kebutuhan Bahan' },
 ];
 
 /** Panjang maksimum kolom (SPEC §8) */

@@ -2,6 +2,7 @@
 // FR-32 · UC-24 · BR-01 · TF-12 · AD-07 Stok Harian & Bahan Baku (Staf & Owner)
 // Step 5.7: tab "Stok Produk Harian" (rencana stok produk ready hari ini; terjual dari pesanan) dan tab "Bahan Baku"
 // (stok, minimum, status Aman/Menipis/Habis, Catat Stok Masuk). Tab disimpan di URL (?tab=bahan).
+// CR-03 CP7 · FR-40 · UC-32: tab "Kebutuhan Bahan" (?tab=kebutuhan) — estimasi kebutuhan bahan (MaterialRequirementPanel).
 
 import { useSearchParams } from 'react-router-dom';
 import { PackageOpen } from 'lucide-react';
@@ -13,6 +14,7 @@ import Skeleton from '../../components/ui/Skeleton';
 import Toast, { useToast } from '../../components/ui/Toast';
 import DailyStockEditor from '../../components/admin/DailyStockEditor';
 import RawMaterialPanel from '../../components/admin/RawMaterialPanel';
+import MaterialRequirementPanel from '../../components/admin/MaterialRequirementPanel';
 import useServiceQuery from '../../hooks/useServiceQuery';
 import { getDailyStocks, updateDailyStocks, getRawMaterials } from '../../services/stockService';
 import { STOCK_TAB, STOCK_TABS } from '../../constants/adminCatalog';
@@ -21,11 +23,11 @@ import { parseDateKey } from '../../utils/date';
 
 export default function StokPage() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') === STOCK_TAB.BAHAN ? STOCK_TAB.BAHAN : STOCK_TAB.HARIAN;
+  const tab = [STOCK_TAB.BAHAN, STOCK_TAB.KEBUTUHAN].includes(params.get('tab')) ? params.get('tab') : STOCK_TAB.HARIAN;
   const daily = useServiceQuery(getDailyStocks);
   const materials = useServiceQuery(getRawMaterials);
   const { toast, showToast, hideToast } = useToast();
-  const query = tab === STOCK_TAB.HARIAN ? daily : materials;
+  const query = tab === STOCK_TAB.HARIAN ? daily : materials; // tab Kebutuhan Bahan memuat datanya sendiri
 
   const saveDaily = async (plans) => {
     await updateDailyStocks(plans);
@@ -41,11 +43,11 @@ export default function StokPage() {
         description="Isi stok produk ready setiap pagi dan pantau bahan baku utama agar tidak kehabisan."
       />
 
-      <Tabs tabs={STOCK_TABS} value={tab} onChange={(key) => setParams(key === STOCK_TAB.HARIAN ? {} : { tab: key })} label="Bagian stok" />
+      <Tabs tabs={STOCK_TABS} value={tab} onChange={(key) => setParams(key === STOCK_TAB.HARIAN ? {} : { tab: key })} label="Bagian stok" className="overflow-x-auto" />
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="space-y-4">
-        {query.error && <ErrorState message={query.error.message || 'Data stok gagal dimuat.'} onRetry={query.reload} />}
-        {!query.data && !query.error && (
+        {tab !== STOCK_TAB.KEBUTUHAN && query.error && <ErrorState message={query.error.message || 'Data stok gagal dimuat.'} onRetry={query.reload} />}
+        {tab !== STOCK_TAB.KEBUTUHAN && !query.data && !query.error && (
           <div className="card-admin space-y-3 p-4" aria-busy="true" aria-label="Memuat stok">
             {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} variant="block" className="h-14 w-full" />)}
           </div>
@@ -70,6 +72,8 @@ export default function StokPage() {
         {tab === STOCK_TAB.BAHAN && materials.data && (
           <RawMaterialPanel board={materials.data} onChanged={(message) => { showToast('success', message); materials.reload(); }} onReload={materials.reload} />
         )}
+
+        {tab === STOCK_TAB.KEBUTUHAN && <MaterialRequirementPanel />}
       </div>
       <Toast {...toast} onClose={hideToast} />
     </div>
