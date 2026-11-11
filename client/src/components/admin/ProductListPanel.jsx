@@ -14,9 +14,10 @@ import { setProductActive } from '../../services/adminProductService';
 /**
  * @param {{data, error, loading, reload}} query — hasil useServiceQuery(getAdminProducts)
  * @param {Function} onEdit — (productId) → void
+ * @param {Function} onRecipe — (row) → void · CR-03 CP6 membuka modal Komposisi
  * @param {Function} onToast — (type, message) → void
  */
-export default function ProductListPanel({ query, onEdit, onToast }) {
+export default function ProductListPanel({ query, onEdit, onRecipe, onToast }) {
   const [pendingId, setPendingId] = useState(null);
 
   const toggle = async (row, checked) => {
@@ -50,7 +51,7 @@ export default function ProductListPanel({ query, onEdit, onToast }) {
     );
   }
 
-  const handlers = { onToggle: toggle, onEdit, pendingId };
+  const handlers = { onToggle: toggle, onEdit, onRecipe, pendingId };
   return (
     <section aria-label="Daftar produk" className={`space-y-4 transition-opacity ${query.loading ? 'opacity-60' : ''}`} aria-busy={query.loading}>
       <p className="text-sm text-cocoa/70">

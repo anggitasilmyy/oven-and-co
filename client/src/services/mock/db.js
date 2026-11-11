@@ -29,7 +29,7 @@ import { readMock, writeMock, hasMock } from './storage';
 import { getMockTodayKey, getMockNow, getMockCurrentTime } from './mockClock';
 import { getMockUsers } from './users';
 import {
-  CATEGORIES, PRODUCTS, DAILY_STOCK_PLAN, RAW_MATERIALS,
+  CATEGORIES, PRODUCTS, DAILY_STOCK_PLAN, RAW_MATERIALS, PRODUCT_MATERIALS,
   PAYMENT_METHODS, CUSTOM_OPTIONS, STORE_SETTINGS, OPERATING_HOURS, buildVouchers,
 } from './seed/catalog';
 import { PRODUCT_IMAGES } from './seed/productMedia';
@@ -77,6 +77,8 @@ const USER_SCHEMA_VERSION = 1;
 export const ADMIN_TABLES = [
   'products', 'product_images', 'product_variants', 'custom_options', 'raw_materials',
   'vouchers', 'store_settings', 'payment_methods', 'operating_hours', // Step 5.8 (AD-09, AD-11)
+  // CR-03 CP6: komposisi bahan (AD-06) — perangkat lama mendapat tabel ini dari seed tanpa menimpa katalog tersimpan
+  'product_materials',
 ];
 const ADMIN_SCHEMA_VERSION = 1;
 
@@ -111,6 +113,7 @@ function buildSeed(todayKey) {
       stockPlan: DAILY_STOCK_PLAN, sold: generated.sold, soldOutTodayIds: SOLD_OUT_TODAY_IDS,
     }),
     raw_materials: RAW_MATERIALS,
+    product_materials: PRODUCT_MATERIALS, // CR-03 CP6
     payment_methods: PAYMENT_METHODS,
     custom_options: CUSTOM_OPTIONS,
     custom_cake_designs: generated.custom_cake_designs,

@@ -18,3 +18,7 @@ export const MATERIAL_REQUIREMENT_WINDOW_DAYS = 30;
 
 /** Status kebutuhan per bahan (dinilai dari sisa setelah dialokasikan) */
 export const MATERIAL_DEMAND_STATUS = Object.freeze({ KURANG: 'kurang', MENIPIS: 'menipis', CUKUP: 'cukup' });
+
+/** K-06 (CR-03 §B8): peringatan teks di form ubah bahan AD-07 saat satuan diubah — tidak memblokir Simpan */
+export const MATERIAL_UNIT_CHANGE_WARNING =
+  'Satuan ini juga menjadi satuan takaran di komposisi produk. Mengubah satuan tidak mengubah angka takaran yang sudah tersimpan; periksa kembali komposisi produk yang memakai bahan ini.';

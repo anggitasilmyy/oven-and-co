@@ -2,6 +2,7 @@
 // FR-30 · FR-31 · UC-23 · AD-06 Produk & Opsi Custom Cake (Staf & Owner)
 // Step 5.7: tab Produk (tabel + drawer tambah/ubah, toggle aktif) dan tab Opsi Custom Cake (opsi per kelompok).
 // Tab disimpan di URL (?tab=opsi). Produk nonaktif disembunyikan dari web; hanya opsi aktif yang muncul di builder.
+// CR-03 CP6 · FR-39 · UC-31: aksi baris "Komposisi" membuka RecipeFormModal (tanpa rute/menu baru).
 
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -13,6 +14,7 @@ import Toast, { useToast } from '../../components/ui/Toast';
 import ProductListPanel from '../../components/admin/ProductListPanel';
 import CustomOptionsPanel from '../../components/admin/CustomOptionsPanel';
 import ProductFormDrawer from '../../components/admin/ProductFormDrawer';
+import RecipeFormModal from '../../components/admin/RecipeFormModal';
 import useServiceQuery from '../../hooks/useServiceQuery';
 import { getAdminProducts } from '../../services/adminProductService';
 import { PRODUCT_ADMIN_TAB, PRODUCT_ADMIN_TABS } from '../../constants/adminCatalog';
@@ -24,6 +26,7 @@ export default function ProdukAdminPage() {
   const { toast, showToast, hideToast } = useToast();
   // null = tertutup · { productId: null } = tambah · { productId } = ubah
   const [editing, setEditing] = useState(null);
+  const [recipeProduct, setRecipeProduct] = useState(null); // CR-03 CP6: baris produk yang komposisinya dibuka
 
   const changeTab = (key) => setParams(key === PRODUCT_ADMIN_TAB.PRODUK ? {} : { tab: key });
   const handleSaved = () => {
@@ -49,7 +52,7 @@ export default function ProdukAdminPage() {
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === PRODUCT_ADMIN_TAB.PRODUK ? (
-          <ProductListPanel query={products} onEdit={(productId) => setEditing({ productId })} onToast={showToast} />
+          <ProductListPanel query={products} onEdit={(productId) => setEditing({ productId })} onRecipe={setRecipeProduct} onToast={showToast} />
         ) : (
           <CustomOptionsPanel onToast={showToast} />
         )}
@@ -62,6 +65,13 @@ export default function ProdukAdminPage() {
           products={products.data.rows}
           onClose={() => setEditing(null)}
           onSaved={handleSaved}
+        />
+      )}
+      {recipeProduct && (
+        <RecipeFormModal
+          product={recipeProduct}
+          onClose={() => setRecipeProduct(null)}
+          onSaved={(message) => { showToast('success', message); setRecipeProduct(null); }}
         />
       )}
       <Toast {...toast} onClose={hideToast} />

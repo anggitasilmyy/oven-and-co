@@ -115,3 +115,13 @@ export function isRecipeChanged(stored, next) {
   if (before.size !== next.length) return true;
   return next.some((r) => before.get(r.material_id) !== r.qty_per_unit_milli);
 }
+
+/**
+ * K-06 (CR-03 §B8): peringatan tampil di form UBAH bahan bila satuan di form berbeda dari satuan tersimpan (dibandingkan
+ * setelah spasi tepi dibuang, sama seperti nilai yang disimpan). Form tambah (material null) tidak pernah menampilkannya;
+ * pemakaian bahan di komposisi tidak diperiksa (default K-06, kontrak raw-materials tidak berubah).
+ */
+export function isMaterialUnitChanged(material, unit) {
+  if (!material) return false;
+  return String(unit ?? '').trim() !== String(material.unit ?? '').trim();
+}
