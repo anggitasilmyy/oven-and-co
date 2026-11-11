@@ -1,7 +1,15 @@
+const { API_ERROR_CODE, MILLI_PRECISION_LOST_TEXT } = require('../utils/businessConstants');
 
 function errorHandler(err, req, res, next) {
   if (res.headersSent) {
     return next(err);
+  }
+
+  // CR-03 CP5 (keputusan pemilik project): fail-safe presisi aturan murni → selalu 500 + kode MILLI_PRECISION_LOST +
+  // pesan aman; detail teknis (nilai milli) hanya di log server. Tidak pernah menjadi 4xx, tidak ada data yang dikirim.
+  if (err && err.code === API_ERROR_CODE.MILLI_PRECISION_LOST) {
+    console.error('[API Error] MILLI_PRECISION_LOST', { message: err.message, milli: err.milli, path: req.originalUrl });
+    return res.status(500).json({ status: 'error', code: API_ERROR_CODE.MILLI_PRECISION_LOST, message: MILLI_PRECISION_LOST_TEXT });
   }
 
   const candidateStatus = err.statusCode || err.status;

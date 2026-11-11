@@ -275,7 +275,11 @@ const API_ERROR_CODE = Object.freeze({
   SESSION_INVALID: 'SESSION_INVALID',
   // 400: id sumber daya tidak valid (mis. /products/abc) → frontend menampilkan "tidak ditemukan"
   INVALID_ID: 'INVALID_ID',
+  // 500 (keputusan pemilik project, CR-03 CP5): hasil perhitungan milli-satuan tidak dapat dikirim sebagai JSON number
+  // tanpa kehilangan presisi (fail-safe SPEC §5) — satu-satunya kode yang boleh dikirim bersama status 500
+  MILLI_PRECISION_LOST: 'MILLI_PRECISION_LOST',
 });
+const MILLI_PRECISION_LOST_TEXT = 'Hasil perhitungan tidak dapat direpresentasikan secara aman.';
 
 // BR-02: pre-order minimal H-1, custom cake minimal H+3 (client constants/storeConfig.js)
 const PREORDER_MIN_LEAD_DAYS = 1;
@@ -408,6 +412,7 @@ const ADMIN_ACCOUNT_ROLES = Object.freeze(['staf', 'owner']);
 const OWNER_ROLE = 'owner';
 
 module.exports = {
+  MILLI_PRECISION_LOST_TEXT,
   MATERIAL_DEMAND_STATUSES,
   RECIPE_MAX_ITEMS,
   RECIPE_QTY_DECIMALS,

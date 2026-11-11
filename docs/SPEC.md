@@ -140,8 +140,12 @@ tidak diubah):
 - Fail-safe presisi (keputusan pemilik project, ketentuan implementasi CP3): sebelum dikirim sebagai JSON number, setiap
   nilai milli-satuan diperiksa round-trip — representasi JSON aktualnya (`JSON.stringify`) harus kembali tepat ke
   milli-satuan yang sama (termasuk tanda negatif dan notasi eksponen). Bila tidak, aturan murni melempar error
-  `MILLI_PRECISION_LOST`; nilai tidak pernah dibulatkan, dipotong, atau diubah menjadi string. Pemetaan error ini ke
-  kontrak API ditetapkan pada CP4/CP5.
+  `MILLI_PRECISION_LOST`; nilai tidak pernah dibulatkan, dipotong, atau diubah menjadi string. Pemetaan ke kontrak API
+  (keputusan pemilik project, CP5): HTTP **500**, body `{ "status": "error", "code": "MILLI_PRECISION_LOST",
+  "message": "Hasil perhitungan tidak dapat direpresentasikan secara aman." }` tanpa data hasil sebagian; detail teknis
+  (nilai milli-satuan, path) hanya dicatat di log server. Tidak pernah dipetakan ke 400/422 (bukan kesalahan masukan
+  pengguna). Satu-satunya kode error yang dikirim bersama status 500 (`middlewares/errorHandler.js`); error 500 lain
+  tetap tanpa kode dengan pesan generik. Endpoint komposisi (CP4) tidak dapat memicunya (takaran maks. selalu eksak).
 
 ## 6. Validation Rules
 
@@ -392,7 +396,8 @@ dan KPI AD-02 tetap berlaku.
 API baru (Staf & Owner): `GET /api/admin/products/:id/materials`, `PUT /api/admin/products/:id/materials` (ganti
 seluruh komposisi; satu transaksi dengan kunci pelaku `users` S → `store_settings` X; last-write-wins menurut urutan
 perolehan kunci & commit), `GET /api/admin/material-requirements?date=YYYY-MM-DD` (kebutuhan harian dan kumulatif
-sekaligus, dibaca dalam satu snapshot).
+sekaligus, dibaca dalam satu snapshot; `date` kosong = hari ini WIB; 400 `Tanggal tidak valid.` / `Tanggal di luar
+rentang.` (di luar T s.d. T + 29); 401/403; 500 `MILLI_PRECISION_LOST` sesuai bagian 5).
 
 Yang TIDAK berubah: checkout, pembatalan, BR-01 – BR-12, alur & status pesanan (bagian 4), daftar rute (bagian 7),
 `raw_materials` (struktur, presisi, Catat Stok Masuk, koreksi stok), `daily_stocks`, `products.ingredients`, Kalender
