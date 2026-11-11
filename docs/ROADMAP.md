@@ -181,15 +181,14 @@ Catatan khusus:
 | 6.4 | API admin: pesanan & status, kalender, produk, stok, pelanggan, dashboard, laporan, promo, pengaturan | `routes/admin/*` |
 | 6.5 | Payment simulasi + webhook, job `autoCancelOrders` (BR-06, BR-07), notifikasi, riwayat status, audit log | `services/paymentService.js`, `jobs/` |
 | 6.6 | Ganti `VITE_USE_MOCK=false`, sesuaikan service frontend, uji semua layar | `client/src/services/*` |
-| 6.7 | Inventory & Recipe Management: master bahan baku, komposisi bahan per produk (recipe/BOM), satuan, kebutuhan bahan otomatis, stok tersedia & dialokasikan | lihat "Step 6.7 – 6.10" di bawah (file ditetapkan setelah CR disetujui) |
-| 6.8 | Supplier & Purchasing Management: master supplier, supplier ↔ bahan baku, purchase order, penerimaan bahan, riwayat pembelian | idem |
-| 6.9 | Manufacturing Management: perencanaan produksi, kebutuhan bahan, work order, pemakaian bahan, hasil produksi & produk selesai | idem |
-| 6.10 | Advanced Reporting: omzet, penggunaan bahan baku, pembelian, produksi, analisis penjualan & kebutuhan produksi | idem |
+| 6.7 | Komposisi bahan (resep ringan) & estimasi kebutuhan bahan — CR-03: FR-39 (AD-06), FR-40 (AD-07), tabel `product_materials` | lihat "Step 6.7 – 6.10" di bawah (CP0 & CP1 selesai) |
+| 6.8 | Supplier & Purchasing Management — **ditunda, di luar lingkup** (CR-03) | — |
+| 6.9 | Manufacturing Management — **ditunda, di luar lingkup** (CR-03) | — |
+| 6.10 | Advanced Reporting — **laporan lanjutan baru ditunda** (CR-03); laporan penjualan AD-08 & KPI AD-02 tetap berlaku | — |
 
 **Hasil (target akhir Step 6):** aplikasi berjalan penuh dengan MySQL; data tersimpan setelah server restart; Prisma Studio
-bisa dipakai saat presentasi. Setelah 6.7 – 6.10: bahan baku, resep, pengadaan, dan produksi tercatat di database dan
-saling terhubung; laporan terintegrasi (penjualan, bahan, pembelian, produksi) dapat ditampilkan melalui antarmuka admin
-sesuai hak akses yang ditetapkan dalam CR.
+bisa dipakai saat presentasi. Setelah 6.7 (CR-03): komposisi bahan per produk dan estimasi kebutuhan bahan tersedia di
+AD-06/AD-07 untuk Staf & Owner. Step 6.8 – 6.10 ditunda (CR-03); laporan penjualan AD-08 dan KPI AD-02 tetap berlaku.
 **Sudah terverifikasi (per `5b74ba6`):** migrasi & seed pada MySQL 8.0.46 lewat harness `tests-mysql/run.sh`, integrasi
 51/51 (lihat catatan 6.1). **Belum terverifikasi:** aplikasi penuh di mode API (6.6), data tetap ada setelah server
 restart, dan pemeriksaan Prisma Studio. → **Ketiganya terverifikasi di 6.6 CP8** (lihat catatan 6.6 CP8).
@@ -1538,26 +1537,12 @@ Struktur endpoint mengikuti "Recommended Development Stack":
 
 ### Step 6.7 – 6.10 — Inventory, Purchasing, Manufacturing & Advanced Reporting
 
-Ruang lingkup keempat step di bawah **ditetapkan oleh pemilik project (2026-11-05) sebagai scope resmi** dan ditulis
-apa adanya. Acceptance criteria setiap step dibagi tiga dan tidak boleh dicampur:
-- **[Scope]** — turunan langsung dari ruang lingkup / arahan pemilik project (termasuk arahan "AD-07 & AD-08 tidak
-  diduplikasi"). Wajib.
-- **[Usulan teknis]** — usulan agent; **belum final**, berlaku setelah disetujui pemilik project (boleh lewat CR).
-- **[Menunggu CR]** — keputusan bisnis yang belum ditetapkan; kriteria terkait baru ditulis setelah CR disetujui.
+Status (keputusan pemilik project 11 Nov 2026, CR-03 Revisi 8): rencana awal 6.7 – 6.10 (2026-11-05) **dipersempit**.
+6.7 dikerjakan sebagai CR-03 (komposisi bahan & estimasi kebutuhan bahan; `docs/SPEC.md` bagian 12). 6.8 dan 6.9
+**ditunda — di luar lingkup**. 6.10 **ditunda untuk laporan lanjutan baru**; laporan penjualan AD-08 dan KPI AD-02 tetap
+berlaku. Persetujuan akademik formal (kelompok/dosen) atas CR-03 **belum dikonfirmasi**. Kategori acceptance criteria
+[Scope] / [Usulan teknis] / [Menunggu CR] pada rincian 6.8 – 6.10 di bawah hanya catatan rencana awal.
 
-Prasyarat & status (berlaku untuk 6.7 – 6.10):
-- **Prasyarat implementasi: Change Request yang mengubah AGENTS.md dan docs/SPEC.md.** Konflik saat ini:
-  AGENTS.md §1 melarang "modul keuangan/resep" serta tabel/kolom/menu di luar dokumen, sedangkan 6.7 – 6.10 membutuhkan
-  modul resep dan tabel/layar baru. Kedua dokumen **belum diubah**; perubahan dilakukan lewat CR (pola sama dengan
-  CR-01/CR-02) yang mencakup FR & BR baru, tabel §8, daftar layar & rute §7, dan hak akses Staf/Owner §2.
-  `npm run db:check-spec` (29 tabel) ikut disesuaikan setelah CR disetujui. Sebelum CR disetujui, schema, API, dan
-  kode tidak diubah untuk step ini.
-- **Belum ada desain database maupun kontrak API.** SPEC §8 hanya memuat 29 tabel; tidak ada tabel resep/BOM, satuan,
-  alokasi stok, supplier, purchase order, penerimaan, work order, atau pemakaian bahan. Mock frontend, layar AD-xx, dan
-  export Stitch untuk fitur ini juga belum ada.
-- Tahapan per step: (1) CR + rancangan tabel & kontrak API disetujui, (2) API + uji, (3) layar admin. Mode data
-  `services/` (mock vs API) untuk layar baru diputuskan di CR.
-- Urutan: setelah 6.5 dan 6.6 selesai (prinsip "kerjakan berurutan"), lalu 6.7 → 6.8 → 6.9 → 6.10.
 - **Fitur existing yang tidak boleh diduplikasi** (Step 5.7 & 6.4.5 AD-07, Step 5.8 & 6.4.7 AD-08, serta AD-02/AD-05
   yang memakai datanya): `raw_materials` (nama, satuan `unit` teks bebas, `stock`, `min_stock`),
   `GET|POST /api/admin/raw-materials`, `PUT /api/admin/raw-materials/:id` (edit informasi & koreksi stok dengan
@@ -1568,29 +1553,48 @@ Prasyarat & status (berlaku untuk 6.7 – 6.10):
   (`GET /api/admin/reports/sales` + ekspor Excel/PDF) dan KPI omzet AD-02. Fitur baru memperluas atau memakai data
   ini, tidak membuat tabel, endpoint, atau layar kedua untuk fungsi yang sama.
 
-**Step 6.7 — Inventory & Recipe Management**
-- Tujuan: menjadi dasar pengelolaan bahan baku dan resep untuk pengadaan (6.8) dan produksi (6.9).
-- Ruang lingkup: (1) master bahan baku; (2) komposisi bahan setiap produk (recipe/BOM); (3) satuan bahan baku;
-  (4) perhitungan kebutuhan bahan otomatis; (5) stok tersedia dan stok yang dialokasikan.
-- Existing vs lanjutan: (1) master bahan sudah ada (AD-07) → dilanjutkan, bukan dibuat ulang; (3) satuan saat ini
-  teks bebas `raw_materials.unit` → bentuk pengembangannya diputuskan di CR; (2), (4), (5) belum ada.
-- Dependensi: 6.4.4 AD-06 (produk & varian), 6.4.5 AD-07 (bahan baku & stok masuk); CR disetujui.
-- Acceptance criteria:
-  · [Scope] master bahan baku memakai `raw_materials` AD-07 yang sudah ada, tanpa tabel/endpoint/layar bahan kedua;
-    satuan bahan baku dapat dikelola; komposisi bahan dapat dicatat untuk setiap produk; kebutuhan bahan dihitung
-    otomatis dari komposisi tersebut; stok tersedia dan stok dialokasikan dapat dilihat per bahan.
-  · [Usulan teknis] kebutuhan bahan = Σ (jumlah produk × takaran bahan di resep), ditulis sebagai fungsi murni di
-    `server/src/services/`; resep hanya merujuk bahan yang ada; perilaku AD-02 (stok menipis) dan AD-07 (stok masuk,
-    koreksi `expected_stock`) tidak berubah; stok tidak negatif dan tidak tertimpa saat penulisan bersamaan (memakai
-    pola kunci AD-07).
-  · [Menunggu CR] bentuk master satuan & konversi antar-satuan; resep per produk atau per varian, dan perlakuan custom
-    cake (opsi builder); definisi & sumber alokasi (pesanan, rencana produksi, atau work order 6.9); kapan stok
-    dikurangi (saat dialokasikan atau saat dipakai di 6.9); hak akses Staf/Owner.
-- Kebutuhan pengujian *(usulan teknis)*: unit test aturan murni (kebutuhan bahan, satuan, alokasi); route test (auth,
-  peran, validasi, 404/400/409); integrasi MySQL (alokasi × stok masuk bersamaan, rollback); regresi AD-02, AD-06,
-  AD-07 dan `tests-mysql` yang ada.
+**Step 6.7 — Komposisi Bahan (Resep Ringan) & Estimasi Kebutuhan Bahan (CR-03)**
+- Status: CR-03 Revisi 8 **disetujui pemilik project 11 Nov 2026**; persetujuan akademik formal belum dikonfirmasi.
+  CP0 & CP1 selesai; **CP2 belum dimulai** dan menunggu persetujuan pemilik project.
+- Ruang lingkup: FR-39 (kelola komposisi bahan per produk, AD-06) dan FR-40 (estimasi kebutuhan bahan, AD-07) dengan
+  BR-13 – BR-16, validation rules, tabel `product_materials`, asumsi & keterbatasan E-1 – E-10 (`docs/SPEC.md` bagian
+  2, 3, 5, 6, 7, 8, 9, 10, 12). Master bahan tetap `raw_materials` AD-07; satuan tetap `raw_materials.unit`; stok
+  dialokasikan dihitung saat dibaca; tidak ada pengurangan stok otomatis.
+- File utama (ditetapkan CR-03): `server/prisma/schema.prisma` + migrasi baru (migrasi `20261017000000_init` tidak
+  diubah), `server/prisma/seed*`, `server/prisma/checkSchemaAgainstSpec.js` (30 tabel, DECIMAL(10,3), FK `material_id`);
+  `server/src/services/recipeRules.service.js`, `adminRecipe.service.js`, `materialRequirement.service.js`,
+  `server/src/validators/adminRecipe.validator.js`, `server/src/routes/admin/recipe.routes.js`;
+  `client/src/services/recipeService.js`, `client/src/services/mock/recipeAdmin.js`, `client/src/utils/rules/recipe.js`,
+  `RecipeFormModal` (AD-06), tab Kebutuhan Bahan (AD-07, `?tab=kebutuhan`), peringatan ubah satuan di form ubah bahan.
+- Endpoint (Staf & Owner): `GET|PUT /api/admin/products/:id/materials`, `GET /api/admin/material-requirements?date=`.
+- Persyaratan penulisan bersamaan (wajib, diuji pada CP4): CS-1 semua langkah dalam satu transaksi interaktif Prisma;
+  CS-2 urutan kunci `lockAuditActor` (users S) → `lockAdminMasterData` (`store_settings` X) sebelum pembacaan tabel
+  lain; CS-3 tidak ada kunci eksplisit lain sebelum `store_settings`; CS-4 perbandingan isi lama/baru setelah kunci
+  (isi identik → tanpa tulis & tanpa audit); CS-5 kegagalan apa pun (validasi, 404, 1205, 1213, P2028) → rollback
+  penuh; CS-6 uji MySQL penulisan bersamaan (komposisi awal kosong & berisi), bersamaan dengan AD-06/AD-07/stok
+  masuk/checkout, dan rollback; CS-7 "tanpa deadlock" hanya dinyatakan bila CS-6 tidak menghasilkan deadlock.
+- Kriteria penerimaan: AC-39.1 – AC-39.9, AC-40.1 – AC-40.14, AC-NF.1 – AC-NF.3 (dokumen CR-03 Revisi 8 §B9), termasuk
+  rekonsiliasi AC-40.9 dengan `data.selected.groups[].orders[].quantity` Kalender AD-05 (status Dikonfirmasi/Sedang
+  Disiapkan, per `product_id`; pill `data.counts` dan `groups[].quantity` tidak dipakai).
+
+| CP | Isi | Status |
+|---|---|---|
+| CP0 | Draft CR-03 + persetujuan pemilik project | Selesai (11 Nov 2026) |
+| CP1 | Perbarui SPEC.md, AGENTS.md, ROADMAP.md | Selesai (11 Nov 2026) |
+| CP2 | Schema, migrasi baru, seed, `db:check-spec` 30 tabel, harness MySQL | Belum dimulai |
+| CP3 | Aturan murni server & client + unit test | Belum dimulai |
+| CP4 | API komposisi + audit + route & integrasi MySQL (CS-1 – CS-7) | Belum dimulai |
+| CP5 | API kebutuhan bahan + rekonsiliasi AD-05 | Belum dimulai |
+| CP6 | Modal Komposisi AD-06 (mock & API) | Belum dimulai |
+| CP7 | Tab Kebutuhan Bahan AD-07 (mock & API) | Belum dimulai |
+| CP8 | Regresi penuh, cek browser, catatan status ROADMAP | Belum dimulai |
+
+- Catatan transisi CP1 → CP2: SPEC §8 kini memuat 30 tabel, sedangkan migrasi & `checkSchemaAgainstSpec.js` masih 29
+  tabel, sehingga `npm run db:check-spec` **gagal sampai CP2 selesai**. Pemeriksa ini tidak dipanggil oleh suite test.
 
 **Step 6.8 — Supplier & Purchasing Management**
+- Status: **Ditunda — di luar lingkup** (keputusan pemilik project 11 Nov 2026, CR-03). Rincian di bawah dipertahankan
+  sebagai catatan rencana awal dan tidak dikerjakan.
 - Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
 - Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;
   (4) penerimaan bahan; (5) riwayat pembelian.
@@ -1610,6 +1614,8 @@ Prasyarat & status (berlaku untuk 6.7 – 6.10):
   ganda/bersamaan × stok masuk × koreksi `expected_stock`, rollback); regresi 6.7 dan AD-07.
 
 **Step 6.9 — Manufacturing Management**
+- Status: **Ditunda — di luar lingkup** (keputusan pemilik project 11 Nov 2026, CR-03). Rincian di bawah dipertahankan
+  sebagai catatan rencana awal dan tidak dikerjakan.
 - Tujuan: menjalankan produksi memakai resep (6.7), stok bahan (6.7), dan hasil pengadaan (6.8).
 - Ruang lingkup: (1) perencanaan produksi; (2) perhitungan kebutuhan bahan; (3) work order; (4) pencatatan pemakaian
   bahan; (5) hasil produksi dan produk selesai.
@@ -1631,6 +1637,9 @@ Prasyarat & status (berlaku untuk 6.7 – 6.10):
   order × checkout × penerimaan 6.8 bersamaan, rollback); regresi AD-05, AD-07, checkout 6.3.
 
 **Step 6.10 — Advanced Reporting**
+- Status: **Ditunda untuk laporan lanjutan baru** (keputusan pemilik project 11 Nov 2026, CR-03). Laporan penjualan AD-08
+  dan KPI AD-02 tetap fitur yang berlaku dan tidak terdampak. Rincian di bawah dipertahankan sebagai catatan rencana
+  awal dan tidak dikerjakan.
 - Tujuan: laporan terintegrasi dari data penjualan, inventory, purchasing, dan manufacturing.
 - Ruang lingkup: (1) laporan omzet; (2) laporan penggunaan bahan baku; (3) laporan pembelian; (4) laporan produksi;
   (5) analisis penjualan dan kebutuhan produksi.
@@ -1649,8 +1658,8 @@ Prasyarat & status (berlaku untuk 6.7 – 6.10):
 - Kebutuhan pengujian *(usulan teknis)*: unit test agregasi; route test (peran, periode tidak sah); integrasi MySQL
   (rekonsiliasi angka laporan vs data sumber, snapshot saat ada tulisan bersamaan); regresi AD-02 & AD-08.
 
-Dampak ke step lain: Step 7 (`docs/TEST_CASES.md`) mencakup aturan baru dari CR 6.7 – 6.10; Step 8 mencakup layar
-admin baru di viewport uji. Backlog yang sudah ada (6.4.10 L1 – L6, snapshot AD-02/08/09/10 di MySQL, tunggakan 6.6,
+Dampak ke step lain: Step 7 (`docs/TEST_CASES.md`) mencakup BR-13 – BR-16 dan validation rules CR-03; Step 8 mencakup
+modal Komposisi AD-06 dan tab Kebutuhan Bahan AD-07 di viewport uji. Backlog yang sudah ada (6.4.10 L1 – L6, snapshot AD-02/08/09/10 di MySQL, tunggakan 6.6,
 CR-02) tidak berubah.
 
 ---

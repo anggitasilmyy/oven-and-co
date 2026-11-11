@@ -15,7 +15,7 @@ pembayaran, tracking, loyalty. Admin (Owner & Staf): pesanan, stok, produk, prom
 |---|---|
 | Pengunjung | Katalog, cari, detail & ulasan, desain custom cake, isi keranjang, daftar, masuk, reset sandi |
 | Pelanggan (role `customer`) | Hak Pengunjung + checkout, bayar, tracking, batal, riwayat & pesan lagi, ulasan, poin, voucher, profil & alamat, wishlist, notifikasi |
-| Staf (role `staf`) | Login admin, pesanan & status, verifikasi kode pickup, kalender produksi, produk & opsi custom cake, stok, pelanggan & ulasan. Landing: Pesanan |
+| Staf (role `staf`) | Login admin, pesanan & status, verifikasi kode pickup, kalender produksi, produk & opsi custom cake, komposisi bahan (FR-39), stok & kebutuhan bahan (FR-40), pelanggan & ulasan. Landing: Pesanan |
 | Owner (role `owner`) | Hak Staf + dashboard, laporan & ekspor, promo & loyalty, pengaturan toko & akun staf. Landing: Dashboard |
 | Payment Gateway | Eksternal; disimulasikan pada prototype |
 | Sistem | Notifikasi, riwayat status, audit log, pembatalan otomatis |
@@ -62,6 +62,8 @@ pembayaran, tracking, loyalty. Admin (Owner & Staf): pesanan, stok, produk, prom
 | FR-36 | Pengaturan operasional & akun staf | Must | AD-11 |
 | FR-37 | Audit log aktivitas admin (tanpa layar) | Could | — |
 | FR-38 | Pembatalan otomatis | Must | — |
+| FR-39 | Kelola komposisi bahan per produk: bahan terdaftar + takaran per 1 unit produk dalam satuan bahan (CR-03) | Should | AD-06 |
+| FR-40 | Lihat estimasi kebutuhan bahan s.d. tanggal target dari pesanan aktif (termasuk tertunggak) dan rencana stok produk ready hari ini, dibanding stok: harian, kumulatif (stok dialokasikan), sisa, kekurangan, produk tanpa komposisi (CR-03) | Should | AD-07 |
 
 ## 4. Status Pesanan
 
@@ -98,9 +100,43 @@ dengan label "Bayar saat ambil" + kode pickup. Lalu sedang_disiapkan → siap_di
 | BR-10 | Maks. 1 voucher per transaksi; boleh digabung tukar poin |
 | BR-11 | Ulasan hanya untuk produk dari pesanan Selesai; satu ulasan per item; +20 poin |
 | BR-12 | Ongkir otomatis dari jarak toko; radius maksimal diatur admin |
+| BR-13 | Takaran komposisi dalam satuan bahan (`raw_materials.unit`) untuk 1 unit produk, presisi 3 desimal; tanpa konversi antar-satuan; mengubah satuan bahan tidak mengubah angka takaran (CR-03) |
+| BR-14 | Kebutuhan bahan hanya dari: (a) item pesanan pre-order & custom berstatus Dikonfirmasi/Sedang Disiapkan, menurut `ready_date`; (b) `daily_stocks.qty_planned` hari ini (WIB) untuk produk ready. Item ready dalam pesanan tidak dihitung sebagai tambahan (sudah tercakup `qty_planned` tanggal pesanan dibuat); tanggal mendatang tanpa kontribusi produk ready (CR-03) |
+| BR-15 | Estimasi tidak mengubah stok bahan. Stok dialokasikan = kebutuhan kumulatif s.d. tanggal target, dihitung saat dibaca (tidak disimpan); sisa = stok − kumulatif; kekurangan = maks(0, kumulatif − stok) (CR-03) |
+| BR-16 | Custom cake memakai komposisi produk dasar custom (estimasi ukuran standar); varian & opsi builder tidak mengubah takaran; varian produk non-custom juga tidak dihitung terpisah (CR-03) |
 
 Stok ready berkurang saat pesanan DIBUAT dan kembali saat dibatalkan (TF-12).
 Harga custom cake = harga dasar + Σ extra_price opsi terpilih.
+
+### Aturan estimasi kebutuhan bahan (CR-03 · FR-40)
+
+Status pesanan yang dihitung (BR-14 a; konstanta terpisah `MATERIAL_DEMAND_STATUSES`, `PRODUCTION_STATUSES` AD-05
+tidak diubah):
+
+| Kelompok | Status | Dihitung? |
+|---|---|---|
+| Belum pasti | `menunggu_pembayaran` | Tidak (dapat batal otomatis, BR-06) |
+| Masih membutuhkan bahan | `dikonfirmasi`, `sedang_disiapkan` | **Ya** (Sedang Disiapkan dihitung penuh) |
+| Bahan dianggap sudah digunakan | `siap_diambil`, `dalam_pengiriman`, `selesai` | Tidak |
+| Tidak diproduksi | `dibatalkan` | Tidak |
+
+- Klasifikasi pre-order/custom vs ready memakai `products.availability_type` **saat estimasi dihitung**
+  (`order_items` tidak menyimpan salinan tipe), sama dengan Kalender AD-05 dan pengembalian stok saat pembatalan.
+- Produk ready (BR-14 b): hari ini (WIB) dihitung dari seluruh `daily_stocks.qty_planned` hari ini; item ready dalam
+  pesanan **tidak dihitung sebagai tambahan** karena kontribusinya diasumsikan sudah tercakup dalam `qty_planned`
+  tanggal pesanan dibuat (checkout & pembatalan mengubah `qty_sold` pada tanggal WIB pesanan dibuat, TF-12). Tanggal
+  mendatang: kontribusi produk ready = 0. `qty_planned` adalah rencana stok, bukan catatan produksi aktual; sistem
+  tidak dapat memverifikasi produksi.
+- Notasi: T = hari ini (WIB), D = tanggal target (T ≤ D ≤ T + 29). Kebutuhan **harian** = Σ jumlah × takaran untuk
+  satu tanggal; **tertunggak** = item pre-order/custom berstatus dihitung dengan `ready_date` < T; **kumulatif**
+  (= stok dialokasikan) = tertunggak + Σ kebutuhan harian T s.d. D. Sisa = stok − kumulatif (boleh negatif);
+  kekurangan = maks(0, kumulatif − stok). Perbandingan dengan stok **selalu memakai kumulatif**.
+- Status per bahan dari sisa: `kurang` (sisa < 0), `menipis` (0 ≤ sisa ≤ `min_stock`), `cukup` (sisa > `min_stock`) —
+  label "Cukup/Menipis/Kurang", berbeda dari status tab Bahan Baku (Aman/Menipis/Habis).
+- Presisi: takaran DECIMAL(10,3); stok DECIMAL(10,2) tidak berubah. Perhitungan dalam bilangan bulat milli-satuan
+  (BigInt di server), tanpa pembulatan dini. Request `qty_per_unit` **wajib string desimal** (JSON number ditolak 400),
+  divalidasi sebagai teks sebelum konversi; respons angka berupa JSON number (takaran & kebutuhan maks. 3 desimal,
+  stok maks. 2 desimal), ID berupa string.
 
 ## 6. Validation Rules
 
@@ -119,6 +155,9 @@ Harga custom cake = harga dasar + Σ extra_price opsi terpilih.
 | Status (admin) | Berurutan; pickup wajib verifikasi kode; Bayar di Toko wajib ditandai lunas sebelum Selesai | Modal konfirmasi sebelum simpan |
 | Produk | Nama, kategori, harga > 0, tipe & lead time wajib; maks. 5 foto | Validasi inline |
 | Stok | Tidak boleh negatif | Peringatan bila ≤ minimum |
+| Komposisi bahan (CR-03) | Bahan terdaftar di AD-07; satu bahan sekali per produk; takaran string desimal > 0, maks. 3 angka desimal, ≤ 9.999.999,999; maks. 30 bahan per produk | Error per baris; Simpan menyimpan semua baris atau tidak sama sekali |
+| Kebutuhan bahan (CR-03) | Tanggal `YYYY-MM-DD`, hari ini s.d. hari ini + 29 (WIB) | Tanggal di luar jendela dinonaktifkan; API menolak 400 |
+| Produk tanpa komposisi (CR-03) | Tidak dianggap nol secara diam-diam | Ditampilkan di daftar "Belum ada komposisi" beserta jumlahnya |
 
 ## 7. Daftar Layar & Rute
 
@@ -168,14 +207,14 @@ Admin (layout desktop, sidebar; < 1024 px sidebar menjadi drawer):
 | AD-03 | Daftar Pesanan | /admin/pesanan | Staf, Owner |
 | AD-04 | Detail & Verifikasi Pesanan | /admin/pesanan/:orderNumber | Staf, Owner |
 | AD-05 | Kalender Produksi | /admin/kalender | Staf, Owner |
-| AD-06 | Produk & Opsi Custom Cake | /admin/produk | Staf, Owner |
-| AD-07 | Stok | /admin/stok | Staf, Owner |
+| AD-06 | Produk & Opsi Custom Cake (+ modal Komposisi Bahan, CR-03) | /admin/produk | Staf, Owner |
+| AD-07 | Stok (+ tab Kebutuhan Bahan, CR-03) | /admin/stok | Staf, Owner |
 | AD-08 | Laporan Penjualan | /admin/laporan | Owner |
 | AD-09 | Promo & Loyalty | /admin/promo | Owner |
 | AD-10 | Pelanggan & Ulasan | /admin/pelanggan | Staf, Owner |
 | AD-11 | Pengaturan | /admin/pengaturan | Owner |
 
-## 8. Data Dictionary (29 tabel)
+## 8. Data Dictionary (30 tabel)
 
 Notasi: `?` = nullable, `UQ` = unique, `PK/FK` sesuai ERD.
 
@@ -201,6 +240,8 @@ product_variants: variant_id BIGINT PK; product_id FK; name VARCHAR(50); extra_p
 daily_stocks: stock_id BIGINT PK; product_id FK; stock_date DATE (UQ bersama product_id);
   qty_planned INT; qty_sold INT   -- sisa = qty_planned - qty_sold (tidak disimpan)
 raw_materials: material_id BIGINT PK; name VARCHAR(100); unit VARCHAR(20); stock DECIMAL(10,2); min_stock DECIMAL(10,2)
+product_materials: product_id BIGINT PK,FK products; material_id BIGINT PK,FK raw_materials; qty_per_unit DECIMAL(10,3)
+  -- CR-03: takaran per 1 unit produk dalam raw_materials.unit; FK ON DELETE RESTRICT
 custom_options: option_id INT PK; option_group ENUM(ukuran,bentuk,rasa,krim_topping); name VARCHAR(50);
   description VARCHAR(100)?; extra_price DECIMAL(12,2); image_url VARCHAR(255)?; is_active BOOLEAN
 custom_cake_designs: design_id BIGINT PK; product_id FK; user_id FK?; writing_text VARCHAR(30)?;
@@ -245,7 +286,8 @@ operating_hours: hour_id TINYINT PK; day_of_week TINYINT UQ (1 Senin – 7 Mingg
   close_time TIME?; is_open BOOLEAN
 ```
 
-Prinsip: saldo poin, level, sisa stok, dan subtotal item TIDAK disimpan sebagai kolom (dihitung).
+Prinsip: saldo poin, level, sisa stok, kebutuhan & stok dialokasikan bahan, dan subtotal item TIDAK disimpan sebagai
+kolom (dihitung).
 Data transaksi disimpan sebagai salinan (unit_price, delivery_address_snapshot).
 
 ## 9. Data Contoh (seed)
@@ -258,6 +300,8 @@ Pelanggan demo: saldo 1.250 poin · Gold Member. Contoh nomor pesanan: OVC-26101
 Voucher contoh: WEEKEND15.
 Harga selain croissant, opsi custom cake, dan nama pelanggan: isi data dummy yang wajar dan beri
 komentar `// data contoh` di file seed.
+Komposisi bahan (CR-03): contoh untuk sebagian produk (`// data contoh`); minimal satu produk yang punya rencana
+stok/pesanan sengaja tanpa komposisi untuk demo "Belum ada komposisi".
 
 ## 10. Asumsi Prototype (open issue di dokumen)
 
@@ -277,6 +321,27 @@ Simpan semua nilai berikut di store_settings / konstanta agar mudah diganti:
 | Riwayat pencarian | localStorage perangkat | TF-13 |
 | Kata sandi | Minimal 8 karakter | TF-15 |
 | Login Google | Tombol tersedia; OAuth asli opsional di akhir | FR-02 |
+| Jendela estimasi kebutuhan bahan | Hari ini s.d. hari ini + 29 (30 hari, sama dengan custom cake) | CR-03 |
+| Batas & presisi komposisi | Maks. 30 bahan per produk; takaran 3 desimal | CR-03 (D-8) |
+| E-1 | Produk ready hanya dihitung untuk hari ini dari rencana stok harian; tanggal mendatang tidak termasuk | CR-03 |
+| E-2 | Estimasi tanggal mendatang hanya dari pesanan pre-order/custom berstatus Dikonfirmasi/Sedang Disiapkan | CR-03 |
+| E-3 | Rencana ready hari ini dihitung penuh (bisa berlebih bila sebagian sudah dibuat dan stok dikoreksi) | CR-03 |
+| E-4 | Custom cake memakai takaran ukuran standar | CR-03 |
+| E-5 | Pesanan Sedang Disiapkan dihitung penuh | CR-03 |
+| E-6 | Stok bahan tidak dikurangi otomatis; akurasi bergantung pada koreksi stok AD-07 | CR-03 |
+| E-7 | Produk tanpa komposisi tidak dihitung; ditampilkan terpisah | CR-03 |
+| E-8 | Item ready di pesanan campuran dihitung pada tanggal pesanan dibuat (TF-12), bukan `ready_date` | CR-03 (diterima) |
+| E-9 | Klasifikasi memakai tipe produk saat estimasi; perubahan tipe setelah pesanan dibuat dapat membuat estimasi kurang/berlebih | CR-03 |
+| E-10 | Varian produk non-custom tidak dihitung terpisah | CR-03 |
+
+Teks keterangan wajib di tab Kebutuhan Bahan (CR-03, memuat E-1 – E-10, selalu tampil): *"Angka ini estimasi, bukan
+catatan pemakaian bahan. Dihitung dari pesanan pre-order & custom yang sudah dikonfirmasi atau sedang disiapkan —
+pesanan yang sedang disiapkan dihitung penuh — ditambah seluruh rencana produk ready hari ini, termasuk yang mungkin
+sudah dibuat. Produk ready untuk tanggal mendatang belum termasuk. Produk ready dalam pesanan campuran dihitung pada
+tanggal pesanan dibuat, bukan tanggal siap. Custom cake dihitung dengan ukuran standar, dan varian produk tidak
+dihitung terpisah. Produk tanpa komposisi tidak dihitung dan ditampilkan terpisah. Jenis produk dibaca dari data
+produk saat ini; bila diubah setelah pesanan dibuat, estimasi dapat kurang atau berlebih. Stok bahan tidak dikurangi
+otomatis; perbarui lewat Catat Stok Masuk atau koreksi stok."*
 
 ## 11. Catatan Perubahan Requirement — CR-01 (Responsive Web)
 
@@ -291,3 +356,41 @@ Simpan semua nilai berikut di store_settings / konstanta agar mudah diganti:
 
 Yang TIDAK berubah: daftar layar & rute (bagian 7), FR, business rules, validation rules, data dictionary,
 warna, font, dan identitas visual Oven & Co.
+
+## 12. Catatan Perubahan Requirement — CR-03 (Komposisi Bahan & Estimasi Kebutuhan Bahan)
+
+- Tanggal disetujui: 11 November 2026 (dokumen CR-03 Revisi 8)
+- Status: **Disetujui pemilik project (S)** sebagai keputusan internal project. **Persetujuan akademik formal
+  (kelompok/dosen) belum dikonfirmasi**; dokumen PDF BRD/PRD/Analisis tidak diubah.
+- Implementasi: Step 6.7 di `docs/ROADMAP.md` (CP0 – CP8)
+
+| Requirement | Lama (dokumen v1.0) | Baru (CR-03) |
+|---|---|---|
+| Di luar lingkup (BRD §10.2, PRD §13.1, Analisis) | "Manajemen keuangan, pembelian bahan, dan produksi berbasis resep" | "Manajemen keuangan, pembelian bahan, dan produksi (perencanaan, work order, pemakaian bahan). Komposisi bahan per produk dan estimasi kebutuhan bahan termasuk lingkup (CR-03)" |
+| Functional requirement | FR-01 – FR-38 | + FR-39, FR-40 (bagian 3) |
+| Business rule | BR-01 – BR-12 | + BR-13 – BR-16 (bagian 5); kode BRD padanannya RB-14 – RB-17 |
+| Business requirement / fitur PRD / use case | — | BR-024 (BRD); A-07 diperluas (PRD); UC-31, UC-32 |
+| Validation rules | — | + Komposisi bahan, Kebutuhan bahan, Produk tanpa komposisi (bagian 6) |
+| Data dictionary | 29 tabel | 30 tabel: + `product_materials` (bagian 8) |
+| Layar | AD-06, AD-07 | Rute tetap; AD-06 + modal Komposisi, AD-07 + tab Kebutuhan Bahan (bagian 7) |
+| Hak akses | — | Staf & Owner (bagian 2); pelanggan tidak melihat komposisi |
+
+Keputusan pemilik project yang menyertai (11 Nov 2026): status pesanan yang dihitung = Dikonfirmasi & Sedang Disiapkan;
+stok dialokasikan = kumulatif + tertunggak; jendela tanggal 30 hari; maks. 30 bahan per produk; peringatan teks saat
+satuan bahan diubah (tanpa memblokir); audit `update_product_recipe` (perbandingan pasangan `material_id` +
+`qty_per_unit`, urutan baris diabaikan); modal di AD-06 + tab di AD-07 tanpa rute/menu baru; perluasan A-07; daftar
+estimasi memuat semua bahan; rencana ready hari ini dihitung penuh; komposisi contoh untuk sebagian produk; tertunggak
+masuk kumulatif; teks keterangan keterbatasan wajib tampil; keterbatasan E-8 diterima. Takaran 3 desimal (D-8).
+Step 6.8 dan 6.9 ditunda (di luar lingkup); Step 6.10 ditunda untuk laporan lanjutan baru; laporan penjualan AD-08
+dan KPI AD-02 tetap berlaku.
+
+API baru (Staf & Owner): `GET /api/admin/products/:id/materials`, `PUT /api/admin/products/:id/materials` (ganti
+seluruh komposisi; satu transaksi dengan kunci pelaku `users` S → `store_settings` X; last-write-wins menurut urutan
+perolehan kunci & commit), `GET /api/admin/material-requirements?date=YYYY-MM-DD` (kebutuhan harian dan kumulatif
+sekaligus, dibaca dalam satu snapshot).
+
+Yang TIDAK berubah: checkout, pembatalan, BR-01 – BR-12, alur & status pesanan (bagian 4), daftar rute (bagian 7),
+`raw_materials` (struktur, presisi, Catat Stok Masuk, koreksi stok), `daily_stocks`, `products.ingredients`, Kalender
+AD-05, Dashboard AD-02, laporan AD-08, web pelanggan. Tetap di luar lingkup: master satuan & konversi, alokasi
+tersimpan, pengurangan stok bahan otomatis, resep per varian/opsi, HPP & harga beli, supplier, purchase order,
+produksi/work order, laporan bahan/pembelian/produksi.
