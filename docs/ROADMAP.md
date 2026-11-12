@@ -182,13 +182,14 @@ Catatan khusus:
 | 6.5 | Payment simulasi + webhook, job `autoCancelOrders` (BR-06, BR-07), notifikasi, riwayat status, audit log | `services/paymentService.js`, `jobs/` |
 | 6.6 | Ganti `VITE_USE_MOCK=false`, sesuaikan service frontend, uji semua layar | `client/src/services/*` |
 | 6.7 | Komposisi bahan (resep ringan) & estimasi kebutuhan bahan — CR-03: FR-39 (AD-06), FR-40 (AD-07), tabel `product_materials` | lihat "Step 6.7 – 6.10" di bawah (CP0 – CP8 selesai) |
-| 6.8 | Supplier & Purchasing Management — **ditunda, di luar lingkup** (CR-03) | — |
-| 6.9 | Manufacturing Management — **ditunda, di luar lingkup** (CR-03) | — |
-| 6.10 | Advanced Reporting — **laporan lanjutan baru ditunda** (CR-03); laporan penjualan AD-08 & KPI AD-02 tetap berlaku | — |
+| 6.8 | Supplier & Purchasing Management — **CR-04a** (disetujui 12 Nov 2026): FR-41 – FR-44, AD-12, buku mutasi AD-07, 9 tabel | lihat "Step 6.8" di bawah (CP0 selesai, CP1 dokumen; CP2 – CP7 belum diizinkan) |
+| 6.9 | Manufacturing Management — **CR-04b, direncanakan, belum diizinkan** | — |
+| 6.10 | Advanced Reporting — **CR-04c, direncanakan, belum diizinkan**; laporan penjualan AD-08 & KPI AD-02 tetap berlaku | — |
 
 **Hasil (target akhir Step 6):** aplikasi berjalan penuh dengan MySQL; data tersimpan setelah server restart; Prisma Studio
 bisa dipakai saat presentasi. Setelah 6.7 (CR-03): komposisi bahan per produk dan estimasi kebutuhan bahan tersedia di
-AD-06/AD-07 untuk Staf & Owner. Step 6.8 – 6.10 ditunda (CR-03); laporan penjualan AD-08 dan KPI AD-02 tetap berlaku.
+AD-06/AD-07 untuk Staf & Owner. Step 6.8 – 6.10 direncanakan di CR-04 dan dikerjakan bertahap (6.8 = CR-04a lebih dulu;
+6.9 dan 6.10 belum diizinkan); laporan penjualan AD-08 dan KPI AD-02 tetap berlaku.
 **Sudah terverifikasi (per `5b74ba6`):** migrasi & seed pada MySQL 8.0.46 lewat harness `tests-mysql/run.sh`, integrasi
 51/51 (lihat catatan 6.1). **Belum terverifikasi:** aplikasi penuh di mode API (6.6), data tetap ada setelah server
 restart, dan pemeriksaan Prisma Studio. → **Ketiganya terverifikasi di 6.6 CP8** (lihat catatan 6.6 CP8).
@@ -1543,6 +1544,11 @@ Status (keputusan pemilik project 11 Nov 2026, CR-03 Revisi 8): rencana awal 6.7
 berlaku. Persetujuan akademik formal (kelompok/dosen) atas CR-03 **belum dikonfirmasi**. Kategori acceptance criteria
 [Scope] / [Usulan teknis] / [Menunggu CR] pada rincian 6.8 – 6.10 di bawah hanya catatan rencana awal.
 
+Pembaruan 12 Nov 2026 (CR-04): Step 6.8 – 6.10 direncanakan terintegrasi dalam CR-04 (`docs/change-requests/`;
+ringkasan `docs/SPEC.md` bagian 13) dan dikerjakan **bertahap**: CR-04a (6.8) → CR-04b (6.9) → CR-04c (6.10). Tahap
+berikutnya hanya dimulai setelah tahap sebelumnya selesai dan disetujui Pemilik Project. Persetujuan akademik formal
+bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K01 – K08 CR-04.
+
 - **Fitur existing yang tidak boleh diduplikasi** (Step 5.7 & 6.4.5 AD-07, Step 5.8 & 6.4.7 AD-08, serta AD-02/AD-05
   yang memakai datanya): `raw_materials` (nama, satuan `unit` teks bebas, `stock`, `min_stock`),
   `GET|POST /api/admin/raw-materials`, `PUT /api/admin/raw-materials/:id` (edit informasi & koreksi stok dengan
@@ -1593,9 +1599,29 @@ berlaku. Persetujuan akademik formal (kelompok/dosen) atas CR-03 **belum dikonfi
   MySQL membulatkan diam-diam takaran > 3 desimal (mis. `0.0015` → `0.002`, Note 1265), sehingga validasi string
   desimal di aplikasi (CP3/CP4) wajib.
 
-**Step 6.8 — Supplier & Purchasing Management**
-- Status: **Ditunda — di luar lingkup** (keputusan pemilik project 11 Nov 2026, CR-03). Rincian di bawah dipertahankan
-  sebagai catatan rencana awal dan tidak dikerjakan.
+**Step 6.8 — Supplier & Purchasing Management (CR-04a)**
+- Status: **CR-04a disetujui Pemilik Project 12 Nov 2026** (K01 – K25, C-1 – C-13). CP0 selesai (PR #26); CP1
+  (sinkronisasi dokumen) dikerjakan; **CP2 – CP7 belum diizinkan** — setiap CP memerlukan izin Pemilik Project.
+- Ruang lingkup: FR-41 – FR-44, UC-33 – UC-35, BR-17 – BR-24, BR-30 – BR-32, BR-34, BR-35, AC-41.1 – AC-44.8, AD-12
+  Pembelian & perluasan AD-07, 9 tabel (30 → 39) — `docs/SPEC.md` bagian 2, 3, 5, 6, 7, 8, 10, 13; rincian normatif
+  `docs/change-requests/CR-04_DRAFT_0.8.3.md` + Errata E1 + E1.1.
+- Dependensi: 6.7 (master bahan `raw_materials`, aturan desimal milli CR-03); AD-07 yang sudah di-merge (kontrak lama
+  tetap). Deployment: P-OPS-1 – P-OPS-4 (akun aplikasi & migrasi terpisah) + prosedur M-0 – M-9.
+- Prinsip pelaksanaan: sesuai kemampuan project kelompok — fungsi utama, database konsisten, integrasi fitur yang ada,
+  hak akses, validasi, audit, pengujian; tanpa memperluas menjadi ERP/akuntansi.
+
+| CP | Isi | Kriteria selesai | Bergantung pada | Status |
+|---|---|---|---|---|
+| CP0 | Simpan Draft 0.8.3, Errata E1, E1.1, paket & rekaman persetujuan di `docs/change-requests/` | Hash cocok; PR dokumen | Keputusan Pemilik Project | **Selesai** (PR #26, 12 Nov 2026) |
+| CP1 | AGENTS.md §1, SPEC (bagian 2/3/5/6/7/8/9/10/13), ROADMAP; E-6 versi CR-04a dicatat **belum aktif** | Hanya dokumen; test K-14 & `db:check-spec` tetap lulus | CP0 | Dikerjakan (PR CP1) |
+| CP2 | Schema & migrasi `cr04a` (9 tabel, CHECK, FK RESTRICT, saldo awal set-based), seed + preflight, `createOpeningBalance`, `db:check-ledger` (IMPL-CP2-1), snapshot M-4 deterministik (IMPL-CP2-2), `checkSchemaAgainstSpec.js` 39 tabel + rancangan bagian 8 dipindah ke Data Dictionary | IT-01 – IT-04, IT-34 – IT-36; `db:check-spec` lulus | CP1 + izin | Belum diizinkan |
+| CP3 | Aturan murni server = client: desimal/milli, nilai PO & penerimaan, status PO, dampak bersih & rujukan P/R, opname, payload kanonik + SHA-256, invarian | Unit node:test + Vitest, uji silang client = server | CP2 + izin | Belum diizinkan |
+| CP4 | Middleware `request_id` (allowlist, idempotensi), satu layanan buku mutasi untuk endpoint AD-07 lama, endpoint opname, pembalik/koreksi stok masuk, riwayat mutasi, audit | Route test; MySQL IT-06 – IT-08, IT-12, IT-13, IT-31 (AD-07), IT-37; regresi AD-07 & MySQL 16 – 18 | CP3 + izin | Belum diizinkan |
+| CP5 | API supplier, PO, penerimaan, pembalik/koreksi penerimaan, nilai; audit | Route test; MySQL IT-05, IT-09 – IT-11, IT-14, IT-15, IT-30; 0 deadlock | CP4 + izin | Belum diizinkan |
+| CP6 | Frontend AD-12 (tab PO & Supplier, detail, penerimaan, koreksi), AD-07 (opname, riwayat, pembalik/koreksi), mock (tabel & ledger mock), rute & sidebar AD-12; **aktivasi E-6 versi CR-04a** dalam satu commit (teks aktif SPEC + `MATERIAL_REQUIREMENT_NOTE` + test K-14 + uji integrasi/e2e terkait) | Mock = API (IT-38); e2e mock & API 390/768/1440 px; teks tampil = perilaku aktif | CP5 + izin | Belum diizinkan |
+| CP7 | Regresi penuh (server, client, Vitest, MySQL 01 – 18 + baru, e2e per-step), gladi migrasi IT-02, IT-03, IT-33, status ROADMAP | Semua lulus kecuali 14 P1b (kegagalan lama); PR CR-04a | CP6 + izin | Belum diizinkan |
+
+- Rencana awal di bawah dipertahankan sebagai catatan historis; yang berlaku adalah CR-04a di atas.
 - Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
 - Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;
   (4) penerimaan bahan; (5) riwayat pembelian.
@@ -1615,8 +1641,9 @@ berlaku. Persetujuan akademik formal (kelompok/dosen) atas CR-03 **belum dikonfi
   ganda/bersamaan × stok masuk × koreksi `expected_stock`, rollback); regresi 6.7 dan AD-07.
 
 **Step 6.9 — Manufacturing Management**
-- Status: **Ditunda — di luar lingkup** (keputusan pemilik project 11 Nov 2026, CR-03). Rincian di bawah dipertahankan
-  sebagai catatan rencana awal dan tidak dikerjakan.
+- Status: **Direncanakan sebagai CR-04b — belum diizinkan.** Dimulai hanya setelah CR-04a selesai dan disetujui
+  Pemilik Project secara terpisah (K09 – K14, K25 sudah disetujui sebagai desain). Rincian di bawah adalah catatan
+  rencana awal; yang berlaku nanti adalah CR-04b.
 - Tujuan: menjalankan produksi memakai resep (6.7), stok bahan (6.7), dan hasil pengadaan (6.8).
 - Ruang lingkup: (1) perencanaan produksi; (2) perhitungan kebutuhan bahan; (3) work order; (4) pencatatan pemakaian
   bahan; (5) hasil produksi dan produk selesai.
@@ -1638,9 +1665,9 @@ berlaku. Persetujuan akademik formal (kelompok/dosen) atas CR-03 **belum dikonfi
   order × checkout × penerimaan 6.8 bersamaan, rollback); regresi AD-05, AD-07, checkout 6.3.
 
 **Step 6.10 — Advanced Reporting**
-- Status: **Ditunda untuk laporan lanjutan baru** (keputusan pemilik project 11 Nov 2026, CR-03). Laporan penjualan AD-08
-  dan KPI AD-02 tetap fitur yang berlaku dan tidak terdampak. Rincian di bawah dipertahankan sebagai catatan rencana
-  awal dan tidak dikerjakan.
+- Status: **Direncanakan sebagai CR-04c — belum diizinkan.** Dimulai hanya setelah CR-04b selesai dan disetujui
+  Pemilik Project secara terpisah (K15 – K19 sudah disetujui sebagai desain: tab Operasional AD-08, Owner). Laporan
+  penjualan AD-08 dan KPI AD-02 tetap berlaku dan tidak terdampak. Rincian di bawah adalah catatan rencana awal.
 - Tujuan: laporan terintegrasi dari data penjualan, inventory, purchasing, dan manufacturing.
 - Ruang lingkup: (1) laporan omzet; (2) laporan penggunaan bahan baku; (3) laporan pembelian; (4) laporan produksi;
   (5) analisis penjualan dan kebutuhan produksi.

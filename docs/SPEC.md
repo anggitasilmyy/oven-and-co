@@ -15,10 +15,10 @@ pembayaran, tracking, loyalty. Admin (Owner & Staf): pesanan, stok, produk, prom
 |---|---|
 | Pengunjung | Katalog, cari, detail & ulasan, desain custom cake, isi keranjang, daftar, masuk, reset sandi |
 | Pelanggan (role `customer`) | Hak Pengunjung + checkout, bayar, tracking, batal, riwayat & pesan lagi, ulasan, poin, voucher, profil & alamat, wishlist, notifikasi |
-| Staf (role `staf`) | Login admin, pesanan & status, verifikasi kode pickup, kalender produksi, produk & opsi custom cake, komposisi bahan (FR-39), stok & kebutuhan bahan (FR-40), pelanggan & ulasan. Landing: Pesanan |
+| Staf (role `staf`) | Login admin, pesanan & status, verifikasi kode pickup, kalender produksi, produk & opsi custom cake, komposisi bahan (FR-39), stok & kebutuhan bahan (FR-40), pelanggan & ulasan; supplier, purchase order, penerimaan bahan, buku mutasi & stock opname (FR-41 – FR-44, CR-04a). Landing: Pesanan |
 | Owner (role `owner`) | Hak Staf + dashboard, laporan & ekspor, promo & loyalty, pengaturan toko & akun staf. Landing: Dashboard |
 | Payment Gateway | Eksternal; disimulasikan pada prototype |
-| Sistem | Notifikasi, riwayat status, audit log, pembatalan otomatis |
+| Sistem | Notifikasi, riwayat status, audit log, pembatalan otomatis, saldo awal bahan (CR-04a) |
 
 ## 3. Functional Requirements
 
@@ -64,6 +64,13 @@ pembayaran, tracking, loyalty. Admin (Owner & Staf): pesanan, stok, produk, prom
 | FR-38 | Pembatalan otomatis | Must | — |
 | FR-39 | Kelola komposisi bahan per produk: bahan terdaftar + takaran per 1 unit produk dalam satuan bahan (CR-03) | Should | AD-06 |
 | FR-40 | Lihat estimasi kebutuhan bahan s.d. tanggal target dari pesanan aktif (termasuk tertunggak) dan rencana stok produk ready hari ini, dibanding stok: harian, kumulatif (stok dialokasikan), sisa, kekurangan, produk tanpa komposisi (CR-03) | Should | AD-07 |
+| FR-41 | Kelola supplier (data wajib K02 + T-01, aktif/nonaktif, tanpa hapus) & daftar bahan per supplier (CR-04a) | Must | AD-12 |
+| FR-42 | Kelola purchase order: buat, ubah Draft, pesan, batal; nilai pembelian sebagai informasi (CR-04a) | Must | AD-12 |
+| FR-43 | Terima bahan dari PO (sebagian berulang, tanpa kelebihan), pembalik & koreksi penerimaan (CR-04a) | Must | AD-12 |
+| FR-44 | Buku mutasi stok bahan: saldo awal, Catat Stok Masuk + pembalik/koreksi, stock opname, riwayat mutasi (CR-04a) | Must | AD-07 |
+
+FR-41 – FR-44 disetujui Pemilik Project 12 Nov 2026 (CR-04a, bagian 13); implementasi bertahap di Step 6.8 CP2 – CP7.
+FR-45 – FR-47 dicadangkan untuk CR-04b/CR-04c dan **belum berlaku**.
 
 ## 4. Status Pesanan
 
@@ -104,6 +111,22 @@ dengan label "Bayar saat ambil" + kode pickup. Lalu sedang_disiapkan → siap_di
 | BR-14 | Kebutuhan bahan hanya dari: (a) item pesanan pre-order & custom berstatus Dikonfirmasi/Sedang Disiapkan, menurut `ready_date`; (b) `daily_stocks.qty_planned` hari ini (WIB) untuk produk ready. Item ready dalam pesanan tidak dihitung sebagai tambahan (sudah tercakup `qty_planned` tanggal pesanan dibuat); tanggal mendatang tanpa kontribusi produk ready (CR-03) |
 | BR-15 | Estimasi tidak mengubah stok bahan. Stok dialokasikan = kebutuhan kumulatif s.d. tanggal target, dihitung saat dibaca (tidak disimpan); sisa = stok − kumulatif; kekurangan = maks(0, kumulatif − stok) (CR-03) |
 | BR-16 | Custom cake memakai komposisi produk dasar custom (estimasi ukuran standar); varian & opsi builder tidak mengubah takaran; varian produk non-custom juga tidak dihitung terpisah (CR-03) |
+| BR-17 | Supplier tidak dihapus, hanya dinonaktifkan; data wajib K02 + T-01; daftar bahan opsional saat dibuat (CR-04a) |
+| BR-18 | PO hanya untuk supplier aktif dengan ≥ 1 bahan terdaftar; hanya bahan terdaftar; satu bahan sekali; 1 – 30 item (CR-04a) |
+| BR-19 | Status PO: Draft → Dipesan → Diterima Sebagian → Diterima / Dibatalkan (K04); ubah hanya saat Draft; status (kecuali Dibatalkan) dihitung dari jumlah bersih diterima (CR-04a) |
+| BR-20 | Bersih diterima per item ∈ [0, dipesan − dibatalkan]; kelebihan ditolak (CR-04a) |
+| BR-21 | Pembatalan PO menyimpan `qty_cancelled` historis; penerimaan tetap; pengganti pada PO Dibatalkan hanya boleh mengurangi (CR-04a) |
+| BR-22 | Nilai PO, nilai penerimaan (dari mutasi), dan nilai sisa dibatalkan (historis) dihitung terpisah; pembulatan setengah menjauhi nol per baris; satu fungsi aturan murni; bukan akuntansi (CR-04a) |
+| BR-23 | Setiap perubahan stok bahan = dokumen sumber + satu mutasi bersih (≠ 0) per bahan per operasi dalam transaksi yang sama; append-only; invarian I-1 – I-11. Setiap bahan memiliki tepat satu saldo awal, dibuat oleh migrasi (terhadap snapshot M-4), oleh API dalam transaksi yang sama dengan bahan, atau oleh seed hanya untuk bahan tanpa catatan stok apa pun (CR-04a) |
+| BR-24 | Setiap mutasi menjaga 0 ≤ stok ≤ 99.999.999,99; operasi yang melanggar ditolak seluruhnya (CR-04a) |
+| BR-30 | Dokumen berlaku penerimaan & stok masuk: pembalik penuh sekali atau koreksi (R + P) sekali; saldo awal & opname tidak dapat dibalik/dikoreksi (CR-04a; ketentuan pengeluaran & hasil produksi berlaku di CR-04b) |
+| BR-31 | `request_id` wajib/opsional per allowlist; bila dikirim, kontrak idempotensi berlaku penuh; di luar allowlist (termasuk endpoint lama) ditolak 400 (CR-04a) |
+| BR-32 | Estimasi FR-40 tidak berubah (BR-14 – BR-16); teks keterangan wajib berganti per tahap (bagian 10, E-6) (CR-04a) |
+| BR-34 | Semua operasi tulis Purchasing dan dokumen stok AD-07 tercatat di `audit_logs` dalam transaksi yang sama (CR-04a) |
+| BR-35 | Stock opname mencatat stok fisik absolut (boleh 0) & stok sistem; mutasi = selisih; dokumen tetap dicatat bila selisih 0; dikendalikan `expected_stock` (CR-04a) |
+
+BR-25 – BR-29, BR-33, BR-36 dicadangkan untuk CR-04b/CR-04c (`docs/change-requests/CR-04_DRAFT_0.8.3.md` §13) dan
+**belum berlaku**. Padanan kode BRD BR-17 – BR-36 adalah RB-18 – RB-37.
 
 Stok ready berkurang saat pesanan DIBUAT dan kembali saat dibatalkan (TF-12).
 Harga custom cake = harga dasar + Σ extra_price opsi terpilih.
@@ -147,6 +170,44 @@ tidak diubah):
   pengguna). Satu-satunya kode error yang dikirim bersama status 500 (`middlewares/errorHandler.js`); error 500 lain
   tetap tanpa kode dengan pesan generik. Endpoint komposisi (CP4) tidak dapat memicunya (takaran maks. selalu eksak).
 
+### Aturan buku mutasi stok bahan & pembelian (CR-04a · FR-41 – FR-44)
+
+Rincian normatif: `docs/change-requests/CR-04_DRAFT_0.8.3.md` (§2 – §7, §10), dibaca bersama Errata E1 dan E1.1.
+
+- **Dokumen sumber CR-04a:** `stock_adjustments` (satu bahan; `saldo_awal`, `stok_masuk`, `pembalik_stok_masuk`,
+  `pengganti_stok_masuk`, `stock_opname`) dan `goods_receipts` + `goods_receipt_lines` (`normal`, `pembalik`,
+  `pengganti`). **Buku mutasi** `material_movements`: satu baris bersih (≠ 0) per bahan per operasi (penerimaan: per
+  item PO); `stock_after = stock_before + qty_change`.
+- **Jenis mutasi CR-04a:** `saldo_awal` (hanya bila stok > 0), `stok_masuk`, `pembalik_stok_masuk`, `koreksi_stok_masuk`,
+  `stock_opname` (= fisik − sistem), `penerimaan`, `pembalik_penerimaan`, `koreksi_penerimaan`. Koreksi merujuk dokumen
+  pengganti P bila bahan/item ada di P, selain itu dokumen pembalik R; dampak 0 → tanpa mutasi.
+- **Dokumen berlaku** = tidak dirujuk `reverses_id` maupun `replaces_id`. Koreksi yang menjadikan semua baris 0 ditolak
+  (gunakan pembalik). Saldo awal & opname diperbaiki dengan opname baru.
+- **Invarian:** I-1 setelah setiap transaksi selesai `SUM(material_movements.qty_change) = raw_materials.stock` per
+  bahan; I-2 rantai `stock_before`/`stock_after` per bahan dimulai dari 0; I-3 batas [0, 99.999.999,99]; I-4 per item
+  PO bersih diterima ≥ 0 dan + `qty_cancelled` ≤ dipesan; I-6 dokumen dibalik/diganti paling banyak sekali; I-7 setiap
+  bahan memiliki tepat satu dokumen saldo awal, mutasi saldo awal ada tepat bila qty > 0; I-8 mutasi = jumlah bertanda
+  dokumen per operasi & kumulatif; I-9 keterkaitan `operation_requests`; I-10 opname: mutasi tepat bila fisik ≠ sistem;
+  I-11 saldo awal mendahului semua catatan stok lain bahan itu. Pemeriksa data hanya-baca `db:check-ledger` (mode
+  produksi tanpa pengecualian).
+- **Saldo awal:** migrasi (set-based, terhadap snapshot pra-migrasi M-4), seed (preflight hanya-baca; saldo awal hanya
+  untuk bahan baru atau bahan tanpa catatan stok apa pun; inkonsistensi → seed berhenti sebelum penulisan pertama;
+  idempoten), dan `POST /api/admin/raw-materials` (satu transaksi dengan bahan; gagal → rollback penuh).
+- **Presisi:** kuantitas DECIMAL(10,2) sebagai string desimal (JSON number & > 2 desimal ditolak 400 pada endpoint
+  CR-04a); harga DECIMAL(12,2); aritmetika BigInt milli-satuan / 1/10.000 Rupiah; tanpa `Number()`/`parseFloat`;
+  MySQL `stock + CAST(? AS DECIMAL(10,2))`.
+- **Nilai pembelian:** nilai baris PO = `round(qty_ordered × unit_price)`; nilai penerimaan = Σ `round(qty_change ×
+  unit_price)` per mutasi (bertanda); nilai sisa dibatalkan = Σ `round(qty_cancelled × unit_price)`; `round` setengah
+  menjauhi nol per baris. Bukan omzet, tanpa hutang/pembayaran/pajak.
+- **Idempotensi (`request_id`, UUID v4):** payload kanonik + SHA-256; replay identik dengan header
+  `Idempotent-Replay: true`; aktor/operasi/target/hash beda → 409 `REQUEST_ID_REUSED`; asli masih berjalan → 409
+  `REQUEST_IN_PROGRESS`; penolakan & error tidak disimpan; nilai sementara 102 tidak pernah ter-commit.
+- **Kunci & transaksi:** satu operasi = satu transaksi interaktif; urutan kunci `users` (S) → `operation_requests` →
+  `store_settings` (ubah master/opname) → `suppliers` → `supplier_materials` → `purchase_orders` → dokumen asal →
+  `raw_materials` urut `material_id`; lock wait 2 s; 1205/1213 → rollback penuh.
+- **Kode error baru:** `REQUEST_ID_REUSED`, `REQUEST_IN_PROGRESS` (409), `DOCUMENT_ALREADY_SUPERSEDED` (409),
+  `STOCK_OUT_OF_RANGE` (409), `STOCK_CHANGED` (409 opname).
+
 ## 6. Validation Rules
 
 | Fitur | Aturan | Perilaku |
@@ -167,6 +228,15 @@ tidak diubah):
 | Komposisi bahan (CR-03) | Bahan terdaftar di AD-07; satu bahan sekali per produk; takaran string desimal > 0, maks. 3 angka desimal, ≤ 9.999.999,999; maks. 30 bahan per produk | Error per baris; Simpan menyimpan semua baris atau tidak sama sekali |
 | Kebutuhan bahan (CR-03) | Tanggal `YYYY-MM-DD`, hari ini s.d. hari ini + 29 (WIB) | Tanggal di luar jendela dinonaktifkan; API menolak 400 |
 | Produk tanpa komposisi (CR-03) | Tidak dianggap nol secara diam-diam | Ditampilkan di daftar "Belum ada komposisi" beserta jumlahnya |
+| Supplier (CR-04a) | Nama 1 – 100 (trim), unik tanpa membedakan huruf besar/kecil; telepon/WA wajib ≤ 20; alamat 1 – 255; email valid ≤ 100; kontak person 1 – 100; catatan opsional ≤ 255; daftar bahan dari master AD-07 tanpa duplikat | 400 per field |
+| Purchase order (CR-04a) | Supplier aktif & ≥ 1 bahan terdaftar; 1 – 30 item; bahan terdaftar; qty string > 0, ≤ 2 desimal, ≤ 99.999.999,99; harga string > 0, ≤ 2 desimal, ≤ 9.999.999.999,99; nilai baris & PO ≤ 9.999.999.999,99 | 400 `items.<i>.*` |
+| Transisi PO (CR-04a) | `{from, to}` sesuai BR-19 | 409 |
+| Penerimaan (CR-04a) | PO Dipesan/Diterima Sebagian; ≥ 1 baris qty > 0, ≤ 2 desimal; ≤ sisa; saldo akhir ≤ batas | 400 / 409 |
+| Pembalik (CR-04a) | Dokumen asal berlaku & dapat dibalik; alasan 1 – 255; saldo akhir ∈ [0, batas] | 400 / 409 |
+| Koreksi (CR-04a) | Dokumen asal berlaku (bila tidak → 409 `DOCUMENT_ALREADY_SUPERSEDED`); alasan 1 – 255; pengganti ≥ 1 baris qty > 0; penerimaan: item PO yang sama, ≤ dipesan − dibatalkan; stok masuk: bahan yang sama; saldo akhir ∈ [0, batas] | 400 / 409 |
+| Stock opname (CR-04a, baru) | `counted_stock` & `expected_stock` wajib, string desimal ≥ 0, ≤ 2 desimal, ≤ 99.999.999,99; `expected_stock` ≠ stok terkunci → 409 `STOCK_CHANGED` | 400 / 409 |
+| Stok masuk & ubah bahan (lama, CR-04a) | Aturan AD-07 yang ada; kini menulis dokumen + mutasi; `request_id` opsional | Seperti sebelumnya |
+| `request_id` (CR-04a) | UUID v4 kanonik; wajib/opsional per allowlist; ditolak pada endpoint di luar allowlist | 400; 409 `REQUEST_ID_REUSED` / `REQUEST_IN_PROGRESS` |
 
 ## 7. Daftar Layar & Rute
 
@@ -217,11 +287,15 @@ Admin (layout desktop, sidebar; < 1024 px sidebar menjadi drawer):
 | AD-04 | Detail & Verifikasi Pesanan | /admin/pesanan/:orderNumber | Staf, Owner |
 | AD-05 | Kalender Produksi | /admin/kalender | Staf, Owner |
 | AD-06 | Produk & Opsi Custom Cake (+ modal Komposisi Bahan, CR-03) | /admin/produk | Staf, Owner |
-| AD-07 | Stok (+ tab Kebutuhan Bahan, CR-03) | /admin/stok | Staf, Owner |
+| AD-07 | Stok (+ tab Kebutuhan Bahan, CR-03; + riwayat mutasi, stock opname, pembalik/koreksi stok masuk, CR-04a) | /admin/stok | Staf, Owner |
 | AD-08 | Laporan Penjualan | /admin/laporan | Owner |
 | AD-09 | Promo & Loyalty | /admin/promo | Owner |
 | AD-10 | Pelanggan & Ulasan | /admin/pelanggan | Staf, Owner |
 | AD-11 | Pengaturan | /admin/pengaturan | Owner |
+| AD-12 | Pembelian: tab Purchase Order (default) & Supplier (`?tab=supplier`), detail PO, penerimaan (CR-04a) | /admin/pembelian | Staf, Owner |
+
+AD-12 ditambahkan oleh CR-04a (menu sidebar baru; diimplementasikan di Step 6.8 CP6). AD-13 Produksi
+(`/admin/produksi`) dan tab Operasional AD-08 dicadangkan untuk CR-04b/CR-04c dan **belum berlaku**.
 
 ## 8. Data Dictionary (30 tabel)
 
@@ -299,6 +373,45 @@ Prinsip: saldo poin, level, sisa stok, kebutuhan & stok dialokasikan bahan, dan 
 kolom (dihitung).
 Data transaksi disimpan sebagai salinan (unit_price, delivery_address_snapshot).
 
+### Rancangan tabel CR-04a (9 tabel; 30 → 39) — belum diterapkan
+
+Status: **rancangan disetujui, belum ada di migrasi.** Tabel ini masuk ke blok Data Dictionary di atas (dan
+`checkSchemaAgainstSpec.js`/`TABLE_COUNT` menjadi 39) pada Step 6.8 CP2 bersama migrasinya. DDL lengkap, CHECK
+(pola anti-UNKNOWN), dan indeks: `docs/change-requests/CR-04_DRAFT_0.8.3.md` §12.1 – §12.2. Semua FK CR-04
+`ON DELETE RESTRICT ON UPDATE RESTRICT`; waktu `DATETIME(3)`; tanpa FLOAT/DOUBLE.
+
+```text
+operation_requests: request_id CHAR(36) PK; operation VARCHAR(40); actor_id FK users; target_type VARCHAR(30)?;
+  target_id BIGINT?; payload_hash CHAR(64); response_status SMALLINT; response_body JSON; created_at DATETIME(3)
+suppliers: supplier_id BIGINT PK; name VARCHAR(100) UQ; phone VARCHAR(20); email VARCHAR(100); address VARCHAR(255);
+  contact_person VARCHAR(100); note VARCHAR(255)?; is_active BOOLEAN (TRUE); created_by FK users;
+  created_request_id FK operation_requests UQ; created_at DATETIME(3); updated_at DATETIME(3)
+supplier_materials: supplier_id PK,FK suppliers; material_id PK,FK raw_materials
+purchase_orders: po_id BIGINT PK; po_number VARCHAR(20) UQ; supplier_id FK; status ENUM(draft,dipesan,
+  diterima_sebagian,diterima,dibatalkan); note VARCHAR(255)?; ordered_at DATETIME(3)?; cancelled_at DATETIME(3)?;
+  cancel_reason VARCHAR(255)?; created_by FK users; created_request_id FK operation_requests UQ; created_at; updated_at
+purchase_order_items: po_item_id BIGINT PK; po_id FK (UQ bersama material_id); material_id FK;
+  qty_ordered DECIMAL(10,2); unit_price DECIMAL(12,2); qty_cancelled DECIMAL(10,2) (0)
+goods_receipts: receipt_id BIGINT PK; po_id FK; kind ENUM(normal,pembalik,pengganti); reverses_id FK goods_receipts? UQ;
+  replaces_id FK goods_receipts? UQ; reason VARCHAR(255)?; note VARCHAR(255)?; operation_request_id FK; created_by FK
+  users; created_at DATETIME(3)
+goods_receipt_lines: line_id BIGINT PK; receipt_id FK (UQ bersama po_item_id); po_item_id FK purchase_order_items;
+  qty DECIMAL(10,2)
+stock_adjustments: adjustment_id BIGINT PK; material_id FK; kind ENUM(saldo_awal,stok_masuk,pembalik_stok_masuk,
+  pengganti_stok_masuk,stock_opname); qty DECIMAL(10,2)?; counted_stock DECIMAL(10,2)?; system_stock DECIMAL(10,2)?;
+  reverses_id FK stock_adjustments? UQ; replaces_id FK stock_adjustments? UQ; reason VARCHAR(255)?;
+  opening_material_id BIGINT? UQ (= material_id hanya untuk saldo_awal); operation_request_id FK?; created_by FK users?
+  (NULL hanya saldo awal migrasi/seed); created_at DATETIME(3)
+material_movements: movement_id BIGINT PK; material_id FK; type ENUM(saldo_awal,stok_masuk,pembalik_stok_masuk,
+  koreksi_stok_masuk,stock_opname,penerimaan,pembalik_penerimaan,koreksi_penerimaan); qty_change DECIMAL(10,2) (≠ 0);
+  stock_before DECIMAL(10,2); stock_after DECIMAL(10,2); adjustment_id FK? UQ; receipt_id FK? (UQ bersama po_item_id);
+  po_item_id FK?; created_by FK users? (NULL hanya saldo_awal); created_at DATETIME(3)
+```
+
+CHECK utama: `ck_opreq_fmt`, `ck_opreq_target`, `ck_supplier_text`, `ck_po_status`, `ck_poi_values`, `ck_gr_kind`,
+`ck_grl_qty`, `ck_sa_kind`, `ck_mm_source`, `ck_mm_sign`, `ck_mm_balance`, `ck_mm_actor`. Tabel lama tidak berubah
+strukturnya; `raw_materials.stock` tetap DECIMAL(10,2) dan kini hanya ditulis bersama mutasi.
+
 ## 9. Data Contoh (seed)
 
 Produk: Classic Butter Croissant (Rp 28.000, ready, badge "Ready · Bisa diambil hari ini"),
@@ -311,6 +424,8 @@ Harga selain croissant, opsi custom cake, dan nama pelanggan: isi data dummy yan
 komentar `// data contoh` di file seed.
 Komposisi bahan (CR-03): contoh untuk sebagian produk (`// data contoh`); minimal satu produk yang punya rencana
 stok/pesanan sengaja tanpa komposisi untuk demo "Belum ada komposisi".
+Saldo awal bahan (CR-04a, berlaku sejak Step 6.8 CP2): seed membuat dokumen saldo awal untuk setiap bahan seed (mutasi
+hanya bila stok > 0) setelah preflight hanya-baca; seed ulang tidak mengubah stok maupun menggandakan dokumen.
 
 ## 10. Asumsi Prototype (open issue di dokumen)
 
@@ -337,13 +452,21 @@ Simpan semua nilai berikut di store_settings / konstanta agar mudah diganti:
 | E-3 | Rencana ready hari ini dihitung penuh (bisa berlebih bila sebagian sudah dibuat dan stok dikoreksi) | CR-03 |
 | E-4 | Custom cake memakai takaran ukuran standar | CR-03 |
 | E-5 | Pesanan Sedang Disiapkan dihitung penuh | CR-03 |
-| E-6 | Stok bahan tidak dikurangi otomatis; akurasi bergantung pada koreksi stok AD-07 | CR-03 |
+| E-6 (**AKTIF**) | Stok bahan tidak dikurangi otomatis; akurasi bergantung pada koreksi stok AD-07 | CR-03 |
+| E-6 versi CR-04a (**BELUM AKTIF** — berlaku setelah Step 6.8 CP6 berhasil) | Estimasi tidak mengurangi stok bahan; stok hanya berubah lewat transaksi yang dicatat — Catat Stok Masuk, penerimaan pembelian, stock opname, serta pembalik atau koreksi transaksi tersebut; akurasi bergantung pada pencatatan transaksi dan stock opname AD-07 | CR-04a |
 | E-7 | Produk tanpa komposisi tidak dihitung; ditampilkan terpisah | CR-03 |
 | E-8 | Item ready di pesanan campuran dihitung pada tanggal pesanan dibuat (TF-12), bukan `ready_date` | CR-03 (diterima) |
 | E-9 | Klasifikasi memakai tipe produk saat estimasi; perubahan tipe setelah pesanan dibuat dapat membuat estimasi kurang/berlebih | CR-03 |
 | E-10 | Varian produk non-custom tidak dihitung terpisah | CR-03 |
+| Batas dokumen pembelian | Maks. 30 item per PO; nomor `PO-YYMMDD-NNN` | CR-04a |
+| Pembalik & koreksi | Pembalik penuh sekali; koreksi sekali per dokumen berlaku; tanpa batas waktu koreksi; saldo awal & opname tidak dapat dibalik | CR-04a |
+| Pembulatan nilai pembelian | Setengah menjauhi nol, 2 desimal, per baris | CR-04a |
+| Tanggal dokumen stok & penerimaan | Waktu server (WIB) saat dicatat; tanpa tanggal mundur | CR-04a (K08) |
+| Retensi `operation_requests` | Tanpa batas waktu (prototype) | CR-04a |
+| Batas stok & harga | Stok/kuantitas 0 – 99.999.999,99; harga > 0 – 9.999.999.999,99 | CR-04a |
+| Lock wait transaksi stok | 2 detik; 1205/1213 → rollback penuh | CR-04a |
 
-Teks keterangan wajib di tab Kebutuhan Bahan (CR-03, memuat E-1 – E-10, selalu tampil): *"Angka ini estimasi, bukan
+Teks keterangan wajib di tab Kebutuhan Bahan (CR-03, memuat E-1 – E-10, selalu tampil; **teks AKTIF**): *"Angka ini estimasi, bukan
 catatan pemakaian bahan. Dihitung dari pesanan pre-order & custom yang sudah dikonfirmasi atau sedang disiapkan —
 pesanan yang sedang disiapkan dihitung penuh — ditambah seluruh rencana produk ready hari ini, termasuk yang mungkin
 sudah dibuat. Produk ready untuk tanggal mendatang belum termasuk. Produk ready dalam pesanan campuran dihitung pada
@@ -351,6 +474,17 @@ tanggal pesanan dibuat, bukan tanggal siap. Custom cake dihitung dengan ukuran s
 dihitung terpisah. Produk tanpa komposisi tidak dihitung dan ditampilkan terpisah. Jenis produk dibaca dari data
 produk saat ini; bila diubah setelah pesanan dibuat, estimasi dapat kurang atau berlebih. Stok bahan tidak dikurangi
 otomatis; perbarui lewat Catat Stok Masuk atau koreksi stok."*
+
+**E-6 versi CR-04a — BELUM AKTIF.** Berlaku setelah Step 6.8 CP6 berhasil (buku mutasi & integrasi AD-07 benar-benar
+berfungsi). Saat itu kalimat penutup teks aktif di atas ("Stok bahan tidak dikurangi otomatis; …") diganti dengan
+kalimat berikut, sedangkan bagian awal tidak berubah:
+
+> Estimasi ini tidak mengurangi stok bahan; stok hanya berubah lewat Catat Stok Masuk, penerimaan pembelian, stock
+> opname, serta pembalik atau koreksi transaksi tersebut.
+
+Penggantian dilakukan **dalam satu commit CP6**: teks aktif di SPEC, konstanta `MATERIAL_REQUIREMENT_NOTE`, unit test
+K-14, dan uji integrasi/e2e yang memeriksa teks. Sebelum itu teks aktif, konstanta, dan uji tidak diubah, sehingga teks
+yang tampil selalu sesuai perilaku sistem yang aktif. Versi CR-04b (E-6 + E-11) dicadangkan dan belum berlaku.
 
 ## 11. Catatan Perubahan Requirement — CR-01 (Responsive Web)
 
@@ -404,3 +538,117 @@ Yang TIDAK berubah: checkout, pembatalan, BR-01 – BR-12, alur & status pesanan
 AD-05, Dashboard AD-02, laporan AD-08, web pelanggan. Tetap di luar lingkup: master satuan & konversi, alokasi
 tersimpan, pengurangan stok bahan otomatis, resep per varian/opsi, HPP & harga beli, supplier, purchase order,
 produksi/work order, laporan bahan/pembelian/produksi.
+
+## 13. Catatan Perubahan Requirement — CR-04 (tahap CR-04a: Supplier & Purchasing)
+
+- Tanggal disetujui: 12 November 2026 — K01 – K25, C-1 – C-13 (keputusan Pemilik Project).
+- Status: **Disetujui Pemilik Project (S)** sebagai keputusan internal project. Persetujuan akademik formal **bukan
+  prasyarat** (keputusan C-14 yang diubah); arahan umum dosen agar lingkup disesuaikan dengan kemampuan kelompok dicatat
+  sebagai konteks, **tanpa klaim** bahwa dosen menyetujui rincian CR-04. Dokumen PDF BRD/PRD/Analisis tidak diubah.
+- Dokumen sumber (`docs/change-requests/`, urutan baca): `CR-04_DRAFT_0.8.3.md` (SHA-256 `daa97c40…3e816`) →
+  `CR-04_ERRATA_E1_DRAFT_0.8.3.md` (`b29849d8…c59d2`) → `CR-04_ERRATA_E1.1_DRAFT_0.8.3.md` (`0bfe4546…909da8`);
+  ringkasan & register keputusan `CR-04_PAKET_PERSETUJUAN_FINAL.md`; rekaman `CR-04_Persetujuan_Pemilik_Project.md`.
+- Tahap: **CR-04a** (Step 6.8) berlaku di SPEC ini. **CR-04b** (Step 6.9, produksi/work order) dan **CR-04c** (Step 6.10,
+  laporan operasional) direncanakan tetapi **belum diizinkan**; kodenya dicadangkan (FR-45 – FR-47, UC-36 – UC-38,
+  BR-25 – BR-29, BR-33, BR-36, AC-45 – AC-47, A-14, A-15, BR-026, BR-027, AD-13, tab Operasional AD-08).
+- Implementasi: Step 6.8 di `docs/ROADMAP.md` (CP0 – CP7), hanya per CP yang diizinkan.
+
+| Requirement | Lama | Baru (CR-04a) |
+|---|---|---|
+| Di luar lingkup (BRD §10.2, PRD §13.1, Analisis; CR-03) | "… pembelian bahan, dan produksi …"; supplier & purchase order di luar lingkup | Supplier, purchase order, penerimaan bahan, dan buku mutasi stok bahan **termasuk lingkup**. Tetap di luar lingkup: keuangan/akuntansi (hutang, pembayaran supplier, pajak, HPP), produksi/work order dan laporan operasional (sampai CR-04b/c disetujui), master satuan & konversi, alokasi tersimpan |
+| Functional requirement | FR-01 – FR-40 | + FR-41 – FR-44 (bagian 3) |
+| Business rule | BR-01 – BR-16 | + BR-17 – BR-24, BR-30 – BR-32, BR-34, BR-35 (bagian 5); padanan BRD RB-18 – RB-37 |
+| Business requirement / fitur PRD / use case | — | BR-025 Pengadaan bahan terkendali (BRD); A-13 Pembelian & A-07 diperluas (PRD); UC-33 – UC-35 |
+| Validation rules | — | + Supplier, PO, transisi PO, penerimaan, pembalik, koreksi, stock opname, `request_id` (bagian 6) |
+| Data dictionary | 30 tabel | 39 tabel setelah CP2: + 9 tabel (bagian 8, rancangan) |
+| Layar | AD-01 – AD-11 | + AD-12 Pembelian `/admin/pembelian`; AD-07 diperluas (bagian 7) |
+| Hak akses | — | Staf & Owner setara untuk Purchasing & dokumen stok (K01); pelanggan 403 |
+| Perilaku AD-07 | Stok masuk & koreksi stok langsung mengubah `raw_materials.stock` | Dokumen + mutasi dalam transaksi yang sama; kontrak lama tetap + `request_id` opsional; UI koreksi stok memakai stock opname |
+
+Use case (usulan resmi CR-04a): **UC-33** Mengelola Supplier (Staf, Owner; FR-41) · **UC-34** Mengelola Purchase Order
+(FR-42) · **UC-35** Mencatat Mutasi Stok Bahan — penerimaan PO, stok masuk, stock opname, pembalik/koreksi (FR-43,
+FR-44); FR-44 juga memperluas UC-24 (stok).
+
+### API CR-04a (Staf & Owner)
+
+| Endpoint | `request_id` |
+|---|---|
+| `GET /api/admin/suppliers`, `POST /api/admin/suppliers` | POST wajib |
+| `PUT /api/admin/suppliers/:id`, `PATCH /api/admin/suppliers/:id/active` | Opsional |
+| `GET /api/admin/purchase-orders`, `POST /api/admin/purchase-orders` | POST wajib |
+| `GET /api/admin/purchase-orders/:id`, `PUT /api/admin/purchase-orders/:id` (hanya Draft) | PUT opsional |
+| `PATCH /api/admin/purchase-orders/:id/status` | Wajib |
+| `POST /api/admin/purchase-orders/:id/receipts` | Wajib |
+| `POST /api/admin/goods-receipts/:id/reverse`, `POST /api/admin/goods-receipts/:id/correct` | Wajib |
+| `GET /api/admin/raw-materials/:id/movements` | Ditolak (GET) |
+| `POST /api/admin/raw-materials/:id/stock-counts` (stock opname baru) | Wajib |
+| `POST /api/admin/stock-adjustments/:id/reverse`, `POST /api/admin/stock-adjustments/:id/correct` | Wajib |
+| `POST /api/admin/raw-materials`, `PUT /api/admin/raw-materials/:id`, `POST /api/admin/raw-materials/:id/stock-in` (lama; kontrak tetap) | Opsional |
+
+Endpoint lain (termasuk endpoint lama di luar daftar dan semua GET) menolak `request_id` dengan 400 lewat satu
+middleware allowlist; selain itu perilakunya tidak berubah. Audit (`audit_logs`, tanpa layar): `create_supplier`,
+`update_supplier`, `set_supplier_active`, `create_purchase_order`, `update_purchase_order`, `order_purchase_order`,
+`cancel_purchase_order`, `receive_purchase_order`, `reverse_goods_receipt`, `correct_goods_receipt`, `count_stock`,
+`reverse_stock_in`, `correct_stock_in`; aksi AD-07 lama tetap.
+
+### Acceptance criteria CR-04a
+
+- AC-41.1 Supplier (field T-01; tanpa daftar bahan boleh); pelanggan 403; tanpa token 401.
+- AC-41.2 PO ditolak untuk supplier tanpa bahan atau bahan di luar daftar.
+- AC-42.1 PO Draft → ubah → Dipesan → Dibatalkan; nilai identik di API, mock, laporan.
+- AC-42.2 `qty_cancelled` & nilai sisa dibatalkan historis.
+- AC-43.1 Penerimaan sebagian berulang; kelebihan ditolak; status BR-19.
+- AC-43.2 Replay penerimaan identik; payload/aktor beda 409; paralel → satu dokumen.
+- AC-43.3 Pembalik murni ditolak bila saldo < 0; koreksi dengan dampak bersih sah diterima setelah bahan terpakai sebagian.
+- AC-43.4 Koreksi: satu mutasi bersih per bahan merujuk P/R; dampak 0 tanpa mutasi; atomik; I-8.
+- AC-43.5 Nilai penerimaan dari mutasi; pembalik tepat negatif.
+- AC-44.1 Migrasi M-0 – M-9 dengan fencing akun aplikasi terpisah (P-OPS-1 – P-OPS-4); snapshot di M-4 setelah fencing
+  dan sebelum backup; UNLOCK hanya setelah validasi lulus; saldo awal tepat satu per bahan = snapshot M-4; CHECK & FK
+  `RESTRICT` aktif.
+- AC-44.2 Stok masuk & ubah bahan lama: kontrak sama; dokumen + mutasi; `request_id` opsional dengan kontrak penuh.
+- AC-44.3 Pembalik & koreksi stok masuk; saldo awal & opname tidak dapat dibalik.
+- AC-44.4 Opname: fisik 0 sah; selisih 0 tercatat tanpa mutasi; mutasi = fisik − sistem; `expected_stock` 400/409; I-10.
+- AC-44.5 Semua mutasi ≠ 0 dan menjaga [0, batas]; INSERT yang melanggar CHECK ditolak MySQL.
+- AC-44.6 Allowlist `request_id`: wajib tanpa `request_id` → 400; replay identik; payload beda 409; tidak ada baris
+  `response_status = 102` setelah transaksi; di luar allowlist → 400 tanpa efek lain.
+- AC-44.7 IT-01 – IT-15, IT-30, IT-31, IT-33 lulus; `lock_deadlocks = 0`.
+- AC-44.8 Upgrade, instalasi baru, seed berulang (termasuk dilanjutkan setelah gangguan), dan pembuatan bahan lewat API
+  memenuhi I-1, I-2, I-3, I-7, I-8, I-10, I-11; preflight seed menghentikan inkonsistensi sebelum penulisan pertama;
+  `db:check-ledger` mode produksi tanpa pengecualian; IT-34 – IT-38 lulus.
+- AC-NF Mode mock = API; 390/768/1440 px tanpa overflow; skeleton, empty state, toast, label, area sentuh 44 px.
+
+Skenario uji integrasi IT-01 – IT-15, IT-30, IT-31, IT-33 – IT-38 didefinisikan di dokumen CR-04 (Draft §18, Errata
+E1.1 §6) dan **belum dijalankan**.
+
+### Ketertelusuran CR-04a
+
+| FR | UC | BR | AC | Layar | IT | PRD / BRD |
+|---|---|---|---|---|---|---|
+| FR-41 | UC-33 | BR-17, BR-18, BR-31, BR-34 | AC-41.1, AC-41.2, AC-44.6 | AD-12 tab Supplier | IT-15, IT-31 | A-13 / BR-025 |
+| FR-42 | UC-34 | BR-18, BR-19, BR-21, BR-22, BR-31, BR-34 | AC-41.2, AC-42.1, AC-42.2, AC-44.6 | AD-12 tab Purchase Order | IT-14, IT-15, IT-31 | A-13 / BR-025 |
+| FR-43 | UC-35 | BR-20 – BR-24, BR-30, BR-31, BR-34 | AC-43.1 – AC-43.5, AC-44.5, AC-44.7 | AD-12 detail PO | IT-05 – IT-11, IT-14, IT-30 | A-13 / BR-025 |
+| FR-44 | UC-35 (+ UC-24) | BR-23, BR-24, BR-30, BR-31, BR-32, BR-34, BR-35 | AC-44.1 – AC-44.8 | AD-07 | IT-01 – IT-04, IT-07, IT-08, IT-12, IT-13, IT-30, IT-31, IT-33 – IT-38 | A-07 diperluas & A-13 / BR-025 |
+
+Sumber matriks: Errata E1 Lampiran A (A.2 – A.6); IT-24 pada E1 A.5 FR-43 adalah skenario CR-04b dan diuji di tahap itu.
+
+### Kriteria implementasi tambahan (disetujui untuk CP2)
+
+- **IMPL-CP2-1:** mode `--legacy-fixtures` pada `db:check-ledger` hanya diterima bila identitas database uji terverifikasi
+  (nama `ovenco_c4_test`, host lokal & port harness `33306`, penanda dari `tests-mysql/run.sh`); database tidak dikenal
+  ditolak, tidak cukup hanya `NODE_ENV`. Pengecualian hanya fixture lama suite 16 – 18 (pola `Bahan C5 %`, `Bahan R17 %`,
+  `Bahan R18 %`) tanpa catatan stok; fixture CR-04 wajib memakai helper saldo awal.
+- **IMPL-CP2-2:** snapshot migrasi M-4 deterministik — CSV UTF-8 tanpa BOM, header `material_id,stock`, urut
+  `material_id` naik, stok sebagai string DECIMAL dari MySQL (2 desimal, tanpa konversi number), akhir baris LF,
+  SHA-256 berkas final; pembuatan ulang dari data yang sama menghasilkan hash yang sama.
+
+### Konsistensi dengan CR-03
+
+Tidak berubah: FR-39, FR-40, BR-13 – BR-16, aturan & API estimasi kebutuhan bahan, `product_materials`, AD-06, struktur &
+presisi `raw_materials`, peringatan ubah satuan K-06. Satu-satunya dampak pada CR-03 adalah kalimat penutup teks
+keterangan wajib (E-6, bagian 10) yang berganti **setelah CP6**. Pernyataan bagian 12 bahwa supplier dan purchase order
+di luar lingkup digantikan oleh catatan ini; produksi/work order dan laporan bahan/pembelian/produksi tetap di luar
+lingkup sampai CR-04b/c disetujui.
+
+Yang TIDAK berubah oleh CR-04a: checkout, pembatalan, status pesanan, `daily_stocks`, Kalender AD-05, Dashboard AD-02,
+laporan penjualan AD-08, web pelanggan, dan dokumen PDF sumber. Deployment CR-04a mensyaratkan akun aplikasi & akun
+migrasi database terpisah (P-OPS-1 – P-OPS-4) dan prosedur migrasi M-0 – M-9.
