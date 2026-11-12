@@ -57,6 +57,27 @@ test('input desimal & nilai pembelian: fixture + 300 kasus acak identik dengan s
   }
 });
 
+test('nilai PO, nilai penerimaan, nilai sisa dibatalkan, alasan, sisa item — identik dengan server', () => {
+  for (let i = 0; i < 100; i += 1) {
+    const items = Array.from({ length: 1 + int(5) }, () => ({ qty_ordered: decimal(100000), unit_price: decimal(100000000), qty_cancelled: decimal(1000), net_received: decimal(1000) }));
+    const movements = items.map((it) => ({ qty_change: `${rand() < 0.4 ? '-' : ''}${it.qty_ordered}`, unit_price: it.unit_price }));
+    assert.deepEqual(V.purchaseOrderValue(items), SV.purchaseOrderValue(items));
+    assert.equal(V.receiptValue(movements), SV.receiptValue(movements));
+    assert.equal(V.cancelledValue(items), SV.cancelledValue(items));
+    const units = BigInt(int(1e6)) - 500000n;
+    assert.equal(V.roundHalfAwayFromZero(units), SV.roundHalfAwayFromZero(units));
+    for (const it of items) assert.equal(P.itemRemainingCents(it), SP.itemRemainingCents(it));
+  }
+  for (const [n, d] of [[-5050n, -51n], [-5049n, -50n], [5050n, 51n], [5049n, 50n]]) {
+    assert.equal(V.roundHalfAwayFromZero(n), d);
+    assert.equal(SV.roundHalfAwayFromZero(n), d);
+  }
+  for (const reason of ['', '  ', 'ok', 'x'.repeat(255), 'x'.repeat(256), null, 5]) {
+    assert.equal(P.reasonError(reason), SP.reasonError(reason));
+    assert.equal(P.reasonError(reason, { required: false }), SP.reasonError(reason, { required: false }));
+  }
+});
+
 test('supplier, PO, transisi, penerimaan, koreksi, pembatalan — identik dengan server', () => {
   const materials = new Set(['1', '2', '3']);
   const suppliers = [F.SUPPLIER_OK, { ...F.SUPPLIER_OK, phone: '0812', email: 'x', material_ids: ['1', '1', '7'] }, {}];

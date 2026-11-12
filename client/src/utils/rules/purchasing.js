@@ -12,7 +12,9 @@ import {
 import { parseDecimalInput, decimalToCents, centsToDecimalString } from './decimalInput';
 import { lineValueCents, VALUE_MAX_CENTS } from './purchaseValue';
 
-const SUPPLIER_PHONE_PATTERN = /^\+62\d{8,13}$/; // format telepon project (registrasi SPEC §6)
+// Draft 0.8.3 §7: "format telepon yang dipakai project, ≤ 20" = format HP project (SPEC §6 Registrasi "HP diawali
+// +62"; auth.service/profile.validator +62 diikuti 8 – 13 digit, maks. 16 karakter ≤ 20)
+const SUPPLIER_PHONE_PATTERN = /^\+62\d{8,13}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ID_PATTERN = /^[1-9]\d*$/;
 
