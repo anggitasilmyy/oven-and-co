@@ -411,8 +411,64 @@ const DAYS_OF_WEEK = Object.freeze([1, 2, 3, 4, 5, 6, 7]); // operating_hours.da
 const ADMIN_ACCOUNT_ROLES = Object.freeze(['staf', 'owner']);
 const OWNER_ROLE = 'owner';
 
+// CR-04a · FR-41 – FR-44 · BR-17 – BR-24, BR-30, BR-31, BR-35 (SPEC §5, §6, §10; Draft 0.8.3 §3 – §7, §14) — pembelian
+// & buku mutasi. Batas ditulis sebagai teks desimal (dibaca lewat BigInt, tidak pernah float).
+const PO_MAX_ITEMS = 30; // asumsi prototype SPEC §10
+const STOCK_QTY_MAX = '99999999.99'; // DECIMAL(10,2)
+const PURCHASE_PRICE_MAX = '9999999999.99'; // DECIMAL(12,2); juga batas nilai baris & nilai PO
+const DOCUMENT_REASON_MAX = 255;
+const PO_STATUS = Object.freeze({
+  DRAFT: 'draft', DIPESAN: 'dipesan', DITERIMA_SEBAGIAN: 'diterima_sebagian', DITERIMA: 'diterima', DIBATALKAN: 'dibatalkan',
+});
+// Transisi manual PO (BR-19): pesan dari Draft; batal dari Draft/Dipesan/Diterima Sebagian. Diterima Sebagian &
+// Diterima dihitung dari jumlah bersih diterima (bukan transisi manual). Diterima & Dibatalkan final.
+const PO_MANUAL_TRANSITIONS = Object.freeze({
+  draft: Object.freeze(['dipesan', 'dibatalkan']),
+  dipesan: Object.freeze(['dibatalkan']),
+  diterima_sebagian: Object.freeze(['dibatalkan']),
+  diterima: Object.freeze([]),
+  dibatalkan: Object.freeze([]),
+});
+const PO_RECEIVABLE_STATUSES = Object.freeze(['dipesan', 'diterima_sebagian']);
+const SUPPLIER_FIELD_MAX = Object.freeze({ name: 100, phone: 20, email: 100, address: 255, contactPerson: 100, note: 255 });
+const LEDGER_ERROR_CODE = Object.freeze({
+  REQUEST_ID_REUSED: 'REQUEST_ID_REUSED',
+  REQUEST_IN_PROGRESS: 'REQUEST_IN_PROGRESS',
+  DOCUMENT_ALREADY_SUPERSEDED: 'DOCUMENT_ALREADY_SUPERSEDED',
+  STOCK_OUT_OF_RANGE: 'STOCK_OUT_OF_RANGE',
+  STOCK_CHANGED: 'STOCK_CHANGED',
+});
+// Allowlist request_id (Draft §5.1, bagian CR-04a): operasi → wajib/opsional. Operasi lain menolak request_id.
+const REQUEST_ID_POLICY = Object.freeze({
+  create_supplier: 'required',
+  update_supplier: 'optional',
+  set_supplier_active: 'optional',
+  create_purchase_order: 'required',
+  update_purchase_order: 'optional',
+  transition_purchase_order: 'required',
+  receive_purchase_order: 'required',
+  reverse_goods_receipt: 'required',
+  correct_goods_receipt: 'required',
+  create_raw_material: 'optional',
+  update_raw_material: 'optional',
+  raw_material_stock_in: 'optional',
+  count_stock: 'required',
+  reverse_stock_in: 'required',
+  correct_stock_in: 'required',
+});
+
 module.exports = {
   MILLI_PRECISION_LOST_TEXT,
+  PO_MAX_ITEMS,
+  STOCK_QTY_MAX,
+  PURCHASE_PRICE_MAX,
+  DOCUMENT_REASON_MAX,
+  PO_STATUS,
+  PO_MANUAL_TRANSITIONS,
+  PO_RECEIVABLE_STATUSES,
+  SUPPLIER_FIELD_MAX,
+  LEDGER_ERROR_CODE,
+  REQUEST_ID_POLICY,
   MATERIAL_DEMAND_STATUSES,
   RECIPE_MAX_ITEMS,
   RECIPE_QTY_DECIMALS,
