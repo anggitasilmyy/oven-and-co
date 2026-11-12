@@ -5,12 +5,16 @@
 // tidak ditimpa, baris yang belum ada dibuat. Menjalankan seed berulang tidak membuat duplikat.
 // Kata sandi akun demo di-hash bcrypt; tidak ada kata sandi plaintext yang disimpan.
 // Jalankan: npm run db:seed (atau otomatis setelah `prisma migrate reset`).
+// CR-04a CP2 (Errata E1.1 §2 – §3): preflight hanya-baca bahan baku SEBELUM penulisan apa pun; bahan baku dibuat
+// bersama saldo awalnya (satu transaksi per bahan); setelah seed, buku mutasi diperiksa (mode produksi).
 
 require('dotenv').config();
 const bcrypt = require('bcrypt');
 const { PrismaClient } = require('@prisma/client');
 const C = require('./seed/catalog');
 const { buildSampleOrders, DESIGN, DESIGN_OPTION_IDS, dayKey, at } = require('./seed/sampleOrders');
+const { preflightMaterials, assertPlanWritable, applyMaterialPlan } = require('./seed/openingBalances');
+const { runLedgerCheck, formatLedgerReport } = require('../src/services/ledgerCheck.service');
 
 const prisma = new PrismaClient();
 const BCRYPT_ROUNDS = 10;
@@ -31,6 +35,9 @@ const VOUCHERS = [
 
 async function main() {
   const counts = {};
+  // Preflight (hanya baca) — inkonsistensi K-D menghentikan seed sebelum penulisan pertama ke tabel mana pun
+  const materialPlan = await preflightMaterials(prisma, C.RAW_MATERIALS);
+  assertPlanWritable(materialPlan);
   const passwordHash = await bcrypt.hash(C.DEMO_PASSWORD, BCRYPT_ROUNDS);
   const users = [
     ...C.DEMO_USERS.map((u) => ({ ...u, passwordHash, isActive: true, createdAt: new Date(u.createdAt) })),
@@ -44,7 +51,10 @@ async function main() {
   counts.products = await ensureAll('product', C.PRODUCTS, (r) => ({ productId: r.productId }));
   counts.product_images = await ensureAll('productImage', C.PRODUCT_IMAGES, (r) => ({ imageId: r.imageId }));
   counts.product_variants = await ensureAll('productVariant', C.PRODUCT_VARIANTS, (r) => ({ variantId: r.variantId }));
-  counts.raw_materials = await ensureAll('rawMaterial', C.RAW_MATERIALS, (r) => ({ materialId: r.materialId }));
+  // raw_materials + saldo awal (K-A dibuat, K-C diperbaiki, K-B tidak disentuh); stok bahan yang ada tidak pernah diubah
+  const materialResult = await applyMaterialPlan(prisma, materialPlan);
+  counts.raw_materials = C.RAW_MATERIALS.length;
+  counts.opening_balances_created = materialResult.created + materialResult.repaired;
   counts.product_materials = await ensureAll('productMaterial', C.PRODUCT_MATERIALS,
     (r) => ({ productId_materialId: { productId: r.productId, materialId: r.materialId } }));
   counts.custom_options = await ensureAll('customOption', C.CUSTOM_OPTIONS, (r) => ({ optionId: r.optionId }));
@@ -73,11 +83,16 @@ async function main() {
 
   console.log('Seed selesai (baris diperiksa per tabel):');
   console.table(counts);
+
+  // Pasca-pemeriksaan buku mutasi, mode produksi (tanpa pengecualian)
+  const ledger = await runLedgerCheck(prisma);
+  console.log(formatLedgerReport(ledger));
+  if (ledger.violations.length) process.exitCode = 1;
 }
 
 main()
   .catch((err) => {
-    console.error('Seed gagal:', err);
+    console.error('Seed gagal:', err.message ?? err);
     process.exitCode = 1;
   })
   .finally(() => prisma.$disconnect());

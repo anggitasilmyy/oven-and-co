@@ -1601,7 +1601,8 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 
 **Step 6.8 — Supplier & Purchasing Management (CR-04a)**
 - Status: **CR-04a disetujui Pemilik Project 12 Nov 2026** (K01 – K25, C-1 – C-13). CP0 selesai (PR #26); CP1
-  (sinkronisasi dokumen) dikerjakan; **CP2 – CP7 belum diizinkan** — setiap CP memerlukan izin Pemilik Project.
+  (sinkronisasi dokumen) selesai (PR #27); CP2 (database, migrasi, seed, integritas buku mutasi) selesai di PR CP2;
+  **CP3 – CP7 belum diizinkan** — setiap CP memerlukan izin Pemilik Project.
 - Ruang lingkup: FR-41 – FR-44, UC-33 – UC-35, BR-17 – BR-24, BR-30 – BR-32, BR-34, BR-35, AC-41.1 – AC-44.8, AD-12
   Pembelian & perluasan AD-07, 9 tabel (30 → 39) — `docs/SPEC.md` bagian 2, 3, 5, 6, 7, 8, 10, 13; rincian normatif
   `docs/change-requests/CR-04_DRAFT_0.8.3.md` + Errata E1 + E1.1.
@@ -1613,14 +1614,27 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 | CP | Isi | Kriteria selesai | Bergantung pada | Status |
 |---|---|---|---|---|
 | CP0 | Simpan Draft 0.8.3, Errata E1, E1.1, paket & rekaman persetujuan di `docs/change-requests/` | Hash cocok; PR dokumen | Keputusan Pemilik Project | **Selesai** (PR #26, 12 Nov 2026) |
-| CP1 | AGENTS.md §1, SPEC (bagian 2/3/5/6/7/8/9/10/13), ROADMAP; E-6 versi CR-04a dicatat **belum aktif** | Hanya dokumen; test K-14 & `db:check-spec` tetap lulus | CP0 | Dikerjakan (PR CP1) |
-| CP2 | Schema & migrasi `cr04a` (9 tabel, CHECK, FK RESTRICT, saldo awal set-based), seed + preflight, `createOpeningBalance`, `db:check-ledger` (IMPL-CP2-1), snapshot M-4 deterministik (IMPL-CP2-2), `checkSchemaAgainstSpec.js` 39 tabel + rancangan bagian 8 dipindah ke Data Dictionary | IT-01 – IT-04, IT-34 – IT-36; `db:check-spec` lulus | CP1 + izin | Belum diizinkan |
+| CP1 | AGENTS.md §1, SPEC (bagian 2/3/5/6/7/8/9/10/13), ROADMAP; E-6 versi CR-04a dicatat **belum aktif** | Hanya dokumen; test K-14 & `db:check-spec` tetap lulus | CP0 | **Selesai** (PR #27, 12 Nov 2026) |
+| CP2 | Schema & migrasi `cr04a` (9 tabel, CHECK, FK RESTRICT, saldo awal set-based), seed + preflight, `createOpeningBalance`, `db:check-ledger` (IMPL-CP2-1), snapshot M-4 deterministik (IMPL-CP2-2), `checkSchemaAgainstSpec.js` 39 tabel + rancangan bagian 8 dipindah ke Data Dictionary | IT-01 – IT-04, IT-34 – IT-36; `db:check-spec` lulus | CP1 + izin | **Selesai** (PR CP2, 12 Nov 2026) — lihat catatan CP2 |
 | CP3 | Aturan murni server = client: desimal/milli, nilai PO & penerimaan, status PO, dampak bersih & rujukan P/R, opname, payload kanonik + SHA-256, invarian | Unit node:test + Vitest, uji silang client = server | CP2 + izin | Belum diizinkan |
 | CP4 | Middleware `request_id` (allowlist, idempotensi), satu layanan buku mutasi untuk endpoint AD-07 lama, endpoint opname, pembalik/koreksi stok masuk, riwayat mutasi, audit | Route test; MySQL IT-06 – IT-08, IT-12, IT-13, IT-31 (AD-07), IT-37; regresi AD-07 & MySQL 16 – 18 | CP3 + izin | Belum diizinkan |
 | CP5 | API supplier, PO, penerimaan, pembalik/koreksi penerimaan, nilai; audit | Route test; MySQL IT-05, IT-09 – IT-11, IT-14, IT-15, IT-30; 0 deadlock | CP4 + izin | Belum diizinkan |
 | CP6 | Frontend AD-12 (tab PO & Supplier, detail, penerimaan, koreksi), AD-07 (opname, riwayat, pembalik/koreksi), mock (tabel & ledger mock), rute & sidebar AD-12; **aktivasi E-6 versi CR-04a** dalam satu commit (teks aktif SPEC + `MATERIAL_REQUIREMENT_NOTE` + test K-14 + uji integrasi/e2e terkait) | Mock = API (IT-38); e2e mock & API 390/768/1440 px; teks tampil = perilaku aktif | CP5 + izin | Belum diizinkan |
 | CP7 | Regresi penuh (server, client, Vitest, MySQL 01 – 18 + baru, e2e per-step), gladi migrasi IT-02, IT-03, IT-33, status ROADMAP | Semua lulus kecuali 14 P1b (kegagalan lama); PR CR-04a | CP6 + izin | Belum diizinkan |
 
+- Catatan CP2 (12 Nov 2026): migrasi `20261112000000_cr04a_purchasing` (30 → 39 tabel; 27 FK RESTRICT/RESTRICT; 12 CHECK;
+  saldo awal set-based tanpa mengubah `raw_materials`); Prisma schema 9 model; seed dengan preflight hanya-baca K-A – K-D
+  + `createOpeningBalance` (`services/openingBalance.service.js`); `npm run db:check-ledger` (I-1, I-2, I-3, I-7, I-8,
+  I-10, I-11; `--legacy-fixtures` hanya untuk database harness terverifikasi, IMPL-CP2-1); `npm run db:snapshot-stock`
+  (snapshot M-4 deterministik + `--compare` M-6 + `--verify-opening` M-8, IMPL-CP2-2); `db:check-spec` 39 tabel + FK
+  RESTRICT/RESTRICT + CHECK + saldo awal. Uji: server `npm test` 751/751 (termasuk `tests/ledgerRules.test.js` 9/9);
+  MySQL baru `tests-mysql/19-cr04a-migration` (IT-01, IT-34, IT-02, IT-03, IT-04) dan `20-cr04a-seed` (IT-35, IT-36 a – f,
+  IMPL-CP2-1) lulus; harness MySQL penuh 145/146 (01 – 20; 1 gagal = 14 P1b, kegagalan lama; 0 deadlock; 10 lock timeout =
+  uji timeout yang disengaja, sama dengan baseline); client `test:unit` 310/310, Vitest 8/8 (CR-03 tetap). IT-05 – IT-33
+  (selain IT-01 – IT-04) dan IT-37/IT-38 belum dijalankan (CP4 – CP7). **Batas sampai CP4:** endpoint AD-07 lama
+  (buat bahan, ubah/koreksi stok, Catat Stok Masuk) dan fixture SQL suite 16 – 18 masih menulis stok tanpa dokumen/mutasi,
+  sehingga `db:check-ledger` mode produksi dapat gagal setelah stok diubah lewat AD-07; main tidak boleh dideploy sebelum
+  CP4 (dan deployment tetap mensyaratkan P-OPS-1 – P-OPS-4).
 - Rencana awal di bawah dipertahankan sebagai catatan historis; yang berlaku adalah CR-04a di atas.
 - Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
 - Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;

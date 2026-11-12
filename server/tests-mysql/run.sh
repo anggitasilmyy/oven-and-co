@@ -62,6 +62,8 @@ GRANT ALL PRIVILEGES ON $DB.* TO 'c4app'@'%';
 SQL
 
 export C4_MYSQL_IT=1
+# CR-04a IMPL-CP2-1: penanda identitas database uji untuk `db:check-ledger --legacy-fixtures`
+export OVENCO_LEDGER_TEST_DB="$DB"
 export C4_MYSQL_CONTAINER="$CONTAINER"
 export C4_ARTIFACT_DIR="$ARTIFACTS"
 export ROOT_DATABASE_URL="mysql://root:$ROOT_PW@127.0.0.1:$PORT/$DB"
