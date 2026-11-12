@@ -1601,8 +1601,8 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 
 **Step 6.8 — Supplier & Purchasing Management (CR-04a)**
 - Status: **CR-04a disetujui Pemilik Project 12 Nov 2026** (K01 – K25, C-1 – C-13). CP0 selesai (PR #26); CP1
-  (sinkronisasi dokumen) selesai (PR #27); CP2 (database, migrasi, seed, integritas buku mutasi) selesai di PR CP2;
-  **CP3 – CP7 belum diizinkan** — setiap CP memerlukan izin Pemilik Project.
+  (sinkronisasi dokumen) selesai (PR #27); CP2 (database, migrasi, seed, integritas buku mutasi) selesai (PR #28);
+  CP3 (aturan murni server = client) selesai di PR CP3; **CP4 – CP7 belum diizinkan** — setiap CP memerlukan izin Pemilik Project.
 - Ruang lingkup: FR-41 – FR-44, UC-33 – UC-35, BR-17 – BR-24, BR-30 – BR-32, BR-34, BR-35, AC-41.1 – AC-44.8, AD-12
   Pembelian & perluasan AD-07, 9 tabel (30 → 39) — `docs/SPEC.md` bagian 2, 3, 5, 6, 7, 8, 10, 13; rincian normatif
   `docs/change-requests/CR-04_DRAFT_0.8.3.md` + Errata E1 + E1.1.
@@ -1615,8 +1615,8 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 |---|---|---|---|---|
 | CP0 | Simpan Draft 0.8.3, Errata E1, E1.1, paket & rekaman persetujuan di `docs/change-requests/` | Hash cocok; PR dokumen | Keputusan Pemilik Project | **Selesai** (PR #26, 12 Nov 2026) |
 | CP1 | AGENTS.md §1, SPEC (bagian 2/3/5/6/7/8/9/10/13), ROADMAP; E-6 versi CR-04a dicatat **belum aktif** | Hanya dokumen; test K-14 & `db:check-spec` tetap lulus | CP0 | **Selesai** (PR #27, 12 Nov 2026) |
-| CP2 | Schema & migrasi `cr04a` (9 tabel, CHECK, FK RESTRICT, saldo awal set-based), seed + preflight, `createOpeningBalance`, `db:check-ledger` (IMPL-CP2-1), snapshot M-4 deterministik (IMPL-CP2-2), `checkSchemaAgainstSpec.js` 39 tabel + rancangan bagian 8 dipindah ke Data Dictionary | IT-01 – IT-04, IT-34 – IT-36; `db:check-spec` lulus | CP1 + izin | **Selesai** (PR CP2, 12 Nov 2026) — lihat catatan CP2 |
-| CP3 | Aturan murni server = client: desimal/milli, nilai PO & penerimaan, status PO, dampak bersih & rujukan P/R, opname, payload kanonik + SHA-256, invarian | Unit node:test + Vitest, uji silang client = server | CP2 + izin | Belum diizinkan |
+| CP2 | Schema & migrasi `cr04a` (9 tabel, CHECK, FK RESTRICT, saldo awal set-based), seed + preflight, `createOpeningBalance`, `db:check-ledger` (IMPL-CP2-1), snapshot M-4 deterministik (IMPL-CP2-2), `checkSchemaAgainstSpec.js` 39 tabel + rancangan bagian 8 dipindah ke Data Dictionary | IT-01 – IT-04, IT-34 – IT-36; `db:check-spec` lulus | CP1 + izin | **Selesai** (PR #28, 12 Nov 2026) — lihat catatan CP2 |
+| CP3 | Aturan murni server = client: desimal/milli, nilai PO & penerimaan, status PO, dampak bersih & rujukan P/R, opname, payload kanonik + SHA-256, invarian | Unit node:test + Vitest, uji silang client = server | CP2 + izin | **Selesai** (PR CP3, 12 Nov 2026) — lihat catatan CP3 |
 | CP4 | Middleware `request_id` (allowlist, idempotensi), satu layanan buku mutasi untuk endpoint AD-07 lama, endpoint opname, pembalik/koreksi stok masuk, riwayat mutasi, audit | Route test; MySQL IT-06 – IT-08, IT-12, IT-13, IT-31 (AD-07), IT-37; regresi AD-07 & MySQL 16 – 18 | CP3 + izin | Belum diizinkan |
 | CP5 | API supplier, PO, penerimaan, pembalik/koreksi penerimaan, nilai; audit | Route test; MySQL IT-05, IT-09 – IT-11, IT-14, IT-15, IT-30; 0 deadlock | CP4 + izin | Belum diizinkan |
 | CP6 | Frontend AD-12 (tab PO & Supplier, detail, penerimaan, koreksi), AD-07 (opname, riwayat, pembalik/koreksi), mock (tabel & ledger mock), rute & sidebar AD-12; **aktivasi E-6 versi CR-04a** dalam satu commit (teks aktif SPEC + `MATERIAL_REQUIREMENT_NOTE` + test K-14 + uji integrasi/e2e terkait) | Mock = API (IT-38); e2e mock & API 390/768/1440 px; teks tampil = perilaku aktif | CP5 + izin | Belum diizinkan |
@@ -1635,6 +1635,22 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   (buat bahan, ubah/koreksi stok, Catat Stok Masuk) dan fixture SQL suite 16 – 18 masih menulis stok tanpa dokumen/mutasi,
   sehingga `db:check-ledger` mode produksi dapat gagal setelah stok diubah lewat AD-07; main tidak boleh dideploy sebelum
   CP4 (dan deployment tetap mensyaratkan P-OPS-1 – P-OPS-4).
+- Catatan CP3 (12 Nov 2026): aturan murni tanpa database, server `services/` = client `utils/rules/` (port identik):
+  `decimalInputRules` (teks desimal ≤ 2 desimal → BigInt sen; JSON number/eksponen/> batas ditolak), `purchaseValueRules`
+  (nilai baris/PO/penerimaan/sisa dibatalkan; setengah menjauhi nol per baris, BigInt 1/10.000 Rupiah),
+  `purchasingRules` (supplier K02 + T-01/K03, item PO BR-18, transisi `{from, to}` BR-19, status dari jumlah bersih
+  diterima, sisa item, penerimaan sebagian/berlebih BR-20, koreksi penerimaan & PO Dibatalkan BR-21, `qty_cancelled`,
+  alasan 1 – 255), `stockLedgerRules` (dokumen berlaku, pembalik & koreksi R + P dengan dampak bersih & rujukan P/R §4.3,
+  saldo akhir [0, batas] → 409 `STOCK_OUT_OF_RANGE`, stock opname `expected_stock` → 409 `STOCK_CHANGED`),
+  `idempotencyRules` (allowlist wajib/opsional §5.1, UUID v4, payload kanonik + SHA-256 — client Web Crypto, keputusan
+  replay vs 409 `REQUEST_ID_REUSED`); invarian I-1 – I-11 CP2 diport ke client (`utils/rules/ledger*.js`); konstanta
+  `constants/purchasing.js` = server. Uji: server `npm test` 762/762 (`tests/purchasingRules.test.js` 11/11); client
+  Vitest 14/14 (`tests/vitest/purchasingRules.test.mjs` 6/6, ratusan kasus acak deterministik client = server), `test:unit`
+  310/310, build lulus, oxlint 0 error (2 peringatan lama `Toast.jsx`); `db:check-spec` lulus; harness MySQL penuh 145/146
+  (01 – 20, termasuk `db:check-ledger` di suite 19/20; 1 gagal = 14 P1b, juga gagal di `origin/main` pada suite 14
+  tersendiri → bukan regresi; 0 deadlock). **Belum di CP3 (CP4/CP5):** penulisan dokumen + mutasi + stok dalam transaksi
+  berkunci, penyimpanan `operation_requests` (nilai sementara 102, `REQUEST_IN_PROGRESS`), rollback & uji MySQL IT-05 –
+  IT-15, IT-30, IT-31, IT-37; aturan belum dipakai endpoint/mock mana pun.
 - Rencana awal di bawah dipertahankan sebagai catatan historis; yang berlaku adalah CR-04a di atas.
 - Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
 - Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;
