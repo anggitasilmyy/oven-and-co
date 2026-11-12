@@ -297,7 +297,7 @@ Admin (layout desktop, sidebar; < 1024 px sidebar menjadi drawer):
 AD-12 ditambahkan oleh CR-04a (menu sidebar baru; diimplementasikan di Step 6.8 CP6). AD-13 Produksi
 (`/admin/produksi`) dan tab Operasional AD-08 dicadangkan untuk CR-04b/CR-04c dan **belum berlaku**.
 
-## 8. Data Dictionary (30 tabel)
+## 8. Data Dictionary (39 tabel)
 
 Notasi: `?` = nullable, `UQ` = unique, `PK/FK` sesuai ERD.
 
@@ -367,50 +367,49 @@ store_settings (1 baris, setting_id = 1): store_name; address?; latitude?; longi
   redeem_value (5000); gold_min_points (500); platinum_min_points (2000); review_bonus_points (20)
 operating_hours: hour_id TINYINT PK; day_of_week TINYINT UQ (1 Senin – 7 Minggu); open_time TIME?;
   close_time TIME?; is_open BOOLEAN
+
+-- CR-04a (Step 6.8 CP2): pembelian & buku mutasi stok bahan; waktu DATETIME(3); semua FK ON DELETE/UPDATE RESTRICT
+operation_requests: request_id CHAR(36) PK; operation VARCHAR(40); actor_id FK users; target_type VARCHAR(30)?;
+  target_id BIGINT?; payload_hash CHAR(64); response_status SMALLINT; response_body JSON; created_at DATETIME(3)
+suppliers: supplier_id BIGINT PK; name VARCHAR(100) UQ; phone VARCHAR(20); email VARCHAR(100); address VARCHAR(255);
+  contact_person VARCHAR(100); note VARCHAR(255)?; is_active BOOLEAN (TRUE); created_by FK users;
+  created_request_id CHAR(36) FK operation_requests UQ; created_at DATETIME(3); updated_at DATETIME(3)
+supplier_materials: supplier_id PK,FK suppliers; material_id PK,FK raw_materials
+purchase_orders: po_id BIGINT PK; po_number VARCHAR(20) UQ; supplier_id FK;
+  status ENUM(draft,dipesan,diterima_sebagian,diterima,dibatalkan); note VARCHAR(255)?; ordered_at DATETIME(3)?;
+  cancelled_at DATETIME(3)?; cancel_reason VARCHAR(255)?; created_by FK users;
+  created_request_id CHAR(36) FK operation_requests UQ; created_at DATETIME(3); updated_at DATETIME(3)
+purchase_order_items: po_item_id BIGINT PK; po_id FK; material_id FK (UQ bersama po_id); qty_ordered DECIMAL(10,2);
+  unit_price DECIMAL(12,2); qty_cancelled DECIMAL(10,2) (0)
+goods_receipts: receipt_id BIGINT PK; po_id FK; kind ENUM(normal,pembalik,pengganti); reverses_id FK goods_receipts? UQ;
+  replaces_id FK goods_receipts? UQ; reason VARCHAR(255)?; note VARCHAR(255)?; operation_request_id CHAR(36) FK;
+  created_by FK users; created_at DATETIME(3)
+goods_receipt_lines: line_id BIGINT PK; receipt_id FK; po_item_id FK (UQ bersama receipt_id); qty DECIMAL(10,2)
+stock_adjustments: adjustment_id BIGINT PK; material_id FK;
+  kind ENUM(saldo_awal,stok_masuk,pembalik_stok_masuk,pengganti_stok_masuk,stock_opname); qty DECIMAL(10,2)?;
+  counted_stock DECIMAL(10,2)?; system_stock DECIMAL(10,2)?; reverses_id FK stock_adjustments? UQ;
+  replaces_id FK stock_adjustments? UQ; reason VARCHAR(255)?; opening_material_id BIGINT? UQ (= material_id, hanya
+  saldo_awal); operation_request_id CHAR(36) FK?; created_by FK users? (NULL hanya saldo awal migrasi/seed);
+  created_at DATETIME(3)
+material_movements: movement_id BIGINT PK; material_id FK; type ENUM(saldo_awal,stok_masuk,pembalik_stok_masuk,
+  koreksi_stok_masuk,stock_opname,penerimaan,pembalik_penerimaan,koreksi_penerimaan); qty_change DECIMAL(10,2) (≠ 0);
+  stock_before DECIMAL(10,2); stock_after DECIMAL(10,2); adjustment_id FK? UQ; receipt_id FK?;
+  po_item_id FK? (UQ bersama receipt_id); created_by FK users? (NULL hanya saldo_awal); created_at DATETIME(3)
 ```
 
 Prinsip: saldo poin, level, sisa stok, kebutuhan & stok dialokasikan bahan, dan subtotal item TIDAK disimpan sebagai
 kolom (dihitung).
 Data transaksi disimpan sebagai salinan (unit_price, delivery_address_snapshot).
 
-### Rancangan tabel CR-04a (9 tabel; 30 → 39) — belum diterapkan
+### Catatan tabel CR-04a (diterapkan Step 6.8 CP2)
 
-Status: **rancangan disetujui, belum ada di migrasi.** Tabel ini masuk ke blok Data Dictionary di atas (dan
-`checkSchemaAgainstSpec.js`/`TABLE_COUNT` menjadi 39) pada Step 6.8 CP2 bersama migrasinya. DDL lengkap, CHECK
-(pola anti-UNKNOWN), dan indeks: `docs/change-requests/CR-04_DRAFT_0.8.3.md` §12.1 – §12.2. Semua FK CR-04
-`ON DELETE RESTRICT ON UPDATE RESTRICT`; waktu `DATETIME(3)`; tanpa FLOAT/DOUBLE.
-
-```text
-operation_requests: request_id CHAR(36) PK; operation VARCHAR(40); actor_id FK users; target_type VARCHAR(30)?;
-  target_id BIGINT?; payload_hash CHAR(64); response_status SMALLINT; response_body JSON; created_at DATETIME(3)
-suppliers: supplier_id BIGINT PK; name VARCHAR(100) UQ; phone VARCHAR(20); email VARCHAR(100); address VARCHAR(255);
-  contact_person VARCHAR(100); note VARCHAR(255)?; is_active BOOLEAN (TRUE); created_by FK users;
-  created_request_id FK operation_requests UQ; created_at DATETIME(3); updated_at DATETIME(3)
-supplier_materials: supplier_id PK,FK suppliers; material_id PK,FK raw_materials
-purchase_orders: po_id BIGINT PK; po_number VARCHAR(20) UQ; supplier_id FK; status ENUM(draft,dipesan,
-  diterima_sebagian,diterima,dibatalkan); note VARCHAR(255)?; ordered_at DATETIME(3)?; cancelled_at DATETIME(3)?;
-  cancel_reason VARCHAR(255)?; created_by FK users; created_request_id FK operation_requests UQ; created_at; updated_at
-purchase_order_items: po_item_id BIGINT PK; po_id FK (UQ bersama material_id); material_id FK;
-  qty_ordered DECIMAL(10,2); unit_price DECIMAL(12,2); qty_cancelled DECIMAL(10,2) (0)
-goods_receipts: receipt_id BIGINT PK; po_id FK; kind ENUM(normal,pembalik,pengganti); reverses_id FK goods_receipts? UQ;
-  replaces_id FK goods_receipts? UQ; reason VARCHAR(255)?; note VARCHAR(255)?; operation_request_id FK; created_by FK
-  users; created_at DATETIME(3)
-goods_receipt_lines: line_id BIGINT PK; receipt_id FK (UQ bersama po_item_id); po_item_id FK purchase_order_items;
-  qty DECIMAL(10,2)
-stock_adjustments: adjustment_id BIGINT PK; material_id FK; kind ENUM(saldo_awal,stok_masuk,pembalik_stok_masuk,
-  pengganti_stok_masuk,stock_opname); qty DECIMAL(10,2)?; counted_stock DECIMAL(10,2)?; system_stock DECIMAL(10,2)?;
-  reverses_id FK stock_adjustments? UQ; replaces_id FK stock_adjustments? UQ; reason VARCHAR(255)?;
-  opening_material_id BIGINT? UQ (= material_id hanya untuk saldo_awal); operation_request_id FK?; created_by FK users?
-  (NULL hanya saldo awal migrasi/seed); created_at DATETIME(3)
-material_movements: movement_id BIGINT PK; material_id FK; type ENUM(saldo_awal,stok_masuk,pembalik_stok_masuk,
-  koreksi_stok_masuk,stock_opname,penerimaan,pembalik_penerimaan,koreksi_penerimaan); qty_change DECIMAL(10,2) (≠ 0);
-  stock_before DECIMAL(10,2); stock_after DECIMAL(10,2); adjustment_id FK? UQ; receipt_id FK? (UQ bersama po_item_id);
-  po_item_id FK?; created_by FK users? (NULL hanya saldo_awal); created_at DATETIME(3)
-```
-
-CHECK utama: `ck_opreq_fmt`, `ck_opreq_target`, `ck_supplier_text`, `ck_po_status`, `ck_poi_values`, `ck_gr_kind`,
-`ck_grl_qty`, `ck_sa_kind`, `ck_mm_source`, `ck_mm_sign`, `ck_mm_balance`, `ck_mm_actor`. Tabel lama tidak berubah
-strukturnya; `raw_materials.stock` tetap DECIMAL(10,2) dan kini hanya ditulis bersama mutasi.
+Migrasi `20261112000000_cr04a_purchasing` (30 → 39 tabel). DDL lengkap, indeks, dan CHECK (pola anti-UNKNOWN):
+`docs/change-requests/CR-04_DRAFT_0.8.3.md` §12.1 – §12.2. CHECK: `ck_opreq_fmt`, `ck_opreq_target`, `ck_supplier_text`,
+`ck_po_status`, `ck_poi_values`, `ck_gr_kind`, `ck_grl_qty`, `ck_sa_kind`, `ck_mm_source`, `ck_mm_sign`, `ck_mm_balance`,
+`ck_mm_actor`. Migrasi mengisi satu dokumen saldo awal per bahan (mutasi hanya bila stok > 0) tanpa mengubah
+`raw_materials`. Tabel lama tidak berubah strukturnya; `raw_materials.stock` tetap DECIMAL(10,2). `npm run db:check-spec`
+memeriksa tabel, FK RESTRICT/RESTRICT, CHECK, dan pengisian saldo awal; `npm run db:check-ledger` memeriksa data buku
+mutasi (I-1, I-2, I-3, I-7, I-8, I-10, I-11).
 
 ## 9. Data Contoh (seed)
 
@@ -560,7 +559,7 @@ produksi/work order, laporan bahan/pembelian/produksi.
 | Business rule | BR-01 – BR-16 | + BR-17 – BR-24, BR-30 – BR-32, BR-34, BR-35 (bagian 5); padanan BRD RB-18 – RB-37 |
 | Business requirement / fitur PRD / use case | — | BR-025 Pengadaan bahan terkendali (BRD); A-13 Pembelian & A-07 diperluas (PRD); UC-33 – UC-35 |
 | Validation rules | — | + Supplier, PO, transisi PO, penerimaan, pembalik, koreksi, stock opname, `request_id` (bagian 6) |
-| Data dictionary | 30 tabel | 39 tabel setelah CP2: + 9 tabel (bagian 8, rancangan) |
+| Data dictionary | 30 tabel | 39 tabel: + 9 tabel (bagian 8; diterapkan CP2) |
 | Layar | AD-01 – AD-11 | + AD-12 Pembelian `/admin/pembelian`; AD-07 diperluas (bagian 7) |
 | Hak akses | — | Staf & Owner setara untuk Purchasing & dokumen stok (K01); pelanggan 403 |
 | Perilaku AD-07 | Stok masuk & koreksi stok langsung mengubah `raw_materials.stock` | Dokumen + mutasi dalam transaksi yang sama; kontrak lama tetap + `request_id` opsional; UI koreksi stok memakai stock opname |

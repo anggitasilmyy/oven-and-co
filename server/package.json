@@ -16,7 +16,9 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
-    "db:check-spec": "node prisma/checkSchemaAgainstSpec.js"
+    "db:check-spec": "node prisma/checkSchemaAgainstSpec.js",
+    "db:check-ledger": "node prisma/checkLedger.js",
+    "db:snapshot-stock": "node prisma/stockSnapshot.js"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

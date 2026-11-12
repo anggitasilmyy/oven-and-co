@@ -1,6 +1,8 @@
 // prisma/checkSchemaAgainstSpec.js
 // Step 6.1 · Pemeriksa skema: membandingkan SQL seluruh migrasi dengan Data Dictionary docs/SPEC.md §8
-// (30 tabel sejak CR-03 CP2 — + product_materials; nama kolom, tipe & panjang, nullable, PK/composite key, UNIQUE, FK + tabel tujuan, nilai ENUM).
+// (30 tabel sejak CR-03 CP2 — + product_materials; 39 sejak CR-04a CP2 — + 9 tabel pembelian & buku mutasi; nama kolom,
+// tipe & panjang, nullable, PK/composite key, UNIQUE, FK + tabel tujuan, nilai ENUM). CR-04a: FK ON DELETE/UPDATE
+// RESTRICT, CHECK constraint wajib, dan pengisian saldo awal di migrasi (Errata E1 B.7).
 // Tidak butuh database. Jalankan: npm run db:check-spec  (keluar dengan kode 1 bila ada selisih).
 
 const fs = require('fs');
@@ -9,8 +11,14 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const SPEC_PATH = path.join(ROOT, 'docs', 'SPEC.md');
 const MIGRATIONS = path.join(__dirname, 'migrations');
-// 29 tabel dokumen Analisis v1.0 + product_materials (CR-03)
-const TABLE_COUNT = 30;
+// 29 tabel dokumen Analisis v1.0 + product_materials (CR-03) + 9 tabel CR-04a
+const TABLE_COUNT = 39;
+// CR-04a (Draft 0.8.3 §12.2): tabel, CHECK wajib, dan pernyataan saldo awal di SQL migrasi
+const CR04A_TABLES = ['operation_requests', 'suppliers', 'supplier_materials', 'purchase_orders', 'purchase_order_items',
+  'goods_receipts', 'goods_receipt_lines', 'stock_adjustments', 'material_movements'];
+const CR04A_CHECKS = ['ck_opreq_fmt', 'ck_opreq_target', 'ck_supplier_text', 'ck_po_status', 'ck_poi_values', 'ck_gr_kind',
+  'ck_grl_qty', 'ck_sa_kind', 'ck_mm_source', 'ck_mm_sign', 'ck_mm_balance', 'ck_mm_actor'];
+const CR04A_UNIQUES = { stock_adjustments: 'opening_material_id', material_movements: 'adjustment_id' };
 
 // SPEC §4: nilai order_status (SPEC §8 menulis "ENUM(lihat bagian 4)")
 const ORDER_STATUS = ['menunggu_pembayaran', 'dikonfirmasi', 'sedang_disiapkan', 'siap_diambil', 'dalam_pengiriman', 'selesai', 'dibatalkan'];
@@ -20,6 +28,10 @@ const FK_TARGET_BY_COLUMN = {
   design_id: 'custom_cake_designs', option_id: 'custom_options', cart_id: 'carts', address_id: 'addresses',
   voucher_id: 'vouchers', review_id: 'reviews', order_item_id: 'order_items', method_code: 'payment_methods', changed_by: 'users',
   material_id: 'raw_materials', // CR-03 product_materials
+  // CR-04a
+  actor_id: 'users', created_by: 'users', created_request_id: 'operation_requests', operation_request_id: 'operation_requests',
+  supplier_id: 'suppliers', po_id: 'purchase_orders', po_item_id: 'purchase_order_items', receipt_id: 'goods_receipts',
+  adjustment_id: 'stock_adjustments',
 };
 // SPEC §8 store_settings hanya menyebut nama kolom; tipe diambil dari PDF Data Dictionary (Bab 4.5, entity store_settings)
 const STORE_SETTINGS_TYPES = {
@@ -32,7 +44,7 @@ const STORE_SETTINGS_TYPES = {
 // Tipe kolom FK yang tidak ditulis di SPEC §8 (PDF Data Dictionary)
 const FK_TYPES = { category_id: 'INT', option_id: 'INT', method_code: 'VARCHAR(20)' };
 
-const TYPE_RE = /^(BIGINT|INT|TINYINT|SMALLINT|TEXT|DATETIME|DATE|TIME|BOOLEAN|VARCHAR\(\d+\)|DECIMAL\(\d+,\d+\)|ENUM\([^)]*\))/;
+const TYPE_RE = /^(BIGINT|INT|TINYINT|SMALLINT|TEXT|DATETIME\(\d\)|DATETIME|DATE|TIME|BOOLEAN|JSON|CHAR\(\d+\)|VARCHAR\(\d+\)|DECIMAL\(\d+,\d+\)|ENUM\([^)]*\))/;
 
 /** Data Dictionary SPEC §8 → { tabel: { kolom: {type, nullable, pk, unique, fk} } } */
 function parseSpec() {
@@ -80,7 +92,10 @@ function parseSpec() {
       if (col.type === 'ENUM(lihatbagian4)') col.type = `ENUM(${ORDER_STATUS.join(',')})`;
       cols[name] = col;
     }
-    tables[table] = { cols, composite: /UQ bersama product_id/.test(entry) ? [['product_id', 'stock_date']] : [] };
+    // "kolom … (UQ bersama X)" → UNIQUE gabungan (X, kolom), mis. daily_stocks (product_id, stock_date)
+    const composite = [...entry.split(':').slice(1).join(':').matchAll(/(?:^|;)\s*([a-z_]+)[^;]*\(UQ bersama ([a-z_]+)\)/g)]
+      .map((m) => [m[2], m[1]]);
+    tables[table] = { cols, composite };
   }
   // order_status_histories.status memakai enum status pesanan yang sama (SPEC §4 & §8 "status ENUM")
   tables.order_status_histories.cols.status.type = `ENUM(${ORDER_STATUS.join(',')})`;
@@ -105,18 +120,42 @@ function parseSql() {
     }
     tables[m[1]] = t;
   }
-  for (const m of sql.matchAll(/ALTER TABLE `(\w+)` ADD CONSTRAINT `\w+` FOREIGN KEY \(`(\w+)`\) REFERENCES `(\w+)`\(`\w+`\)(?: ON DELETE (\w+))?/g)) {
+  for (const m of sql.matchAll(/ALTER TABLE `(\w+)` ADD CONSTRAINT `\w+` FOREIGN KEY \(`(\w+)`\) REFERENCES `(\w+)`\(`\w+`\)(?: ON DELETE (\w+))?(?: ON UPDATE (\w+))?/g)) {
     tables[m[1]].fks[m[2]] = m[3];
     (tables[m[1]].onDelete ??= {})[m[2]] = m[4] ?? null;
+    (tables[m[1]].onUpdate ??= {})[m[2]] = m[5] ?? null;
   }
+  tables.__checks = [...sql.matchAll(/ADD CONSTRAINT `(ck_\w+)` CHECK/g)].map((m) => m[1]);
+  tables.__openingInsert = /INSERT INTO `stock_adjustments`[\s\S]*?'saldo_awal'[\s\S]*?FROM `raw_materials`/.test(sql)
+    && /INSERT INTO `material_movements`[\s\S]*?'saldo_awal'[\s\S]*?`qty` > 0/.test(sql);
   return tables;
+}
+
+/** CR-04a: FK RESTRICT/RESTRICT, CHECK wajib, UNIQUE saldo awal, pengisian saldo awal (Errata E1 B.7) */
+function checkCr04a(sql, fail) {
+  for (const table of CR04A_TABLES.filter((t) => sql[t])) {
+    for (const [col, action] of Object.entries(sql[table].onDelete ?? {})) {
+      const update = sql[table].onUpdate[col];
+      if (action !== 'RESTRICT' || update !== 'RESTRICT') fail(`${table}.${col}: FK ON DELETE ${action} ON UPDATE ${update} ≠ RESTRICT/RESTRICT`);
+    }
+  }
+  CR04A_CHECKS.filter((c) => !sql.__checks.includes(c)).forEach((c) => fail(`CHECK ${c} tidak ada di migrasi`));
+  for (const [table, col] of Object.entries(CR04A_UNIQUES)) {
+    if (!sql[table]?.uniques.some((u) => u.length === 1 && u[0] === col)) fail(`${table}.${col}: UNIQUE wajib (I-7) tidak ada`);
+  }
+  if (!sql.__openingInsert) fail('Migrasi CR-04a tidak mengisi saldo awal (INSERT … SELECT stock_adjustments & material_movements)');
 }
 
 function main() {
   const spec = parseSpec();
   const sql = parseSql();
+  const checks = sql.__checks;
+  const openingInsert = sql.__openingInsert;
+  delete sql.__checks;
+  delete sql.__openingInsert;
   const problems = [];
   const fail = (msg) => problems.push(msg);
+  checkCr04a({ ...sql, __checks: checks, __openingInsert: openingInsert }, fail);
   const specNames = Object.keys(spec).sort();
   const sqlNames = Object.keys(sql).sort();
   if (specNames.length !== TABLE_COUNT) fail(`SPEC berisi ${specNames.length} tabel (harus ${TABLE_COUNT})`);
@@ -156,12 +195,12 @@ function main() {
       .forEach((u) => fail(`${table}: UNIQUE gabungan tambahan (${u})`));
   }
   const fkCount = Object.values(sql).reduce((n, t) => n + Object.keys(t.fks).length, 0);
-  console.log(`Tabel: ${sqlNames.length} · kolom dicek: ${columns} · foreign key: ${fkCount}`);
+  console.log(`Tabel: ${sqlNames.length} · kolom dicek: ${columns} · foreign key: ${fkCount} · CHECK CR-04a: ${checks.length}`);
   if (problems.length) {
     console.log(`\n✗ ${problems.length} selisih:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
     process.exit(1);
   }
-  console.log('✓ Migrasi sesuai SPEC §8 (nama, tipe & panjang, nullable, PK/composite, UNIQUE, FK, ENUM)');
+  console.log('✓ Migrasi sesuai SPEC §8 (nama, tipe & panjang, nullable, PK/composite, UNIQUE, FK, ENUM; CR-04a: FK RESTRICT/RESTRICT, CHECK, saldo awal)');
 }
 
 main();

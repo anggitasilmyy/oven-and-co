@@ -130,6 +130,13 @@ model User {
   pointTransactions PointTransaction[]
   reviews           Review[]
   wishlists         Wishlist[]
+  // CR-04a · pelaku dokumen pembelian & buku mutasi
+  operationRequests OperationRequest[]
+  suppliersCreated  Supplier[]
+  purchaseOrders    PurchaseOrder[]
+  goodsReceipts     GoodsReceipt[]
+  stockAdjustments  StockAdjustment[]
+  materialMovements MaterialMovement[]
 
   @@map("users")
 }
@@ -286,7 +293,12 @@ model RawMaterial {
   stock      Decimal @db.Decimal(10, 2)
   minStock   Decimal @map("min_stock") @db.Decimal(10, 2)
 
-  productMaterials ProductMaterial[]
+  productMaterials   ProductMaterial[]
+  // CR-04a
+  supplierMaterials  SupplierMaterial[]
+  purchaseOrderItems PurchaseOrderItem[]
+  stockAdjustments   StockAdjustment[]
+  movements          MaterialMovement[]
 
   @@map("raw_materials")
 }
@@ -633,4 +645,253 @@ model OperatingHour {
   isOpen    Boolean   @map("is_open")
 
   @@map("operating_hours")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// CR-04a · Step 6.8 · FR-41 – FR-44 · 9 tabel (30 → 39) — docs/change-requests/CR-04_DRAFT_0.8.3.md §12.1 – §12.2
+// Semua FK CR-04: ON DELETE RESTRICT ON UPDATE RESTRICT (MySQL menolak CHECK pada kolom FK beraksi CASCADE/SET NULL).
+// CHECK constraint (pola anti-UNKNOWN) tidak dapat ditulis di Prisma; ada di SQL migrasi 20261112000000_cr04a_purchasing.
+// Waktu DATETIME(3). Kuantitas DECIMAL(10,2), harga DECIMAL(12,2); tanpa FLOAT/DOUBLE.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+enum PurchaseOrderStatus {
+  draft
+  dipesan
+  diterima_sebagian
+  diterima
+  dibatalkan
+}
+
+enum GoodsReceiptKind {
+  normal
+  pembalik
+  pengganti
+}
+
+enum StockAdjustmentKind {
+  saldo_awal
+  stok_masuk
+  pembalik_stok_masuk
+  pengganti_stok_masuk
+  stock_opname
+}
+
+enum MaterialMovementType {
+  saldo_awal
+  stok_masuk
+  pembalik_stok_masuk
+  koreksi_stok_masuk
+  stock_opname
+  penerimaan
+  pembalik_penerimaan
+  koreksi_penerimaan
+}
+
+/// CR-04a · idempotensi `request_id` (UUID v4 kanonik); respons final disimpan untuk replay
+model OperationRequest {
+  requestId      String   @id @map("request_id") @db.Char(36)
+  operation      String   @db.VarChar(40)
+  actorId        BigInt   @map("actor_id")
+  targetType     String?  @map("target_type") @db.VarChar(30)
+  targetId       BigInt?  @map("target_id")
+  payloadHash    String   @map("payload_hash") @db.Char(64)
+  responseStatus Int      @map("response_status") @db.SmallInt
+  responseBody   Json     @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  actor            User              @relation(fields: [actorId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  createdSupplier  Supplier?         @relation("SupplierCreatedRequest")
+  createdPurchase  PurchaseOrder?    @relation("PurchaseOrderCreatedRequest")
+  goodsReceipts    GoodsReceipt[]
+  stockAdjustments StockAdjustment[]
+
+  @@index([actorId], map: "ix_opreq_actor")
+  @@index([targetType, targetId], map: "ix_opreq_target")
+  @@map("operation_requests")
+}
+
+/// CR-04a · FR-41 · K02 + T-01: supplier tidak dihapus, hanya dinonaktifkan
+model Supplier {
+  supplierId       BigInt   @id @default(autoincrement()) @map("supplier_id")
+  name             String   @unique(map: "uq_supplier_name") @db.VarChar(100)
+  phone            String   @db.VarChar(20)
+  email            String   @db.VarChar(100)
+  address          String   @db.VarChar(255)
+  contactPerson    String   @map("contact_person") @db.VarChar(100)
+  note             String?  @db.VarChar(255)
+  isActive         Boolean  @default(true) @map("is_active")
+  createdBy        BigInt   @map("created_by")
+  createdRequestId String   @unique(map: "uq_supplier_req") @map("created_request_id") @db.Char(36)
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  creator        User               @relation(fields: [createdBy], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  createdRequest OperationRequest   @relation("SupplierCreatedRequest", fields: [createdRequestId], references: [requestId], onDelete: Restrict, onUpdate: Restrict)
+  materials      SupplierMaterial[]
+  purchaseOrders PurchaseOrder[]
+
+  @@index([isActive], map: "ix_supplier_active")
+  @@map("suppliers")
+}
+
+/// CR-04a · K03: daftar bahan per supplier (relasi, bukan riwayat)
+model SupplierMaterial {
+  supplierId BigInt @map("supplier_id")
+  materialId BigInt @map("material_id")
+
+  supplier Supplier    @relation(fields: [supplierId], references: [supplierId], onDelete: Restrict, onUpdate: Restrict)
+  material RawMaterial @relation(fields: [materialId], references: [materialId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([supplierId, materialId])
+  @@index([materialId], map: "ix_supmat_material")
+  @@map("supplier_materials")
+}
+
+/// CR-04a · FR-42 · K04: Draft → Dipesan → Diterima Sebagian → Diterima / Dibatalkan
+model PurchaseOrder {
+  poId             BigInt              @id @default(autoincrement()) @map("po_id")
+  poNumber         String              @unique(map: "uq_po_number") @map("po_number") @db.VarChar(20)
+  supplierId       BigInt              @map("supplier_id")
+  status           PurchaseOrderStatus @default(draft)
+  note             String?             @db.VarChar(255)
+  orderedAt        DateTime?           @map("ordered_at") @db.DateTime(3)
+  cancelledAt      DateTime?           @map("cancelled_at") @db.DateTime(3)
+  cancelReason     String?             @map("cancel_reason") @db.VarChar(255)
+  createdBy        BigInt              @map("created_by")
+  createdRequestId String              @unique(map: "uq_po_req") @map("created_request_id") @db.Char(36)
+  createdAt        DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime            @updatedAt @map("updated_at") @db.DateTime(3)
+
+  supplier       Supplier            @relation(fields: [supplierId], references: [supplierId], onDelete: Restrict, onUpdate: Restrict)
+  creator        User                @relation(fields: [createdBy], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  createdRequest OperationRequest    @relation("PurchaseOrderCreatedRequest", fields: [createdRequestId], references: [requestId], onDelete: Restrict, onUpdate: Restrict)
+  items          PurchaseOrderItem[]
+  receipts       GoodsReceipt[]
+
+  @@index([supplierId], map: "ix_po_supplier")
+  @@index([status], map: "ix_po_status")
+  @@index([orderedAt], map: "ix_po_ordered")
+  @@index([cancelledAt], map: "ix_po_cancelled")
+  @@map("purchase_orders")
+}
+
+/// CR-04a · harga disalin ke item PO; qty_cancelled historis saat pembatalan
+model PurchaseOrderItem {
+  poItemId     BigInt  @id @default(autoincrement()) @map("po_item_id")
+  poId         BigInt  @map("po_id")
+  materialId   BigInt  @map("material_id")
+  qtyOrdered   Decimal @map("qty_ordered") @db.Decimal(10, 2)
+  unitPrice    Decimal @map("unit_price") @db.Decimal(12, 2)
+  qtyCancelled Decimal @default(0) @map("qty_cancelled") @db.Decimal(10, 2)
+
+  purchaseOrder PurchaseOrder      @relation(fields: [poId], references: [poId], onDelete: Restrict, onUpdate: Restrict)
+  material      RawMaterial        @relation(fields: [materialId], references: [materialId], onDelete: Restrict, onUpdate: Restrict)
+  receiptLines  GoodsReceiptLine[]
+  movements     MaterialMovement[]
+
+  @@unique([poId, materialId], map: "uq_poi")
+  @@index([materialId], map: "ix_poi_material")
+  @@map("purchase_order_items")
+}
+
+/// CR-04a · FR-43: dokumen penerimaan (normal / pembalik / pengganti), append-only
+model GoodsReceipt {
+  receiptId          BigInt           @id @default(autoincrement()) @map("receipt_id")
+  poId               BigInt           @map("po_id")
+  kind               GoodsReceiptKind
+  reversesId         BigInt?          @unique(map: "uq_gr_reverses") @map("reverses_id")
+  replacesId         BigInt?          @unique(map: "uq_gr_replaces") @map("replaces_id")
+  reason             String?          @db.VarChar(255)
+  note               String?          @db.VarChar(255)
+  operationRequestId String           @map("operation_request_id") @db.Char(36)
+  createdBy          BigInt           @map("created_by")
+  createdAt          DateTime         @default(now()) @map("created_at") @db.DateTime(3)
+
+  purchaseOrder    PurchaseOrder      @relation(fields: [poId], references: [poId], onDelete: Restrict, onUpdate: Restrict)
+  reverses         GoodsReceipt?      @relation("GoodsReceiptReverses", fields: [reversesId], references: [receiptId], onDelete: Restrict, onUpdate: Restrict)
+  reversedBy       GoodsReceipt?      @relation("GoodsReceiptReverses")
+  replaces         GoodsReceipt?      @relation("GoodsReceiptReplaces", fields: [replacesId], references: [receiptId], onDelete: Restrict, onUpdate: Restrict)
+  replacedBy       GoodsReceipt?      @relation("GoodsReceiptReplaces")
+  operationRequest OperationRequest   @relation(fields: [operationRequestId], references: [requestId], onDelete: Restrict, onUpdate: Restrict)
+  creator          User               @relation(fields: [createdBy], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  lines            GoodsReceiptLine[]
+  movements        MaterialMovement[]
+
+  @@index([poId], map: "ix_gr_po")
+  @@index([operationRequestId], map: "ix_gr_opreq")
+  @@index([createdAt], map: "ix_gr_created")
+  @@map("goods_receipts")
+}
+
+model GoodsReceiptLine {
+  lineId    BigInt  @id @default(autoincrement()) @map("line_id")
+  receiptId BigInt  @map("receipt_id")
+  poItemId  BigInt  @map("po_item_id")
+  qty       Decimal @db.Decimal(10, 2)
+
+  receipt GoodsReceipt      @relation(fields: [receiptId], references: [receiptId], onDelete: Restrict, onUpdate: Restrict)
+  poItem  PurchaseOrderItem @relation(fields: [poItemId], references: [poItemId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([receiptId, poItemId], map: "uq_grl")
+  @@index([poItemId], map: "ix_grl_item")
+  @@map("goods_receipt_lines")
+}
+
+/// CR-04a · FR-44: dokumen stok AD-07 satu bahan. Saldo awal: opening_material_id = material_id (UNIQUE → tepat satu
+/// per bahan, I-7); created_by NULL hanya untuk saldo awal migrasi/seed (Errata E1 B.1).
+model StockAdjustment {
+  adjustmentId       BigInt              @id @default(autoincrement()) @map("adjustment_id")
+  materialId         BigInt              @map("material_id")
+  kind               StockAdjustmentKind
+  qty                Decimal?            @db.Decimal(10, 2)
+  countedStock       Decimal?            @map("counted_stock") @db.Decimal(10, 2)
+  systemStock        Decimal?            @map("system_stock") @db.Decimal(10, 2)
+  reversesId         BigInt?             @unique(map: "uq_sa_reverses") @map("reverses_id")
+  replacesId         BigInt?             @unique(map: "uq_sa_replaces") @map("replaces_id")
+  reason             String?             @db.VarChar(255)
+  openingMaterialId  BigInt?             @unique(map: "uq_sa_opening") @map("opening_material_id")
+  operationRequestId String?             @map("operation_request_id") @db.Char(36)
+  createdBy          BigInt?             @map("created_by")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+
+  material         RawMaterial       @relation(fields: [materialId], references: [materialId], onDelete: Restrict, onUpdate: Restrict)
+  reverses         StockAdjustment?  @relation("StockAdjustmentReverses", fields: [reversesId], references: [adjustmentId], onDelete: Restrict, onUpdate: Restrict)
+  reversedBy       StockAdjustment?  @relation("StockAdjustmentReverses")
+  replaces         StockAdjustment?  @relation("StockAdjustmentReplaces", fields: [replacesId], references: [adjustmentId], onDelete: Restrict, onUpdate: Restrict)
+  replacedBy       StockAdjustment?  @relation("StockAdjustmentReplaces")
+  operationRequest OperationRequest? @relation(fields: [operationRequestId], references: [requestId], onDelete: Restrict, onUpdate: Restrict)
+  creator          User?             @relation(fields: [createdBy], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  movement         MaterialMovement?
+
+  @@index([materialId, createdAt], map: "ix_sa_material")
+  @@index([kind], map: "ix_sa_kind")
+  @@map("stock_adjustments")
+}
+
+/// CR-04a · FR-44 · BR-23: buku mutasi — satu baris bersih (≠ 0) per bahan per operasi; I-1 Σ qty_change = stok
+model MaterialMovement {
+  movementId   BigInt               @id @default(autoincrement()) @map("movement_id")
+  materialId   BigInt               @map("material_id")
+  type         MaterialMovementType
+  qtyChange    Decimal              @map("qty_change") @db.Decimal(10, 2)
+  stockBefore  Decimal              @map("stock_before") @db.Decimal(10, 2)
+  stockAfter   Decimal              @map("stock_after") @db.Decimal(10, 2)
+  adjustmentId BigInt?              @unique(map: "uq_mm_adjustment") @map("adjustment_id")
+  receiptId    BigInt?              @map("receipt_id")
+  poItemId     BigInt?              @map("po_item_id")
+  createdBy    BigInt?              @map("created_by")
+  createdAt    DateTime             @default(now()) @map("created_at") @db.DateTime(3)
+
+  material   RawMaterial        @relation(fields: [materialId], references: [materialId], onDelete: Restrict, onUpdate: Restrict)
+  adjustment StockAdjustment?   @relation(fields: [adjustmentId], references: [adjustmentId], onDelete: Restrict, onUpdate: Restrict)
+  receipt    GoodsReceipt?      @relation(fields: [receiptId], references: [receiptId], onDelete: Restrict, onUpdate: Restrict)
+  poItem     PurchaseOrderItem? @relation(fields: [poItemId], references: [poItemId], onDelete: Restrict, onUpdate: Restrict)
+  creator    User?              @relation(fields: [createdBy], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([receiptId, poItemId], map: "uq_mm_receipt_item")
+  @@index([materialId, movementId], map: "ix_mm_material")
+  @@index([createdAt], map: "ix_mm_created")
+  @@index([type, createdAt], map: "ix_mm_type")
+  @@index([poItemId], map: "ix_mm_item")
+  @@map("material_movements")
 }
