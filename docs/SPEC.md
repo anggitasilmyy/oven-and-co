@@ -615,7 +615,11 @@ Project 13 Nov 2026); aksi AD-07 lama tetap.
 - AC-NF Mode mock = API; 390/768/1440 px tanpa overflow; skeleton, empty state, toast, label, area sentuh 44 px.
 
 Skenario uji integrasi IT-01 – IT-15, IT-30, IT-31, IT-33 – IT-38 didefinisikan di dokumen CR-04 (Draft §18, Errata
-E1.1 §6) dan **belum dijalankan**.
+E1.1 §6). Status (Step 6.8 CP7, harness MySQL terisolasi): IT-01 – IT-04, IT-34 (`tests-mysql/19`), IT-35, IT-36
+(`20`), IT-06 – IT-08, IT-12, IT-13, IT-31, IT-37 (`21`), IT-15, IT-31 (`22`), IT-05 – IT-11, IT-14, IT-30 (`23`) lulus
+otomatis; IT-38 lulus di uji client (mock = API). IT-33 (fencing M-0 – M-9) adalah prosedur operator tanpa otomasi di
+repository: mekanismenya lulus pada gladi manual CP7 di database sekali pakai; verifikasi P-OPS-1 – P-OPS-4 di lingkungan
+target tetap prasyarat deployment (AC-44.1). Bagian CR-04b dalam IT-30/IT-31 (pengeluaran, WO) belum berlaku.
 
 ### Ketertelusuran CR-04a
 

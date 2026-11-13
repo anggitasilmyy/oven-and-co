@@ -1603,8 +1603,9 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 - Status: **CR-04a disetujui Pemilik Project 12 Nov 2026** (K01 – K25, C-1 – C-13). CP0 selesai (PR #26); CP1
   (sinkronisasi dokumen) selesai (PR #27); CP2 (database, migrasi, seed, integritas buku mutasi) selesai (PR #28);
   CP3 (aturan murni server = client) selesai (PR #29); CP4 (middleware request_id, buku mutasi AD-07) selesai (PR #30);
-  CP5 (API supplier, PO, penerimaan) selesai (PR #31); CP6 (frontend AD-12 & AD-07, mock, aktivasi E-6) selesai di PR CP6;
-  **CP7 belum diizinkan** — setiap CP memerlukan izin Pemilik Project.
+  CP5 (API supplier, PO, penerimaan) selesai (PR #31); CP6 (frontend AD-12 & AD-07, mock, aktivasi E-6) selesai (PR #32);
+  CP7 (regresi penuh, paritas mock = API, gladi migrasi) selesai di PR CP7 — **kesiapan CR-04a: READY WITH NOTES**
+  (lihat catatan CP7: prasyarat deployment P-OPS-1 – P-OPS-4; bagian laporan AC-42.1 menunggu CR-04c).
 - Ruang lingkup: FR-41 – FR-44, UC-33 – UC-35, BR-17 – BR-24, BR-30 – BR-32, BR-34, BR-35, AC-41.1 – AC-44.8, AD-12
   Pembelian & perluasan AD-07, 9 tabel (30 → 39) — `docs/SPEC.md` bagian 2, 3, 5, 6, 7, 8, 10, 13; rincian normatif
   `docs/change-requests/CR-04_DRAFT_0.8.3.md` + Errata E1 + E1.1.
@@ -1621,8 +1622,8 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 | CP3 | Aturan murni server = client: desimal/milli, nilai PO & penerimaan, status PO, dampak bersih & rujukan P/R, opname, payload kanonik + SHA-256, invarian | Unit node:test + Vitest, uji silang client = server | CP2 + izin | **Selesai** (PR #29, 12 Nov 2026) — lihat catatan CP3 |
 | CP4 | Middleware `request_id` (allowlist, idempotensi), satu layanan buku mutasi untuk endpoint AD-07 lama, endpoint opname, pembalik/koreksi stok masuk, riwayat mutasi, audit | Route test; MySQL IT-06 – IT-08, IT-12, IT-13, IT-31 (AD-07), IT-37; regresi AD-07 & MySQL 16 – 18 | CP3 + izin | **Selesai** (PR #30, 13 Nov 2026) — lihat catatan CP4 |
 | CP5 | API supplier, PO, penerimaan, pembalik/koreksi penerimaan, nilai; audit | Route test; MySQL IT-05, IT-09 – IT-11, IT-14, IT-15, IT-30; 0 deadlock | CP4 + izin | **Selesai** (PR #31, 13 Nov 2026) — lihat catatan CP5 |
-| CP6 | Frontend AD-12 (tab PO & Supplier, detail, penerimaan, koreksi), AD-07 (opname, riwayat, pembalik/koreksi), mock (tabel & ledger mock), rute & sidebar AD-12; **aktivasi E-6 versi CR-04a** dalam satu commit (teks aktif SPEC + `MATERIAL_REQUIREMENT_NOTE` + test K-14 + uji integrasi/e2e terkait) | Mock = API (IT-38); e2e mock & API 390/768/1440 px; teks tampil = perilaku aktif | CP5 + izin | **Selesai** (PR CP6, 13 Nov 2026) — lihat catatan CP6 |
-| CP7 | Regresi penuh (server, client, Vitest, MySQL 01 – 18 + baru, e2e per-step), gladi migrasi IT-02, IT-03, IT-33, status ROADMAP | Semua lulus kecuali 14 P1b (kegagalan lama); PR CR-04a | CP6 + izin | Belum diizinkan |
+| CP6 | Frontend AD-12 (tab PO & Supplier, detail, penerimaan, koreksi), AD-07 (opname, riwayat, pembalik/koreksi), mock (tabel & ledger mock), rute & sidebar AD-12; **aktivasi E-6 versi CR-04a** dalam satu commit (teks aktif SPEC + `MATERIAL_REQUIREMENT_NOTE` + test K-14 + uji integrasi/e2e terkait) | Mock = API (IT-38); e2e mock & API 390/768/1440 px; teks tampil = perilaku aktif | CP5 + izin | **Selesai** (PR #32, 13 Nov 2026) — lihat catatan CP6 |
+| CP7 | Regresi penuh (server, client, Vitest, MySQL 01 – 18 + baru, e2e per-step), gladi migrasi IT-02, IT-03, IT-33, status ROADMAP | Semua lulus kecuali 14 P1b (kegagalan lama); PR CR-04a | CP6 + izin | **Selesai** (PR CP7, 13 Nov 2026) — lihat catatan CP7 |
 
 - Catatan CP2 (12 Nov 2026): migrasi `20261112000000_cr04a_purchasing` (30 → 39 tabel; 27 FK RESTRICT/RESTRICT; 12 CHECK;
   saldo awal set-based tanpa mengubah `raw_materials`); Prisma schema 9 model; seed dengan preflight hanya-baca K-A – K-D
@@ -1726,7 +1727,40 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   pada 3 bahan fixture yang disisipkan SQL langsung oleh suite 16 – 18 (`Bahan C5/R17/R18`, tanpa saldo awal; batas
   fixture yang sudah dicatat di catatan CP2), 0 pada bahan yang dibuat lewat aplikasi. Catatan uji: suite harness 02
   menonaktifkan `owner@demo.com` di database uji; untuk e2e mode API akun itu diaktifkan kembali di database harness saja.
-  Belum: regresi penuh e2e per-step, gladi migrasi IT-02/IT-03/IT-33 (CP7).
+  Regresi penuh e2e per-step dan gladi migrasi IT-02/IT-03/IT-33: lihat catatan CP7.
+- Catatan CP7 (13 Nov 2026): regresi penuh, audit buku mutasi, paritas mock = API, gladi migrasi. **Temuan & perbaikan
+  (hanya mode mock; server, schema, migrasi tidak diubah):** lapisan rute mock `services/mock/requestBody.js`
+  (`mockRoute`) mengikuti urutan rute API — format `request_id` → auth 401/403 (pesan server) → ID parameter
+  (400 `INVALID_ID`) → `requireRequestId` → validator body ketat (port `validators/{purchasing,stockLedger,adminCatalog}`;
+  validator server tidak dapat dipakai langsung karena CommonJS + `zod` server) → `runOperation`. Diperbaiki: koreksi
+  penerimaan tanpa alasan (dulu `TypeError`), field tak dikenal/tipe salah diterima, urutan duplikat `request_id` vs
+  validasi body, status HTTP 400/404 stok masuk & bahan, error stok palsu pada ubah bahan tanpa `stock`, dan
+  `expected_stock` tidak sah (mis. `7.001`) yang dulu dibulatkan lalu **menulis koreksi stok** di mock (server: 400).
+  Uji: `tests/vitest/requestBody.test.mjs` (validator client = server pada input sama), uji regresi temuan di
+  `tests/unit/purchasingMock.test.mjs`; `tests/step-5.7/func.e2e.mjs` mengikuti pesan 403 kontrak API untuk stok masuk.
+  **Paritas** `client/tests/step-6.8/parity.diff.mjs` (skenario supplier → PO → penerimaan → koreksi/pembalik → dokumen
+  stok AD-07 → hak akses → kontrak rute, lewat lapisan `services/` mode mock dan mode API dengan database harness):
+  **96/96 langkah identik** (status, kode, pesan, fieldErrors, data; normalisasi hanya ID, waktu, nomor PO, nama unik);
+  57 langkah ditolak di kedua mode, seluruhnya tanpa perubahan stok, mutasi, maupun status dokumen. **Audit buku mutasi:**
+  satu-satunya penulisan `raw_materials.stock` server = `stockLedger.writeMovements` (sesudah dokumen sumber, dalam
+  `runOperation`); bahan baru + saldo awal dalam transaksi yang sama; pembalik/koreksi append-only; mock setara.
+  **Gladi migrasi:** IT-02 diperketat sesuai definisi (jumlah baris & `CHECKSUM TABLE` setiap tabel hasil restore =
+  sumber) dan lulus; IT-03 lulus (suite 19 4/4); IT-33 — prosedur operator M-0 – M-9 tanpa otomasi di repository —
+  mekanismenya lulus pada gladi manual di database sekali pakai 21/21 (M-0 berhenti untuk akun ber-`SUPER`, hak
+  `PROCESS`/`KILL`, inventaris proxy/DEFINER/penulis lain, `ACCOUNT LOCK` + `KILL`, login & tulis aplikasi ditolak,
+  akun migrasi tetap migrasi, validasi gagal → tetap terkunci, UNLOCK sesudah validasi lulus).
+  **Regresi:** server `npm test` 772/772; harness MySQL 01 – 23 162/162 (0 deadlock; 11 lock timeout = baseline);
+  `prisma validate` & `db:check-spec` lulus; client `test:unit` 316/316, Vitest 21/21, lint 0 error (2 peringatan lama
+  `Toast.jsx`), build lulus; e2e mode mock 5.1 (37/37, 40/40, 55/55, visual 0) · 5.2 56/56 · 5.3 76/76 · 5.5 56/56 ·
+  5.6 80/80 + 18/18 · 5.7 91/91 · 5.8 67/67 · semua visual 0 masalah; `step-6.8/purchasing` 27/27 di 390/768/1440 px mode
+  mock & API; `step-6.7/integration` 11/11 (mock & API), `requirementDate` 13/13 (API). `db:check-ledger
+  --legacy-fixtures` di database harness: 9 pelanggaran, seluruhnya pada 3 bahan fixture yang disisipkan SQL langsung
+  oleh suite 16 – 18 (batas fixture sejak CP2; fixture tidak diubah); 0 pada bahan yang dibuat lewat aplikasi.
+  **Kesiapan CR-04a: READY WITH NOTES.** Catatan: (1) prasyarat deployment P-OPS-1 – P-OPS-4 (akun aplikasi, migrasi, dan
+  administratif terpisah + inventaris jalur penulis) wajib diverifikasi di lingkungan target sebelum migrasi M-0 – M-9
+  (AC-44.1); (2) AC-42.1 bagian "nilai identik di laporan" menunggu CR-04c (belum diizinkan); (3) fixture suite 16 – 18
+  tetap memerlukan mode `--legacy-fixtures`; (4) mock di luar CR-04a (stok harian, produk, notifikasi) masih memakai
+  pesan error lama khusus mock.
 - Rencana awal di bawah dipertahankan sebagai catatan historis; yang berlaku adalah CR-04a di atas.
 - Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
 - Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;

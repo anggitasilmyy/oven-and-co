@@ -181,3 +181,41 @@ test('mock = validator & middleware server: body ketat, desimal teks, alasan, re
   }
   assert.equal(JSON.stringify(loadLedgerTables()), before);
 });
+
+test('CP7 temuan mock ≠ API (diperbaiki): urutan rute, body ketat, koreksi tanpa alasan, status 400/404, expected_stock', async () => {
+  as('staf');
+  const before = JSON.stringify(loadLedgerTables());
+  const err = async (p) => { const e = await failOf(p); return [e.status, e.code ?? null, e.message]; };
+  // Koreksi penerimaan tanpa alasan: dulu TypeError tanpa status → kini 400 seperti validator server
+  assert.deepEqual(await err(P.reverseOrCorrectReceipt('1', { lines: [{ po_item_id: '1', qty: '1' }] }, rid(), { correct: true })), [400, null, 'Alasan wajib diisi.']);
+  // Field tak dikenal / tipe salah / ID tidak valid / request_id tidak sah
+  assert.deepEqual(await err(P.saveSupplier(null, { name: 'X', extra: 1 }, rid())), [400, null, 'Data tidak valid.']);
+  assert.deepEqual(await err(P.receivePurchaseOrder('1', { lines: 'x' }, rid())), [400, null, 'Data tidak valid.']);
+  assert.deepEqual(await err(P.setSupplierActive('1', 'ya')), [400, null, 'Data tidak valid.']);
+  assert.deepEqual(await err(P.getPurchaseOrder('abc')), [400, 'INVALID_ID', 'ID purchase order tidak valid.']);
+  assert.deepEqual(await err(P.changePurchaseOrderStatus('1', { from: 'draft', to: 'dipesan' }, 'ABC')), [400, null, 'request_id harus UUID v4 huruf kecil.']);
+  // Urutan: request_id wajib diperiksa sebelum body (body tidak valid + tanpa request_id → pesan request_id)
+  assert.deepEqual(await err(P.receivePurchaseOrder('1', { lines: 'x' })), [400, null, 'request_id wajib diisi.']);
+  // Request duplikat dengan body tidak valid → 400 validator (bukan 409 REUSED), seperti server
+  const id = rid();
+  await P.saveSupplier(null, { name: 'Toko CP7', phone: '+6281234567890', address: 'Jl. A', email: 'a@b.id', contact_person: 'S', material_ids: [] }, id);
+  assert.deepEqual(await err(P.saveSupplier(null, { extra: 1 }, id)), [400, null, 'Data tidak valid.']);
+  // Auth: kontrak server 401/403
+  useAuthStore.setState({ user: null, token: null });
+  assert.deepEqual(await err(P.getSuppliers()), [401, null, 'Autentikasi diperlukan.']);
+  as('customer');
+  assert.deepEqual(await err(S.countStock(1, { counted_stock: '1', expected_stock: '1' }, rid())), [403, null, 'Anda tidak memiliki izin untuk mengakses resource ini.']);
+  as('staf');
+  // AD-07 lama: status HTTP & validasi = server
+  assert.deepEqual(await err(S.recordStockIn(987654321, '1', rid())), [404, null, 'Bahan baku tidak ditemukan.']);
+  assert.equal((await failOf(S.recordStockIn(1, '99999999.99', rid()))).status, 400);
+  const tepung = (await S.getRawMaterials()).rows.find((m) => m.material_id === 1);
+  assert.deepEqual(await err(S.saveMaterial(1, { name: tepung.name, unit: 'kg', stock: '9', expected_stock: 'abc', min_stock: '1' })), [400, null, 'Stok awal form tidak valid. Muat ulang data.']);
+  assert.deepEqual(await err(S.saveMaterial(1, { name: tepung.name, unit: 'kg', stock: '9', expected_stock: `${tepung.stock}.001`, min_stock: '1' })), [400, null, 'Stok awal form tidak valid. Muat ulang data.']);
+  assert.equal(stockOf(1), tepung.stock, 'expected_stock tidak sah tidak boleh menulis koreksi stok');
+  // Ubah tanpa stok: divalidasi dengan stok saat ini (tanpa error stok palsu), stok tidak berubah
+  const saved = await S.saveMaterial(1, { name: tepung.name, unit: 'kg', min_stock: '2' });
+  assert.deepEqual([saved.stock, saved.min_stock], [tepung.stock, 2]);
+  const after = loadLedgerTables();
+  assert.equal(after.material_movements.length, JSON.parse(before).material_movements.length, 'penolakan & ubah info tidak menambah mutasi');
+});
