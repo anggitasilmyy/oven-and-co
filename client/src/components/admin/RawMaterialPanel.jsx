@@ -1,15 +1,18 @@
 // components/admin/RawMaterialPanel.jsx
 // Step 5.7 · FR-32 · UC-24 · AD-07 — tab "Bahan Baku": bahan, satuan, stok, minimum, status (Aman/Menipis/Habis),
 // tombol "Catat Stok Masuk", ubah, dan tambah bahan. Tabel di ≥ md, kartu di < md.
+// CR-04a CP6 · FR-44 · BR-35 · AD-07: + "Stock Opname" (koreksi hasil hitung fisik) dan "Riwayat" (buku mutasi, pembalik/koreksi).
 
 import { useState } from 'react';
-import { AlertTriangle, PackagePlus, Pencil, Plus, Wheat } from 'lucide-react';
+import { AlertTriangle, ClipboardCheck, History, PackagePlus, Pencil, Plus, Wheat } from 'lucide-react';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
 import DataTable from './DataTable';
 import RawMaterialFormModal from './RawMaterialFormModal';
 import StockInModal from './StockInModal';
+import StockCountModal from './StockCountModal';
+import MaterialMovementsModal from './MaterialMovementsModal';
 import { MATERIAL_STATUS } from '../../constants/adminCatalog';
 import { formatNumber } from '../../utils/format';
 
@@ -26,6 +29,8 @@ const actionClass =
 export default function RawMaterialPanel({ board, onChanged, onReload }) {
   const [editing, setEditing] = useState(null); // { material|null }
   const [stockIn, setStockIn] = useState(null);
+  const [counting, setCounting] = useState(null);
+  const [historyOf, setHistoryOf] = useState(null);
   const { rows, summary } = board;
   const attention = summary.menipis + summary.habis;
 
@@ -33,6 +38,12 @@ export default function RawMaterialPanel({ board, onChanged, onReload }) {
     <div className="flex flex-wrap justify-end gap-2">
       <button type="button" className={actionClass} onClick={() => setStockIn(m)} aria-label={`Catat stok masuk ${m.name}`}>
         <PackagePlus size={14} aria-hidden="true" /> Catat Stok Masuk
+      </button>
+      <button type="button" className={actionClass} onClick={() => setCounting(m)} aria-label={`Stock opname ${m.name}`}>
+        <ClipboardCheck size={14} aria-hidden="true" /> Stock Opname
+      </button>
+      <button type="button" className={actionClass} onClick={() => setHistoryOf(m)} aria-label={`Riwayat mutasi ${m.name}`}>
+        <History size={14} aria-hidden="true" /> Riwayat
       </button>
       <button type="button" className={actionClass} onClick={() => setEditing({ material: m })} aria-label={`Ubah ${m.name}`}>
         <Pencil size={14} aria-hidden="true" /> Ubah
@@ -47,9 +58,9 @@ export default function RawMaterialPanel({ board, onChanged, onReload }) {
     { key: 'stock', header: 'Stok', align: 'right', render: (m) => qty(m.stock, m) },
     { key: 'min_stock', header: 'Minimum', align: 'right', render: (m) => qty(m.min_stock, m) },
     { key: 'status', header: 'Status', render: status },
-    { key: 'action', header: 'Aksi', align: 'right', render: actions },
+    { key: 'action', header: 'Aksi', align: 'right', className: 'min-w-[300px]', render: actions },
   ];
-  const done = (message) => { setEditing(null); setStockIn(null); onChanged(message); };
+  const done = (message) => { setEditing(null); setStockIn(null); setCounting(null); onChanged(message); };
 
   return (
     <div className="space-y-4">
@@ -67,7 +78,7 @@ export default function RawMaterialPanel({ board, onChanged, onReload }) {
       {attention > 0 && (
         <p role="status" className="flex items-start gap-2 rounded-btn border border-peach bg-peach/30 px-4 py-3 text-sm text-cocoa">
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-error" aria-hidden="true" />
-          {attention} bahan baku berada pada atau di bawah batas minimum. Catat stok masuk setelah bahan dibeli.
+          {attention} bahan baku berada pada atau di bawah batas minimum. Catat penerimaan pembelian atau stok masuk setelah bahan datang.
         </p>
       )}
 
@@ -100,6 +111,8 @@ export default function RawMaterialPanel({ board, onChanged, onReload }) {
 
       {editing && <RawMaterialFormModal material={editing.material} materials={rows} onClose={() => setEditing(null)} onSaved={done} onConflict={onReload} />}
       {stockIn && <StockInModal material={stockIn} onClose={() => setStockIn(null)} onSaved={done} />}
+      {counting && <StockCountModal material={counting} onClose={() => setCounting(null)} onSaved={done} onConflict={onReload} />}
+      {historyOf && <MaterialMovementsModal material={historyOf} onClose={() => setHistoryOf(null)} onChanged={onChanged} />}
     </div>
   );
 }

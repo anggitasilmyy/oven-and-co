@@ -19,7 +19,9 @@ test('tabel peran admin sesuai SPEC §7 (Owner: dashboard, laporan, promo, penga
   for (const [path, roles] of Object.entries(ADMIN_PAGE_ROLES)) {
     assert.deepEqual(roles, ownerOnly.includes(path) ? ['owner'] : ['staf', 'owner'], path);
   }
-  assert.equal(Object.keys(ADMIN_PAGE_ROLES).length, 9);
+  // CR-04a CP6: + AD-12 Pembelian (/admin/pembelian, Staf & Owner — SPEC §1 peran & §7 layar)
+  assert.deepEqual(ADMIN_PAGE_ROLES[ADMIN_ROUTES.PEMBELIAN], ['staf', 'owner']);
+  assert.equal(Object.keys(ADMIN_PAGE_ROLES).length, 10);
   assert.deepEqual(AREA_ROLES[ACCESS_AREA.ADMIN], ['staf', 'owner']);
   assert.deepEqual(AREA_ROLES[ACCESS_AREA.CUSTOMER], ['customer']);
 });

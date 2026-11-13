@@ -17,13 +17,14 @@ import {
   X,
   ChefHat,
   LogOut,
+  Truck,
 } from 'lucide-react';
 import { ADMIN_ROUTES } from '../../constants/routes';
 import { ROLE_LABEL } from '../../constants/roles';
 import AdminAvatar from './AdminAvatar';
 
 /**
- * 9 menu sidebar sesuai SPEC §7.
+ * 10 menu sidebar sesuai SPEC §7 (+ AD-12 Pembelian, CR-04a).
  * Field `roles` menentukan siapa yang bisa melihat menu tersebut.
  */
 const SIDEBAR_MENU = [
@@ -32,6 +33,7 @@ const SIDEBAR_MENU = [
   { label: 'Kalender Produksi', to: ADMIN_ROUTES.KALENDER, Icon: CalendarDays, roles: ['owner', 'staf'] },
   { label: 'Produk & Custom Cake', to: ADMIN_ROUTES.PRODUK, Icon: ShoppingBag, roles: ['owner', 'staf'] },
   { label: 'Stok', to: ADMIN_ROUTES.STOK, Icon: Boxes, roles: ['owner', 'staf'] },
+  { label: 'Pembelian', to: ADMIN_ROUTES.PEMBELIAN, Icon: Truck, roles: ['owner', 'staf'] }, // CR-04a · AD-12
   { label: 'Laporan', to: ADMIN_ROUTES.LAPORAN, Icon: BarChart2, roles: ['owner'] },
   { label: 'Promo & Loyalty', to: ADMIN_ROUTES.PROMO, Icon: Tag, roles: ['owner'] },
   { label: 'Pelanggan & Ulasan', to: ADMIN_ROUTES.PELANGGAN, Icon: Users, roles: ['owner', 'staf'] },

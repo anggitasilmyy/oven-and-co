@@ -1,5 +1,6 @@
 // components/admin/StockInModal.jsx
 // Step 5.7 · FR-32 · AD-07 — "Catat Stok Masuk" (UI/UX Spec Batch 7): stok bahan bertambah sejumlah barang diterima
+// CR-04a CP6 · BR-31: request_id dikirim (dipakai ulang bila Simpan diulang setelah gagal; diganti bila jumlah diubah)
 
 import { useState } from 'react';
 import Modal from '../ui/Modal';
@@ -10,6 +11,7 @@ import { validateStockIn, addDecimal } from '../../utils/businessRules';
 import { recordStockIn } from '../../services/stockService';
 import { MAX_MATERIAL_QTY } from '../../constants/adminCatalog';
 import { formatNumber } from '../../utils/format';
+import useRequestId from '../../hooks/useRequestId';
 
 /**
  * @param {{material_id, name, unit, stock, min_stock}} material
@@ -21,6 +23,7 @@ export default function StockInModal({ material, onClose, onSaved }) {
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState('');
   const [saving, setSaving] = useState(false);
+  const { requestId, renew } = useRequestId();
   const error = validateStockIn(qty, material.stock, MAX_MATERIAL_QTY);
   const shownError = serverError || ((submitted || qty !== '') ? error : null);
 
@@ -30,7 +33,7 @@ export default function StockInModal({ material, onClose, onSaved }) {
     if (error) return;
     setSaving(true);
     try {
-      const saved = await recordStockIn(material.material_id, qty);
+      const saved = await recordStockIn(material.material_id, qty, requestId);
       onSaved(`Stok ${saved.name} kini ${formatNumber(saved.stock)} ${saved.unit}`);
     } catch (err) {
       setServerError(err.message);
@@ -61,7 +64,7 @@ export default function StockInModal({ material, onClose, onSaved }) {
             type="number" inputMode="decimal" min="0.01" step="0.01" autoFocus
             className={`${fieldClass(shownError)} tabular-nums`}
             value={qty}
-            onChange={(e) => { setQty(e.target.value); setServerError(''); }}
+            onChange={(e) => { setQty(e.target.value); setServerError(''); renew(); }}
           />
         </FormField>
         {!error && (

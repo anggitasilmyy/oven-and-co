@@ -74,11 +74,20 @@ const USER_SCHEMA_VERSION = 1;
  * Step 5.7: tabel katalog yang dikelola Staf/Owner (produk, foto, varian, opsi custom cake, bahan baku).
  * Seperti USER_TABLES: diisi dari seed bila belum ada di perangkat, dibuat ulang hanya bila ADMIN_SCHEMA_VERSION naik.
  */
+/** CR-04a: tabel buku mutasi & pembelian (SPEC §8) — data contoh kosong */
+export const LEDGER_TABLES = [
+  'operation_requests', 'suppliers', 'supplier_materials', 'purchase_orders', 'purchase_order_items', 'goods_receipts',
+  'goods_receipt_lines', 'stock_adjustments', 'material_movements',
+];
+
 export const ADMIN_TABLES = [
   'products', 'product_images', 'product_variants', 'custom_options', 'raw_materials',
   'vouchers', 'store_settings', 'payment_methods', 'operating_hours', // Step 5.8 (AD-09, AD-11)
   // CR-03 CP6: komposisi bahan (AD-06) — perangkat lama mendapat tabel ini dari seed tanpa menimpa katalog tersimpan
   'product_materials',
+  // CR-04a CP6: buku mutasi & pembelian — perangkat lama mendapat tabel kosong tanpa menimpa katalog; saldo awal bahan
+  // dibuat oleh mock/ledgerMock.js (klasifikasi K-A – K-D, Errata E1.1 §4)
+  ...LEDGER_TABLES,
 ];
 const ADMIN_SCHEMA_VERSION = 1;
 
@@ -114,6 +123,7 @@ function buildSeed(todayKey) {
     }),
     raw_materials: RAW_MATERIALS,
     product_materials: PRODUCT_MATERIALS, // CR-03 CP6
+    ...Object.fromEntries(LEDGER_TABLES.map((name) => [name, []])), // CR-04a CP6
     payment_methods: PAYMENT_METHODS,
     custom_options: CUSTOM_OPTIONS,
     custom_cake_designs: generated.custom_cake_designs,

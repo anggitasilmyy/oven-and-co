@@ -105,7 +105,10 @@ async function reverseOrCorrectStockIn(actorId, adjustmentId, input, { requestId
 
 const num = (value) => (value === null || value === undefined ? null : milliToNumber(decimalToMilli(String(value))));
 
-/** GET /api/admin/raw-materials/:id/movements → { material, movements[] } urut movement_id naik (buku mutasi) */
+/**
+ * GET /api/admin/raw-materials/:id/movements → { material, movements[] } urut movement_id naik (buku mutasi).
+ * CP6: dokumen stok membawa `qty` (jumlah dokumen) & `effective` (belum dibalik/dikoreksi, BR-30) agar AD-07 hanya menawarkan aksi yang sah.
+ */
 async function getMaterialMovements(materialId) {
   const material = await prisma.rawMaterial.findUnique({ where: { materialId: BigInt(materialId) } });
   if (!material) throw httpError(404, MATERIAL_NOT_FOUND);
@@ -113,7 +116,7 @@ async function getMaterialMovements(materialId) {
     where: { materialId: BigInt(materialId) },
     orderBy: { movementId: 'asc' },
     include: {
-      adjustment: { select: { adjustmentId: true, kind: true, reason: true } },
+      adjustment: { select: { adjustmentId: true, kind: true, qty: true, reason: true, reversedBy: { select: { adjustmentId: true } }, replacedBy: { select: { adjustmentId: true } } } },
       receipt: { select: { receiptId: true, kind: true, reason: true, poId: true } },
       creator: { select: { name: true } },
     },
@@ -124,7 +127,8 @@ async function getMaterialMovements(materialId) {
       movement_id: String(m.movementId), type: m.type, qty_change: num(m.qtyChange), stock_before: num(m.stockBefore),
       stock_after: num(m.stockAfter), created_at: m.createdAt.toISOString(), created_by: m.creator?.name ?? null,
       document: m.adjustment
-        ? { source: 'stock_adjustment', id: String(m.adjustment.adjustmentId), kind: m.adjustment.kind, reason: m.adjustment.reason }
+        ? { source: 'stock_adjustment', id: String(m.adjustment.adjustmentId), kind: m.adjustment.kind, qty: num(m.adjustment.qty), reason: m.adjustment.reason,
+          effective: !m.adjustment.reversedBy && !m.adjustment.replacedBy }
         : { source: 'goods_receipt', id: String(m.receipt.receiptId), kind: m.receipt.kind, reason: m.receipt.reason, po_id: String(m.receipt.poId) },
     })),
   };

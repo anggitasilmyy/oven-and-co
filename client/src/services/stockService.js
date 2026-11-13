@@ -9,6 +9,7 @@ import {
   buildDailyStockBoard, saveDailyStockPlans, buildRawMaterialBoard, saveRawMaterial, recordMaterialStockIn,
 } from './mock/stockAdmin';
 import { buildMaterialRequirements } from './mock/materialRequirementAdmin';
+import { countStock as mockCountStock, reverseOrCorrectStockIn, buildMaterialMovements } from './mock/stockDocumentAdmin';
 import { ROLES } from '../constants/roles';
 
 const ADMIN_ROLES = [ROLES.STAF, ROLES.OWNER];
@@ -39,22 +40,49 @@ export function getRawMaterials() {
   return apiClient('/admin/raw-materials', { mockHandler: asAdmin(buildRawMaterialBoard) });
 }
 
-/** Tambah (materialId kosong) atau ubah bahan baku */
-export function saveMaterial(materialId, input) {
+const mockActor = () => requireMockRole(...ADMIN_ROLES);
+const withId = (body, requestId) => (requestId ? { ...body, request_id: requestId } : body);
+
+/**
+ * Tambah (materialId kosong) atau ubah bahan baku. CR-04a: tambah → saldo awal; `requestId` opsional (BR-31).
+ * Koreksi stok dari layar AD-07 memakai stock opname (countStock); form ubah tidak mengirim stok baru.
+ */
+export function saveMaterial(materialId, input, requestId) {
   return apiClient(materialId == null ? '/admin/raw-materials' : `/admin/raw-materials/${materialId}`, {
     method: materialId == null ? 'POST' : 'PUT',
-    body: input,
-    mockHandler: asAdmin(() => saveRawMaterial(materialId, input)),
+    body: withId(input, requestId),
+    mockHandler: () => saveRawMaterial(mockActor(), materialId, input, { requestId }),
   });
 }
 
-/** Catat Stok Masuk: tambah stok bahan sejumlah `qty` */
-export function recordStockIn(materialId, qty) {
+/** Catat Stok Masuk: tambah stok bahan sejumlah `qty` (dokumen stok_masuk + mutasi) */
+export function recordStockIn(materialId, qty, requestId) {
   return apiClient(`/admin/raw-materials/${materialId}/stock-in`, {
     method: 'POST',
-    body: { qty },
-    mockHandler: asAdmin(() => recordMaterialStockIn(materialId, qty)),
+    body: withId({ qty }, requestId),
+    mockHandler: () => recordMaterialStockIn(mockActor(), materialId, qty, { requestId }),
   });
+}
+
+/** CR-04a · FR-44 · BR-35: stock opname {counted_stock, expected_stock, reason?} — request_id wajib */
+export function countStock(materialId, input, requestId) {
+  return apiClient(`/admin/raw-materials/${materialId}/stock-counts`, {
+    method: 'POST', body: withId(input, requestId),
+    mockHandler: () => mockCountStock(mockActor(), materialId, input, { requestId }),
+  });
+}
+
+/** CR-04a · BR-30: pembalik {reason} atau koreksi {qty, reason} dokumen stok masuk — request_id wajib */
+export function reverseOrCorrectStockInDocument(adjustmentId, input, requestId, { correct }) {
+  return apiClient(`/admin/stock-adjustments/${adjustmentId}/${correct ? 'correct' : 'reverse'}`, {
+    method: 'POST', body: withId(input, requestId),
+    mockHandler: () => reverseOrCorrectStockIn(mockActor(), adjustmentId, input, { requestId, correct }),
+  });
+}
+
+/** CR-04a · FR-44: riwayat mutasi bahan → {material, movements[]} */
+export function getMaterialMovements(materialId) {
+  return apiClient(`/admin/raw-materials/${materialId}/movements`, { mockHandler: asAdmin(() => buildMaterialMovements(materialId)) });
 }
 
 /**

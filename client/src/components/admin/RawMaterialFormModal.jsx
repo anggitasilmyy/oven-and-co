@@ -4,6 +4,8 @@
 // Step 6.6 (CP6 · G7 · G13): ubah mengirim `expected_stock` = stok saat form dibuka (stok masuk sejak itu tidak tertimpa);
 // fieldErrors server tampil di field; 409 (stok sudah berubah) → onConflict memuat ulang data bahan.
 // CR-03 CP6 · K-06 · BR-13: form ubah menampilkan peringatan di bawah Satuan bila satuan diubah (tidak memblokir Simpan).
+// CR-04a CP6 · SPEC §12 (Perilaku AD-07): stok di form ubah hanya dibaca — koreksi stok memakai Stock Opname (BR-35);
+// form tambah tetap mengisi stok sebagai saldo awal. Kontrak PUT lama tidak berubah (stok sama → tidak ditulis).
 
 import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
@@ -94,8 +96,10 @@ export default function RawMaterialFormModal({ material, materials, onClose, onS
           {MATERIAL_UNIT_SUGGESTIONS.map((u) => <option key={u} value={u} />)}
         </datalist>
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField id="material-stock" label="Stok saat ini" error={errorOf('stock')} hint={material ? 'Untuk koreksi hasil hitung stok.' : undefined}>
-            <input type="number" inputMode="decimal" min="0" step="0.01" className={`${fieldClass(errorOf('stock'))} tabular-nums`} {...bind('stock')} />
+          <FormField id="material-stock" label={material ? 'Stok saat ini' : 'Stok awal'} error={errorOf('stock')}
+            hint={material ? 'Koreksi stok hasil hitung fisik lewat tombol Stock Opname.' : 'Dicatat sebagai saldo awal.'}>
+            <input type="number" inputMode="decimal" min="0" step="0.01" readOnly={Boolean(material)} aria-readonly={Boolean(material)}
+              className={`${fieldClass(errorOf('stock'))} tabular-nums ${material ? 'bg-beige/40 text-cocoa/80' : ''}`} {...bind('stock')} />
           </FormField>
           <FormField id="material-min" label="Batas minimum" error={errorOf('min_stock')}>
             <input type="number" inputMode="decimal" min="0" step="0.01" className={`${fieldClass(errorOf('min_stock'))} tabular-nums`} {...bind('min_stock')} />

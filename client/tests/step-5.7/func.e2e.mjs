@@ -292,15 +292,18 @@ check('Pratinjau stok baru 8,6 kg', (await p.getByRole('dialog').innerText()).in
 await p.getByRole('dialog').getByRole('button', { name: 'Simpan' }).click(); await wait(900);
 const butter = await db((getTables) => getTables('raw_materials').raw_materials.find((m) => m.name === 'Butter Prancis'));
 check('Stok masuk tersimpan (6,5 + 2,1 = 8,6) → Aman', butter.stock === 8.6 && (await toastText()).includes('Stok Butter Prancis kini 8,6 kg') && (await p.locator('main').innerText()).includes('Menipis: 2'));
+// CR-04a CP6 · SPEC §12 (Perilaku AD-07): stok di form ubah hanya dibaca — koreksi stok lewat Stock Opname (BR-35);
+// validasi stok negatif diuji di form Tambah (stok awal) di bawah. Telur ayam: stok 96, minimum 120.
 await p.getByRole('button', { name: 'Ubah Telur ayam' }).click(); await wait(300);
-await p.fill('#material-stock', '-5'); await p.locator('#material-stock').blur();
-check('Ubah stok negatif → error', (await p.getByRole('dialog').innerText()).includes('Stok tidak boleh negatif'));
-await p.fill('#material-stock', '60'); await p.fill('#material-min', '80');
+check('Ubah bahan: stok hanya dibaca (koreksi lewat Stock Opname)', await p.locator('#material-stock').getAttribute('readonly') !== null && (await p.getByRole('dialog').innerText()).includes('Stock Opname'));
+await p.fill('#material-min', '100');
 check('Peringatan stok ≤ minimum di form', (await p.getByRole('dialog').innerText()).includes('ditandai Menipis'));
 await p.fill('#material-min', '50');
 await p.getByRole('button', { name: 'Simpan bahan' }).click(); await wait(900);
 check('Ubah bahan tersimpan → Aman', (await db((getTables) => getTables('raw_materials').raw_materials.find((m) => m.name === 'Telur ayam'))).min_stock === 50 && (await p.locator('main').innerText()).includes('Menipis: 1'));
 await p.getByRole('button', { name: 'Tambah Bahan' }).click(); await wait(300);
+await p.fill('#material-stock', '-5'); await p.locator('#material-stock').blur();
+check('Stok awal negatif → error', (await p.getByRole('dialog').innerText()).includes('Stok tidak boleh negatif'));
 await p.fill('#material-name', 'gula PASIR'); await p.fill('#material-unit', 'kg'); await p.fill('#material-stock', '0'); await p.fill('#material-min', '2');
 await p.getByRole('button', { name: 'Simpan bahan' }).click(); await wait(300);
 check('Nama bahan ganda ditolak', (await p.getByRole('dialog').innerText()).includes('Bahan dengan nama ini sudah ada'));
