@@ -1603,7 +1603,8 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 - Status: **CR-04a disetujui Pemilik Project 12 Nov 2026** (K01 – K25, C-1 – C-13). CP0 selesai (PR #26); CP1
   (sinkronisasi dokumen) selesai (PR #27); CP2 (database, migrasi, seed, integritas buku mutasi) selesai (PR #28);
   CP3 (aturan murni server = client) selesai (PR #29); CP4 (middleware request_id, buku mutasi AD-07) selesai (PR #30);
-  CP5 (API supplier, PO, penerimaan) selesai di PR CP5; **CP6 – CP7 belum diizinkan** — setiap CP memerlukan izin Pemilik Project.
+  CP5 (API supplier, PO, penerimaan) selesai (PR #31); CP6 (frontend AD-12 & AD-07, mock, aktivasi E-6) selesai di PR CP6;
+  **CP7 belum diizinkan** — setiap CP memerlukan izin Pemilik Project.
 - Ruang lingkup: FR-41 – FR-44, UC-33 – UC-35, BR-17 – BR-24, BR-30 – BR-32, BR-34, BR-35, AC-41.1 – AC-44.8, AD-12
   Pembelian & perluasan AD-07, 9 tabel (30 → 39) — `docs/SPEC.md` bagian 2, 3, 5, 6, 7, 8, 10, 13; rincian normatif
   `docs/change-requests/CR-04_DRAFT_0.8.3.md` + Errata E1 + E1.1.
@@ -1619,8 +1620,8 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 | CP2 | Schema & migrasi `cr04a` (9 tabel, CHECK, FK RESTRICT, saldo awal set-based), seed + preflight, `createOpeningBalance`, `db:check-ledger` (IMPL-CP2-1), snapshot M-4 deterministik (IMPL-CP2-2), `checkSchemaAgainstSpec.js` 39 tabel + rancangan bagian 8 dipindah ke Data Dictionary | IT-01 – IT-04, IT-34 – IT-36; `db:check-spec` lulus | CP1 + izin | **Selesai** (PR #28, 12 Nov 2026) — lihat catatan CP2 |
 | CP3 | Aturan murni server = client: desimal/milli, nilai PO & penerimaan, status PO, dampak bersih & rujukan P/R, opname, payload kanonik + SHA-256, invarian | Unit node:test + Vitest, uji silang client = server | CP2 + izin | **Selesai** (PR #29, 12 Nov 2026) — lihat catatan CP3 |
 | CP4 | Middleware `request_id` (allowlist, idempotensi), satu layanan buku mutasi untuk endpoint AD-07 lama, endpoint opname, pembalik/koreksi stok masuk, riwayat mutasi, audit | Route test; MySQL IT-06 – IT-08, IT-12, IT-13, IT-31 (AD-07), IT-37; regresi AD-07 & MySQL 16 – 18 | CP3 + izin | **Selesai** (PR #30, 13 Nov 2026) — lihat catatan CP4 |
-| CP5 | API supplier, PO, penerimaan, pembalik/koreksi penerimaan, nilai; audit | Route test; MySQL IT-05, IT-09 – IT-11, IT-14, IT-15, IT-30; 0 deadlock | CP4 + izin | **Selesai** (PR CP5, 13 Nov 2026) — lihat catatan CP5 |
-| CP6 | Frontend AD-12 (tab PO & Supplier, detail, penerimaan, koreksi), AD-07 (opname, riwayat, pembalik/koreksi), mock (tabel & ledger mock), rute & sidebar AD-12; **aktivasi E-6 versi CR-04a** dalam satu commit (teks aktif SPEC + `MATERIAL_REQUIREMENT_NOTE` + test K-14 + uji integrasi/e2e terkait) | Mock = API (IT-38); e2e mock & API 390/768/1440 px; teks tampil = perilaku aktif | CP5 + izin | Belum diizinkan |
+| CP5 | API supplier, PO, penerimaan, pembalik/koreksi penerimaan, nilai; audit | Route test; MySQL IT-05, IT-09 – IT-11, IT-14, IT-15, IT-30; 0 deadlock | CP4 + izin | **Selesai** (PR #31, 13 Nov 2026) — lihat catatan CP5 |
+| CP6 | Frontend AD-12 (tab PO & Supplier, detail, penerimaan, koreksi), AD-07 (opname, riwayat, pembalik/koreksi), mock (tabel & ledger mock), rute & sidebar AD-12; **aktivasi E-6 versi CR-04a** dalam satu commit (teks aktif SPEC + `MATERIAL_REQUIREMENT_NOTE` + test K-14 + uji integrasi/e2e terkait) | Mock = API (IT-38); e2e mock & API 390/768/1440 px; teks tampil = perilaku aktif | CP5 + izin | **Selesai** (PR CP6, 13 Nov 2026) — lihat catatan CP6 |
 | CP7 | Regresi penuh (server, client, Vitest, MySQL 01 – 18 + baru, e2e per-step), gladi migrasi IT-02, IT-03, IT-33, status ROADMAP | Semua lulus kecuali 14 P1b (kegagalan lama); PR CR-04a | CP6 + izin | Belum diizinkan |
 
 - Catatan CP2 (12 Nov 2026): migrasi `20261112000000_cr04a_purchasing` (30 → 39 tabel; 27 FK RESTRICT/RESTRICT; 12 CHECK;
@@ -1694,6 +1695,38 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   = 10 baseline + 1 uji `REQUEST_IN_PROGRESS`); invarian I-1 – I-11 diperiksa per bahan uji; `db:check-spec` lulus.
   Belum: tampilan AD-12 & mode mock (CP6); kesamaan nilai dengan laporan (AC-42.1) menunggu CR-04c; detail supplier
   disajikan lewat daftar `GET /suppliers` (Draft §15 tidak memuat `GET /suppliers/:id`).
+- Catatan CP6 (13 Nov 2026): **AD-12 Pembelian** `/admin/pembelian` (Staf & Owner; menu sidebar, `ADMIN_PAGE_ROLES`):
+  tab Purchase Order (default; daftar, Buat PO Draft dengan nilai PO informasi) & Supplier (`?tab=supplier`; tambah/ubah,
+  daftar bahan, aktif/nonaktif); detail `?po=<id>` (item dipesan/diterima/sisa/dibatalkan, nilai PO/diterima/sisa
+  dibatalkan, Ubah Draft, Pesan, Batalkan dengan alasan opsional, Terima barang sebagian/penuh, riwayat penerimaan dengan
+  Koreksi & Balik beralasan). **AD-07:** tombol Stock Opname (stok fisik absolut, `expected_stock` = stok saat dibuka,
+  409 → muat ulang) dan Riwayat (buku mutasi terbaru di atas; Balik/Koreksi hanya untuk dokumen stok masuk/pengganti yang
+  masih berlaku); stok di form **ubah** bahan hanya dibaca (koreksi lewat opname, SPEC bagian 12); Catat Stok Masuk
+  mengirim `request_id`. Semua tulis dokumen memakai `request_id` yang dipakai ulang bila konfirmasi diulang setelah gagal
+  dan diganti bila isian berubah (`hooks/useRequestId`). **Mode mock** (`services/mock/{ledgerMock,supplierAdmin,
+  purchaseOrderAdmin,purchaseOrderData,goodsReceiptAdmin,stockDocumentAdmin}.js`): 9 tabel buku mutasi di localStorage,
+  saldo awal per bahan (K-C diperbaiki, K-D dibuat ulang), kebijakan & idempotensi `request_id` (replay, 409 REUSED),
+  validasi body = validator server, aturan murni yang sama (port baru `utils/rules/{purchaseOrderView,purchasePayload}.js`
+  dari `services/{purchaseOrderViewRules,purchasePayload}.service.js`). **API (tambahan hanya-baca, kompatibel):**
+  `GET /api/admin/raw-materials/:id/movements` kini membawa `document.qty` & `document.effective` (agar AD-07 hanya
+  menawarkan pembalik/koreksi yang sah). Tanpa perubahan schema/migrasi. **E-6 versi CR-04a AKTIF** dalam satu commit:
+  teks aktif SPEC bagian 10, `MATERIAL_REQUIREMENT_NOTE`, K-14 (+ cek kalimat CR-03 tidak tampil & tanpa klaim
+  produksi/laporan), cek teks tampil di `tests/step-6.7/integration.e2e.mjs`.
+  Uji: server `npm test` 772/772; `db:check-spec` lulus (39 tabel); client `test:unit` 315/315 (baru
+  `purchasingMock.test.mjs` 5/5 — IT-38, supplier, PO & penerimaan, dokumen AD-07, validasi/`request_id`; buku mutasi mock
+  diperiksa dengan aturan server; `routeAccess` +AD-12), Vitest 18/18 (baru `purchaseViewRules.test.mjs` 2/2, client =
+  server), oxlint 0 error (2 peringatan lama `Toast.jsx`), build lulus; harness MySQL penuh 01 – 23: **162/162** (14 P1b
+  lulus pada run ini; 0 deadlock; 11 lock timeout = baseline CP5; suite 21 + asersi `effective`/`qty`); e2e baru
+  `tests/step-6.8/purchasing.e2e.mjs` (navigasi & peran, validasi supplier, PO Draft → Dipesan → sebagian → kelebihan
+  ditolak → Diterima, koreksi & pembalik penerimaan dengan stok tepat, riwayat/opname/pembalik stok masuk AD-07, form ubah
+  stok hanya-baca, error state, tanpa overflow) **27/27 di 390/768/1440 px, mode mock & API**, tanpa error konsol;
+  `step-6.7/integration` 11/11 (mock & API), `requirementDate` 13/13 (API); regresi `step-5.7` func 91/91 (cek ubah stok
+  disesuaikan ke SPEC bagian 12: stok hanya-baca di form ubah, validasi stok negatif dipindah ke form tambah), visual
+  0 masalah. `db:check-ledger --legacy-fixtures` pada database harness: 42 bahan diperiksa, 9 pelanggaran — seluruhnya
+  pada 3 bahan fixture yang disisipkan SQL langsung oleh suite 16 – 18 (`Bahan C5/R17/R18`, tanpa saldo awal; batas
+  fixture yang sudah dicatat di catatan CP2), 0 pada bahan yang dibuat lewat aplikasi. Catatan uji: suite harness 02
+  menonaktifkan `owner@demo.com` di database uji; untuk e2e mode API akun itu diaktifkan kembali di database harness saja.
+  Belum: regresi penuh e2e per-step, gladi migrasi IT-02/IT-03/IT-33 (CP7).
 - Rencana awal di bawah dipertahankan sebagai catatan historis; yang berlaku adalah CR-04a di atas.
 - Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
 - Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;
