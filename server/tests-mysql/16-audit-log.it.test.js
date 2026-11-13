@@ -128,18 +128,22 @@ test('A0 created_at DATETIME(0): recordAudit menyimpan detik penuh ke bawah; INS
 
 // ── A1 ───────────────────────────────────────────────────────────────────────────────────────────
 
-test('A1 setiap titik audit: pelaku, action, entity (tabel), entity_id (PK), created_at; nilai sama / data baru / 400 / 409 → tanpa audit', async () => {
+test('A1 setiap titik audit: pelaku, action, entity (tabel), entity_id (PK), created_at; nilai sama / data baru / 400 / 409 → tanpa audit; bahan baru → create_raw_material', async () => {
   let base = await lastLogId();
   // Tanpa audit
   assert.equal((await putPrice(staff, await price(), 2000)).status, 200, 'harga & harga varian sama');
   assert.equal((await putOption(staff, 10000)).status, 200);
   assert.equal((await putPlan(staff, await planned())).status, 200);
   assert.equal((await putMaterial(staff, await materialStock())).status, 200, 'edit tanpa koreksi stok');
-  assert.equal((await call(server, 'POST', '/api/admin/raw-materials', { userId: staff, body: { name: unique('Bahan baru '), unit: 'g', stock: '5', min_stock: '1' } })).status, 201);
   assert.equal((await putPrice(staff, 0, 2000)).status, 400);
   assert.equal((await putMaterial(staff, 50, 1)).status, 409, 'expected_stock basi');
   assert.equal((await stockIn(staff, -1)).status, 400);
   assert.deepEqual(await auditsSince(base), []);
+  // CR-04a (Errata E1 B.4; keputusan Pemilik Project 13 Nov 2026): bahan baru kini dicatat create_raw_material
+  base = await lastLogId();
+  const created = await call(server, 'POST', '/api/admin/raw-materials', { userId: staff, body: { name: unique('Bahan baru '), unit: 'g', stock: '5', min_stock: '1' } });
+  assert.equal(created.status, 201);
+  assert.deepEqual((await auditsSince(base)).map((a) => a.slice(0, 4)), [[staff, 'create_raw_material', 'raw_materials', created.body.data.material_id]]);
 
   base = await lastLogId();
   const started = Math.floor(Date.now() / 1000);

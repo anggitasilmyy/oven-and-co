@@ -4,7 +4,8 @@
 // CR-04a CP4 · FR-44 · BR-23, BR-31 · Draft 0.8.3 §2.7, §5.1, §5.3; Errata E1 B.4: kontrak respons & validasi lama TETAP,
 // tetapi setiap perubahan stok kini lewat dokumen + mutasi buku mutasi dalam transaksi yang sama, dengan `request_id`
 // opsional (kontrak idempotensi penuh bila dikirim):
-//   - Tambah (POST): bahan + saldo awal (createOpeningBalance) dalam satu transaksi; gagal → tidak ada bahan maupun dokumen.
+//   - Tambah (POST): bahan + saldo awal (createOpeningBalance) + audit `create_raw_material` dalam satu transaksi; gagal
+//     → tidak ada bahan, dokumen, mutasi, audit, maupun operation_requests.
 //   - Ubah (PUT): edit informasi tanpa menulis stok; koreksi stok absolut (expected_stock wajib, ≠ stok terkunci → 409)
 //     kini dicatat sebagai dokumen stock_opname (sistem = stok terkunci, fisik = stok baru) + mutasi.
 //   - Stok masuk: dokumen stok_masuk + mutasi (+qty) + stok baru eksak.
@@ -77,7 +78,8 @@ const materialPayload = (input) => ({
 
 /**
  * POST (materialId null) & PUT /api/admin/raw-materials/:id — nama, satuan, stok, minimum. Lihat kepala berkas.
- * Audit `correct_raw_material_stock` HANYA bila stok bahan yang sudah ada benar-benar dikoreksi (Step 6.5 C5).
+ * Audit: `create_raw_material` untuk bahan baru (Errata E1 B.4; keputusan Pemilik Project 13 Nov 2026, menggantikan
+ * "bahan baru tanpa audit" Step 6.5 C5); `correct_raw_material_stock` HANYA bila stok bahan yang ada benar-benar dikoreksi.
  * @returns {Promise<{statusCode, body, replay}>}
  */
 async function saveRawMaterial(actorId, materialId, input, { requestId, now = new Date() } = {}) {
@@ -96,6 +98,7 @@ async function saveRawMaterial(actorId, materialId, input, { requestId, now = ne
       });
       const [{ stock }] = await tx.$queryRaw`SELECT CAST(stock AS CHAR) AS stock FROM raw_materials WHERE material_id = ${saved.materialId}`;
       await createOpeningBalance(tx, { materialId: saved.materialId, stock, actorId, requestId: requestId ?? null });
+      await recordAudit(tx, { actorId, action: AUDIT_ACTION.CREATE_RAW_MATERIAL, entity: AUDIT_ENTITY.RAW_MATERIALS, entityId: saved.materialId, now });
       return mapMaterial(saved);
     }
     const lockedStock = locked.get(String(materialId));

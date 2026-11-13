@@ -89,6 +89,25 @@ test('PUT lama: koreksi stok → stock_opname (sistem = terkunci, fisik = baru) 
   assert.equal(db.t.materialMovements.filter((m) => m.type === 'saldo_awal').length, 1, 'saldo awal 0 tanpa mutasi');
 });
 
+test('POST bahan (E1 B.4): bahan + saldo awal + mutasi (stok > 0) + audit create_raw_material tepat sekali; replay tanpa duplikat; audit gagal → rollback penuh', async () => {
+  const body = { name: 'Gula Aren', unit: 'kg', stock: '7.25', min_stock: '1', request_id: RID(20) };
+  const first = await call('POST', '/admin/raw-materials', body);
+  const again = await call('POST', '/admin/raw-materials', body);
+  assert.deepEqual([first.status, again.status, again.replay, again.json], [201, 201, 'true', first.json]);
+  const id = BigInt(first.json.data.material_id);
+  assert.equal(db.t.materials.filter((m) => m.name === 'Gula Aren').length, 1);
+  assert.deepEqual(db.t.stockAdjustments.filter((d) => d.materialId === id).map((d) => [d.kind, String(d.qty), d.openingMaterialId]), [['saldo_awal', '7.25', id]]);
+  assert.deepEqual(db.t.materialMovements.filter((m) => m.materialId === id).map((m) => [m.type, String(m.qtyChange), String(m.stockBefore)]), [['saldo_awal', '7.25', '0']]);
+  assert.deepEqual(db.t.auditLogs.map((a) => [a.action, String(a.entityId)]), [['create_raw_material', String(id)]]);
+  const zero = await call('POST', '/admin/raw-materials', { name: 'Kayu Manis', unit: 'g', stock: '0', min_stock: '0' });
+  const zeroId = BigInt(zero.json.data.material_id);
+  assert.deepEqual([zero.status, db.t.materialMovements.filter((m) => m.materialId === zeroId).length, db.t.auditLogs.length], [201, 0, 2]);
+  const before = dump();
+  db.failOn = 'auditLog.create';
+  assert.equal((await call('POST', '/admin/raw-materials', { name: 'Cengkeh', unit: 'g', stock: '3', min_stock: '1', request_id: RID(21) })).status, 500);
+  assert.equal(dump(), before, 'rollback: bahan, saldo awal, mutasi, audit, operation_requests');
+});
+
 test('stock opname: selisih 0 tanpa mutasi, expected basi 409 STOCK_CHANGED tanpa dokumen, validasi teks, field tak dikenal 400', async () => {
   let res = await call('POST', '/admin/raw-materials/2/stock-counts', { counted_stock: '4.5', expected_stock: '4.50', request_id: RID(5) });
   assert.deepEqual([res.status, res.json.data.movement, db.t.stockAdjustments.length], [201, null, 1]);

@@ -129,14 +129,16 @@ test('stok harian: satu audit per produk yang qty_planned berubah (nilai akhir b
   assert.equal(audits().length, 1);
 });
 
-test('bahan baku: koreksi stok → correct_raw_material_stock; edit nama/minimum & bahan baru → tanpa audit; stok masuk selalu', async () => {
+test('bahan baku: koreksi stok → correct_raw_material_stock; bahan baru → create_raw_material (CR-04a E1 B.4); edit nama/minimum → tanpa audit; stok masuk selalu', async () => {
   assert.equal((await call('PUT', '/raw-materials/1', { name: 'Tepung Terigu Protein', unit: 'kg', stock: 25, min_stock: 12 })).status, 200);
-  assert.equal((await call('POST', '/raw-materials', { name: 'Ragi', unit: 'g', stock: 500, min_stock: 100 })).status, 201);
-  assert.deepEqual(audits(), [], 'edit informasi & data baru tidak dicatat');
+  assert.deepEqual(audits(), [], 'edit informasi tidak dicatat');
+  const ragi = await call('POST', '/raw-materials', { name: 'Ragi', unit: 'g', stock: 500, min_stock: 100 });
+  assert.equal(ragi.status, 201);
+  assert.deepEqual(audits(), [['3', 'create_raw_material', 'raw_materials', ragi.json.data.material_id, T]], 'bahan baru: tepat satu audit');
   const corr = await call('PUT', '/raw-materials/1', { name: 'Tepung Terigu Protein', unit: 'kg', stock: 23, expected_stock: 25, min_stock: 12 });
   assert.equal(corr.status, 200, JSON.stringify(corr.json));
   assert.equal((await call('POST', '/raw-materials/1/stock-in', { qty: '2.5' }, OWNER)).status, 200);
-  assert.deepEqual(audits(), [
+  assert.deepEqual(audits().slice(1), [
     ['3', 'correct_raw_material_stock', 'raw_materials', '1', T],
     ['4', 'raw_material_stock_in', 'raw_materials', '1', T],
   ]);

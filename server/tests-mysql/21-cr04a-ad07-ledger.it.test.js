@@ -1,7 +1,7 @@
 // tests-mysql/21-cr04a-ad07-ledger.it.test.js
 // CR-04a CP4 · FR-44 · BR-23, BR-24, BR-30, BR-31, BR-34, BR-35 — buku mutasi AD-07 lewat HTTP asli pada MySQL 8.
-// IT-37  POST bahan: saldo awal di transaksi yang sama (stok > 0 → mutasi; 0 → tanpa mutasi); replay tidak menggandakan;
-//        kegagalan disuntik (trigger) pada INSERT dokumen / mutasi → tidak ada bahan maupun dokumen.
+// IT-37  POST bahan: saldo awal + audit create_raw_material di transaksi yang sama (stok > 0 → mutasi; 0 → tanpa mutasi);
+//        replay tidak menggandakan; kegagalan disuntik (trigger) pada INSERT dokumen / mutasi / audit → rollback penuh.
 // IT-12  pembalik & koreksi stok masuk (R + P berbagi operation_request_id, mutasi bersih merujuk P); O tidak berlaku
 //        lagi → 409 DOCUMENT_ALREADY_SUPERSEDED; pembalik opname/saldo awal → 400.
 // IT-13  stock opname: fisik 0; selisih 0 tanpa mutasi; expected basi 409 STOCK_CHANGED; format salah 400; "5" = 5.00.
@@ -65,8 +65,12 @@ test('IT-37: POST bahan + saldo awal dalam satu transaksi; stok 0 tanpa mutasi; 
     [{ kind: 'saldo_awal', qty: '12.34', opening_material_id: id, created_by: staff }]);
   assert.deepEqual(await rows(`SELECT type, CAST(qty_change AS CHAR) AS q, CAST(stock_before AS CHAR) AS b FROM material_movements WHERE material_id = ?`, id),
     [{ type: 'saldo_awal', q: '12.34', b: '0.00' }]);
+  const auditsOf = async (m) => rows("SELECT user_id, action, entity FROM audit_logs WHERE entity = 'raw_materials' AND entity_id = ? ORDER BY log_id", m);
+  assert.deepEqual(await auditsOf(id), [{ user_id: staff, action: 'create_raw_material', entity: 'raw_materials' }]);
   const zero = await newMaterial('0');
   assert.equal((await rows('SELECT COUNT(*) AS n FROM material_movements WHERE material_id = ?', zero))[0].n, '0');
+  assert.deepEqual(await rows("SELECT kind, CAST(qty AS CHAR) AS qty FROM stock_adjustments WHERE material_id = ?", zero), [{ kind: 'saldo_awal', qty: '0.00' }]);
+  assert.equal((await auditsOf(zero)).length, 1);
 
   const requestId = rid();
   const body = { name: unique('Bahan R21 '), unit: 'g', stock: '5', min_stock: '1', request_id: requestId };
@@ -75,16 +79,19 @@ test('IT-37: POST bahan + saldo awal dalam satu transaksi; stok 0 tanpa mutasi; 
   assert.deepEqual([first.status, again.status, again.body], [201, 201, first.body]);
   assert.equal((await rows('SELECT COUNT(*) AS n FROM raw_materials WHERE name = ?', body.name))[0].n, '1');
   assert.equal((await rows('SELECT operation_request_id AS r FROM stock_adjustments WHERE material_id = ?', first.body.data.material_id))[0].r, requestId);
+  assert.equal((await auditsOf(first.body.data.material_id)).length, 1, 'replay tidak menambah audit');
+  assert.equal((await rows('SELECT COUNT(*) AS n FROM material_movements WHERE material_id = ?', first.body.data.material_id))[0].n, '1');
   created.push(first.body.data.material_id);
 
-  for (const [name, table] of [['r21_fail_sa', 'stock_adjustments'], ['r21_fail_mm', 'material_movements']]) {
+  for (const [name, table] of [['r21_fail_sa', 'stock_adjustments'], ['r21_fail_mm', 'material_movements'], ['r21_fail_audit', 'audit_logs']]) {
     mysqlCli(`CREATE TRIGGER ${name} BEFORE INSERT ON ${table} FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'r21 gagal';`);
     try {
       const before = await counts();
       const failName = unique('Bahan R21 gagal ');
       const res = await api('POST', '/raw-materials', { name: failName, unit: 'kg', stock: '3', min_stock: '1', request_id: rid() });
       assert.equal(res.status, 500, table);
-      assert.deepEqual(await counts(), before, `${table}: tidak ada bahan, dokumen, mutasi, operation_requests`);
+      assert.deepEqual(await counts(), before, `${table}: tidak ada bahan, dokumen, mutasi, audit, operation_requests`);
+      assert.equal((await rows('SELECT COUNT(*) AS n FROM raw_materials WHERE name = ?', failName))[0].n, '0');
     } finally {
       mysqlCli(`DROP TRIGGER IF EXISTS ${name};`);
     }

@@ -236,6 +236,8 @@ const AUDIT_ACTION = Object.freeze({
   RAW_MATERIAL_STOCK_IN: 'raw_material_stock_in',
   UPDATE_PRODUCT_RECIPE: 'update_product_recipe', // CR-03 · FR-39 (entity products)
   // CR-04a · FR-44 · BR-34 (Draft 0.8.3 §10.2): dokumen stok AD-07 baru; aksi AD-07 lama tetap
+  // Errata E1 B.4 (keputusan Pemilik Project 13 Nov 2026): bahan baru + saldo awal dalam satu transaksi
+  CREATE_RAW_MATERIAL: 'create_raw_material',
   COUNT_STOCK: 'count_stock',
   REVERSE_STOCK_IN: 'reverse_stock_in',
   CORRECT_STOCK_IN: 'correct_stock_in',

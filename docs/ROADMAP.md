@@ -1658,17 +1658,20 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   `REQUEST_ID_REUSED`; lock wait/deadlock pada kunci unik → 409 `REQUEST_IN_PROGRESS`); `services/stockLedger.service.js`
   (satu jalur tulis stok: kunci bahan urut ID, aturan CP3 `applyStockDeltas`, mutasi ≠ 0, stok eksak); AD-07 lama
   (`adminRawMaterial.service.js`): POST bahan + saldo awal satu transaksi, PUT koreksi → `stock_opname` + mutasi, stok
-  masuk → `stok_masuk` + mutasi, `request_id` opsional, kontrak respons tetap; baru (`adminStockDocument.service.js`,
+  masuk → `stok_masuk` + mutasi, `request_id` opsional, kontrak respons tetap; audit `create_raw_material` untuk bahan
+  baru (keputusan Pemilik Project 13 Nov 2026 atas Errata E1 B.4, menggantikan "bahan baru tanpa audit" Step 6.5 C5); baru (`adminStockDocument.service.js`,
   `routes/admin/stockAdjustment.routes.js`, `validators/stockLedger.validator.js`): `POST /raw-materials/:id/stock-counts`,
   `POST /stock-adjustments/:id/reverse|correct`, `GET /raw-materials/:id/movements`, audit `count_stock`,
-  `reverse_stock_in`, `correct_stock_in`. Uji: server `npm test` 767/767 (`tests/stockLedgerRoute.test.js` 5/5; route
-  test AD-07 lama disesuaikan ke jalur buku mutasi); MySQL `tests-mysql/21-cr04a-ad07-ledger` 7/7 (IT-37, IT-12, IT-13,
-  IT-06/07/08/31 bagian AD-07, rollback audit; 40 putaran konkurensi); harness penuh 152/153 (01 – 21; 1 gagal = 14 P1b,
-  kegagalan lama; 0 deadlock; 11 lock timeout = 10 baseline + 1 uji `REQUEST_IN_PROGRESS` disengaja); regresi AD-07 & CR-03
-  (suite 16 – 18) lulus; client `test:unit` 310/310, Vitest 15/15; `db:check-spec` lulus. **Belum/ditunda:** bagian
-  penerimaan PO dari IT-06 – IT-08 & IT-31 (supplier/PO) → CP5; audit pembuatan bahan (Errata E1 B.4 menyebut "audit"
-  tetapi kode aksi tidak ditetapkan di Draft §10.2) belum diimplementasikan — menunggu keputusan Pemilik Project;
-  `request_id` di body multipart (upload foto) tidak diperiksa middleware (diurai multer sesudahnya).
+  `reverse_stock_in`, `correct_stock_in`. Uji: server `npm test` 768/768 (`tests/stockLedgerRoute.test.js` 6/6 termasuk
+  audit `create_raw_material` & rollback; route test AD-07 lama dan uji audit disesuaikan ke jalur buku mutasi & keputusan
+  audit bahan baru); MySQL `tests-mysql/21-cr04a-ad07-ledger` 7/7 (IT-37 lengkap termasuk audit tepat sekali, replay tanpa
+  duplikat, kegagalan disuntik pada dokumen/mutasi/audit → rollback seluruh tabel; IT-12, IT-13, IT-06/07/08/31 bagian AD-07,
+  rollback audit stok masuk; 40 putaran konkurensi); suite 16 A1 disesuaikan (bahan baru → `create_raw_material`); harness
+  penuh 01 – 21: 153/153 (14 P1b — kegagalan lama yang bergantung jam — kebetulan lulus pada run ini; 0 deadlock; 11 lock
+  timeout = 10 baseline + 1 uji `REQUEST_IN_PROGRESS` disengaja); regresi AD-07 & CR-03 (suite 16 – 18) lulus; client
+  `test:unit` 310/310, Vitest 15/15; `db:check-spec` lulus. **Ditunda ke CP5 sesuai ROADMAP:** bagian penerimaan PO dari
+  IT-06 – IT-08 & bagian supplier/PO dari IT-31. Batas yang diketahui: `request_id` di body multipart (upload foto) tidak
+  diperiksa middleware (diurai multer sesudahnya).
 - Rencana awal di bawah dipertahankan sebagai catatan historis; yang berlaku adalah CR-04a di atas.
 - Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
 - Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;
