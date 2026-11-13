@@ -4,7 +4,9 @@
 //   - SEMUA endpoint lain (termasuk endpoint lama, GET, laporan) yang membawa request_id di body maupun query → 400,
 //     tanpa efek lain; endpoint tanpa request_id tidak berubah perilakunya.
 // request_id yang sah disimpan di req.requestId lalu dihapus dari body/query sehingga validator lama tidak berubah.
-// Catatan: body multipart (upload foto) diurai multer di router, sesudah middleware ini.
+// Body multipart (upload foto AD-06, C-11, C-19 — semuanya di luar allowlist) diurai multer di router, sesudah middleware
+// ini; field `request_id` di sana tetap ditolak 400 sebelum service karena multer `fields: 1` (LIMIT_FIELD_COUNT) atau
+// field JSON wajib hilang (tests/requestIdMultipart.test.js).
 
 const { requestIdPolicyError } = require('../services/idempotencyRules.service');
 

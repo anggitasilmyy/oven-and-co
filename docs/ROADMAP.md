@@ -1670,8 +1670,9 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   penuh 01 – 21: 153/153 (14 P1b — kegagalan lama yang bergantung jam — kebetulan lulus pada run ini; 0 deadlock; 11 lock
   timeout = 10 baseline + 1 uji `REQUEST_IN_PROGRESS` disengaja); regresi AD-07 & CR-03 (suite 16 – 18) lulus; client
   `test:unit` 310/310, Vitest 15/15; `db:check-spec` lulus. **Ditunda ke CP5 sesuai ROADMAP:** bagian penerimaan PO dari
-  IT-06 – IT-08 & bagian supplier/PO dari IT-31. Batas yang diketahui: `request_id` di body multipart (upload foto) tidak
-  diperiksa middleware (diurai multer sesudahnya).
+  IT-06 – IT-08 & bagian supplier/PO dari IT-31. `request_id` sebagai field body multipart (upload foto AD-06, C-11, C-19 —
+  di luar allowlist) tidak dilihat middleware global, tetapi tetap ditolak 400 sebelum service (multer `fields: 1` atau
+  field JSON wajib hilang) sehingga kontrak BR-31 terpenuhi; dibuktikan `tests/requestIdMultipart.test.js`.
 - Rencana awal di bawah dipertahankan sebagai catatan historis; yang berlaku adalah CR-04a di atas.
 - Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
 - Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;
