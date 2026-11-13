@@ -139,7 +139,7 @@ test('POST 201 / PUT 200 bahan baku; validasi → fieldErrors (pesan mock); 404 
   let res = await call('POST', '/raw-materials', { name: ' Gula Halus ', unit: ' kg ', stock: '12.5', min_stock: 3 });
   assert.deepEqual([res.status, res.json.data], [201, { material_id: '61', name: 'Gula Halus', unit: 'kg', stock: 12.5, min_stock: 3, status: 'aman' }]);
   res = await call('PUT', '/raw-materials/2', { name: 'Butter', unit: 'kg', stock: '6', min_stock: '5', expected_stock: '4.5' });
-  assert.deepEqual([res.status, res.json.data.status, material(2).stock], [200, 'aman', '6']);
+  assert.deepEqual([res.status, res.json.data.status, material(2).stock], [200, 'aman', '6.00']); // CR-04a: koreksi = stock_opname + mutasi, stok eksak 2 desimal
   assert.deepEqual(db.ops.slice(db.ops.lastIndexOf('tx:begin') + 1, db.ops.lastIndexOf('tx:begin') + 3), ['lock:users:S', 'lock:store_settings']); // C5 (K5)
 
   const before = dump();
@@ -186,7 +186,7 @@ test('stok masuk: bertambah tepat (desimal), status ikut berubah; validasi pesan
   assert.equal(dump(), before);
   assert.equal((await call('POST', '/raw-materials/999/stock-in', { qty: 1 })).status, 404);
   assert.equal((await call('POST', '/raw-materials/1/stock-in', { qty: {} })).status, 400);
-  db.failOn = 'rawMaterial.stockIn';
+  db.failOn = 'rawMaterial.setStock'; // CR-04a: stok ditulis oleh buku mutasi (dokumen + mutasi ikut rollback)
   assert.equal((await call('POST', '/raw-materials/1/stock-in', { qty: 1 })).status, 500);
   assert.equal(dump(), before);
 });
@@ -224,7 +224,7 @@ test('PUT bahan — edit informasi tidak menulis stok; koreksi wajib expected_st
 
   // Koreksi dengan expected_stock yang masih berlaku → stok absolut tersimpan
   res = await call('PUT', '/raw-materials/2', { name: 'Butter', unit: 'kg', stock: '3', min_stock: '5', expected_stock: 6.5 });
-  assert.deepEqual([res.status, material(2).stock, res.json.data.status], [200, '3', 'menipis']);
+  assert.deepEqual([res.status, material(2).stock, res.json.data.status], [200, '3.00', 'menipis']);
   // Stok awal POST tetap wajib (bahan baru)
   res = await call('POST', '/raw-materials', { name: 'Ragi', unit: 'g', min_stock: 1 });
   assert.deepEqual([res.status, res.json.fieldErrors.stock], [400, 'Isi stok']);

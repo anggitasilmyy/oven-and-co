@@ -16,6 +16,7 @@ function baseTables(today) {
     },
     storeSetting: { settingId: 1 },
     auditLogs: [], // Step 6.5 C5
+    stockAdjustments: [], materialMovements: [], operationRequests: [], // CR-04a CP4 (buku mutasi)
     categories: [
       { categoryId: 1, name: 'Roti', sortOrder: 1 },
       { categoryId: 2, name: 'Cake', sortOrder: 2 },
@@ -78,7 +79,7 @@ const sortBy = (rows, orderBy = []) => [...rows].sort((a, b) => {
  */
 function installCatalogDb(fakePrisma, today) {
   const state = { t: baseTables(today), ops: [], raw: [], failOn: null, hooks: {} };
-  const next = { product: 100n, image: 500n, variant: 300n, option: 50, stock: 800n, material: 60n, audit: 900n };
+  const next = { product: 100n, image: 500n, variant: 300n, option: 50, stock: 800n, material: 60n, audit: 900n, adjustment: 1000n, movement: 2000n };
   const id = (k) => (typeof next[k] === 'bigint' ? (next[k] += 1n) : (next[k] += 1));
   const fail = (op) => {
     state.ops.push(op);
@@ -219,6 +220,14 @@ function installCatalogDb(fakePrisma, today) {
         const row = state.t.dailyStocks.find((d) => d.productId === productId && d.stockDate.getTime() === stockDate.getTime());
         return row ? [{ stock_id: row.stockId, qty_planned: row.qtyPlanned, qty_sold: row.qtySold }] : [];
       }
+      if (/FROM stock_adjustments WHERE adjustment_id = \? FOR UPDATE$/.test(sql)) {
+        const doc = state.t.stockAdjustments.find((r) => r.adjustmentId === values[0]);
+        return doc ? [{ adjustment_id: doc.adjustmentId, material_id: doc.materialId, kind: doc.kind, qty: doc.qty == null ? null : String(doc.qty) }] : [];
+      }
+      if (/^SELECT CAST\(stock AS CHAR\) AS stock FROM raw_materials WHERE material_id = \?$/.test(sql)) {
+        const m = state.t.materials.find((x) => x.materialId === values[0]);
+        return [{ stock: m.stock }];
+      }
       if (/^SELECT stock FROM raw_materials WHERE material_id = \? FOR UPDATE$/.test(sql)) {
         const m = state.t.materials.find((x) => x.materialId === values[0]);
         return m ? [{ stock: m.stock }] : [];
@@ -246,6 +255,33 @@ function installCatalogDb(fakePrisma, today) {
         return { count: data.length };
       },
     },
+    // CR-04a CP4: dokumen stok, buku mutasi, operation_requests
+    stockAdjustment: {
+      create: async ({ data }) => {
+        fail('stockAdjustment.create');
+        const row = { adjustmentId: id('adjustment'), createdAt: new Date(), ...data };
+        state.t.stockAdjustments.push(row);
+        return { adjustmentId: row.adjustmentId, createdAt: row.createdAt };
+      },
+      count: async ({ where }) => state.t.stockAdjustments.filter((r) => matchesWhere(r, where)).length,
+    },
+    materialMovement: {
+      create: async ({ data }) => {
+        fail('materialMovement.create');
+        const row = { movementId: id('movement'), ...data };
+        state.t.materialMovements.push(row);
+        return { movementId: row.movementId };
+      },
+    },
+    operationRequest: {
+      create: async ({ data }) => {
+        fail('operationRequest.create');
+        if (state.t.operationRequests.some((r) => r.requestId === data.requestId)) throw Object.assign(new Error('Unique'), { code: 'P2002' });
+        state.t.operationRequests.push({ ...data });
+      },
+      update: async ({ where, data }) => Object.assign(state.t.operationRequests.find((r) => r.requestId === where.requestId), data),
+      findUnique: async ({ where }) => state.t.operationRequests.find((r) => r.requestId === where.requestId) ?? null,
+    },
     // Step 6.5 C5: audit_logs
     auditLog: {
       create: async ({ data }) => {
@@ -264,6 +300,13 @@ function installCatalogDb(fakePrisma, today) {
         const [productId, stockDate] = values;
         if (state.t.dailyStocks.some((d) => d.productId === productId && d.stockDate.getTime() === stockDate.getTime())) return 2;
         state.t.dailyStocks.push({ stockId: id('stock'), productId, stockDate, qtyPlanned: 0, qtySold: 0 });
+        return 1;
+      }
+      // CR-04a CP4: stok baru eksak dari buku mutasi
+      if (/^UPDATE raw_materials SET stock = CAST\(\? AS DECIMAL\(10,2\)\) WHERE material_id = \?$/.test(sql)) {
+        fail('rawMaterial.setStock');
+        const [stock, materialId] = values;
+        state.t.materials.find((x) => x.materialId === materialId).stock = stock;
         return 1;
       }
       // Stok masuk: stock = stock + qty (DECIMAL)

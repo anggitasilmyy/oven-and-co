@@ -1,31 +1,33 @@
 // services/adminRawMaterial.service.js
 // Step 6.4 · FR-32 · UC-24 · AD-07 tab "Bahan Baku" (Staf & Owner). Kontrak = client services/mock/stockAdmin.js
 // (buildRawMaterialBoard, saveRawMaterial, recordMaterialStockIn). Bahan tidak dihapus (tidak ada di mock/SPEC).
-//   - Tambah/ubah: diserialkan dengan kunci master data agar nama bahan tetap unik walau dibuat bersamaan
-//     (raw_materials.name tidak UNIQUE di SPEC §8 — lihat adminMasterDataLock.service.js).
-//   - Stok masuk: baris bahan dikunci (pembacaan pertama transaksi) lalu stock = stock + qty dihitung DECIMAL di MySQL,
-//     sehingga dua stok masuk bersamaan tidak saling menimpa.
-//   - Ubah (PUT): field stok form adalah "Stok saat ini — untuk koreksi hasil hitung stok" (FR-32). Agar stok masuk
-//     tidak pernah tertimpa, PUT mengunci baris bahan (FOR UPDATE, sama dengan stok masuk) lalu:
-//       · edit informasi (nama, satuan, minimum) — `stock` tidak dikirim, sama dengan `expected_stock`, atau sama
-//         dengan stok terkunci → kolom stock TIDAK ditulis (nilai terbaru database dipakai);
-//       · koreksi stok absolut (`stock` berbeda) → `expected_stock` WAJIB (stok yang dilihat admin saat form dibuka,
-//         pola `from` AD-04): tanpa expected → 400, expected ≠ stok terkunci → 409; keduanya `fieldErrors.stock`.
-//     Urutan kunci PUT: master data → baris bahan; stok masuk: baris bahan saja (tidak bisa saling menunggu silang).
+// CR-04a CP4 · FR-44 · BR-23, BR-31 · Draft 0.8.3 §2.7, §5.1, §5.3; Errata E1 B.4: kontrak respons & validasi lama TETAP,
+// tetapi setiap perubahan stok kini lewat dokumen + mutasi buku mutasi dalam transaksi yang sama, dengan `request_id`
+// opsional (kontrak idempotensi penuh bila dikirim):
+//   - Tambah (POST): bahan + saldo awal (createOpeningBalance) + audit `create_raw_material` dalam satu transaksi; gagal
+//     → tidak ada bahan, dokumen, mutasi, audit, maupun operation_requests.
+//   - Ubah (PUT): edit informasi tanpa menulis stok; koreksi stok absolut (expected_stock wajib, ≠ stok terkunci → 409)
+//     kini dicatat sebagai dokumen stock_opname (sistem = stok terkunci, fisik = stok baru) + mutasi.
+//   - Stok masuk: dokumen stok_masuk + mutasi (+qty) + stok baru eksak.
+// Urutan kunci (Draft §10.1): pelaku users S → operation_requests → store_settings X (tambah/ubah) → baris bahan X.
 
 const prisma = require('../lib/prisma');
 const { CATALOG_FIELD_MAX, MAX_MATERIAL_QTY, AUDIT_ACTION, AUDIT_ENTITY } = require('../utils/businessConstants');
 const { getMaterialStatus, validateMaterial, validateStockIn } = require('./stockRules.service');
 const { lockAdminMasterData } = require('./adminMasterDataLock.service');
-const { lockAuditActor, recordAudit } = require('./auditLog.service');
+const { recordAudit } = require('./auditLog.service');
+const { decimalToCents, centsToDecimalString } = require('./decimalInputRules.service');
+const { createOpeningBalance } = require('./openingBalance.service');
+const { runOperation } = require('./operationRequest.service');
+const { MATERIAL_NOT_FOUND, lockMaterials, writeMovements } = require('./stockLedger.service');
 
-const NOT_FOUND_MESSAGE = 'Bahan baku tidak ditemukan.';
 const STOCK_CHANGED = 'Stok bahan sudah berubah (ada stok masuk atau perubahan lain). Muat ulang data lalu ulangi koreksi stok.';
 const EXPECTED_STOCK_REQUIRED = 'Koreksi stok wajib menyertakan stok awal form (expected_stock). Muat ulang data lalu ulangi koreksi stok.';
 const EXPECTED_STOCK_INVALID = 'Stok awal form tidak valid. Muat ulang data.';
 const isBlank = (v) => v == null || String(v).trim() === '';
-const cents = (n) => Math.round(Number(n) * 100);
 const isDecimal = (v) => /^\d+(\.\d{1,2})?$/.test(String(v ?? '').trim());
+// Nilai yang sudah lolos validasi lama (≤ 2 desimal) → teks 2 desimal eksak; selain itu teks apa adanya (payload kanonik)
+const normalizeDecimal = (v) => (isDecimal(v) ? centsToDecimalString(decimalToCents(String(v).trim())) : (isBlank(v) ? null : String(v).trim()));
 const MATERIAL_LIMITS = { nameMax: CATALOG_FIELD_MAX.materialName, unitMax: CATALOG_FIELD_MAX.materialUnit, qtyMax: MAX_MATERIAL_QTY };
 
 function httpError(statusCode, message) {
@@ -46,95 +48,104 @@ async function getRawMaterialBoard() {
 }
 
 /**
- * Stok yang ditulis PUT, dari stok terkunci (null = kolom stock tidak ditulis). Lihat aturan di kepala berkas.
- * @param {{stock?, expected_stock?}} input
- * @param {string} lockedStock — stok baris terkunci (DECIMAL sebagai string)
+ * Stok yang ditulis PUT, dari stok terkunci (null = kolom stock tidak ditulis). Perbandingan eksak dalam sen (BigInt).
+ * @param {{stock?, expected_stock?}} input — stock sudah lolos validasi lama (≤ 2 desimal)
+ * @param {string} lockedStock — stok baris terkunci (DECIMAL sebagai teks)
  */
 function resolveStockUpdate(input, lockedStock) {
   if (isBlank(input.stock)) return null;
   const hasExpected = !isBlank(input.expected_stock);
   if (hasExpected && !isDecimal(input.expected_stock)) throw httpError(400, EXPECTED_STOCK_INVALID);
+  const stock = decimalToCents(String(input.stock).trim());
+  const expected = hasExpected ? decimalToCents(String(input.expected_stock).trim()) : null;
   // Edit informasi: stok kiriman = stok saat form dibuka, atau = stok database → stok tidak disentuh
-  if ((hasExpected && cents(input.stock) === cents(input.expected_stock)) || cents(input.stock) === cents(lockedStock)) {
-    return null;
-  }
+  if ((hasExpected && stock === expected) || stock === decimalToCents(lockedStock)) return null;
   // Koreksi absolut
   if (!hasExpected) throw Object.assign(httpError(400, EXPECTED_STOCK_REQUIRED), { fieldErrors: { stock: EXPECTED_STOCK_REQUIRED } });
-  if (cents(lockedStock) !== cents(input.expected_stock)) {
-    throw Object.assign(httpError(409, STOCK_CHANGED), { fieldErrors: { stock: STOCK_CHANGED } });
-  }
-  return String(input.stock).trim();
+  if (decimalToCents(lockedStock) !== expected) throw Object.assign(httpError(409, STOCK_CHANGED), { fieldErrors: { stock: STOCK_CHANGED } });
+  return centsToDecimalString(stock);
 }
 
+function assertValid(input, materials, existingId) {
+  const errors = validateMaterial(input, materials, existingId, MATERIAL_LIMITS);
+  if (Object.keys(errors).length) throw Object.assign(httpError(400, Object.values(errors)[0]), { fieldErrors: errors });
+}
+
+const materialPayload = (input) => ({
+  name: String(input.name ?? '').trim(), unit: String(input.unit ?? '').trim(), stock: normalizeDecimal(input.stock),
+  min_stock: normalizeDecimal(input.min_stock), expected_stock: normalizeDecimal(input.expected_stock),
+});
+
 /**
- * POST /api/admin/raw-materials (materialId null) & PUT /api/admin/raw-materials/:id — nama, satuan, stok, minimum.
- * POST: stok awal wajib. PUT: `stock` opsional (lihat resolveStockUpdate). Error per field → 400 { message, fieldErrors }.
- * Step 6.5 C5 (FR-37, K2d): audit `correct_raw_material_stock` HANYA bila kolom stock benar-benar ditulis pada bahan
- * yang sudah ada (koreksi stok ≠ stok terkunci); bahan baru & edit nama/satuan/minimum tidak dicatat.
- * Urutan kunci: pelaku users S → store_settings X → baris bahan X → tulis → audit.
- * @param {string|number|bigint} actorId — req.user.userId
+ * POST (materialId null) & PUT /api/admin/raw-materials/:id — nama, satuan, stok, minimum. Lihat kepala berkas.
+ * Audit: `create_raw_material` untuk bahan baru (Errata E1 B.4; keputusan Pemilik Project 13 Nov 2026, menggantikan
+ * "bahan baru tanpa audit" Step 6.5 C5); `correct_raw_material_stock` HANYA bila stok bahan yang ada benar-benar dikoreksi.
+ * @returns {Promise<{statusCode, body, replay}>}
  */
-async function saveRawMaterial(actorId, materialId, input, now = new Date()) {
-  return prisma.$transaction(async (tx) => {
-    await lockAuditActor(tx, actorId); // C5 (K5): pelaku S SEBELUM store_settings X
+async function saveRawMaterial(actorId, materialId, input, { requestId, now = new Date() } = {}) {
+  const create = materialId == null;
+  return runOperation({
+    actorId, requestId, operation: create ? 'create_raw_material' : 'update_raw_material', targetType: create ? null : 'raw_material',
+    targetId: create ? null : String(materialId), payload: materialPayload(input), successStatus: create ? 201 : 200,
+  }, async (tx) => {
     await lockAdminMasterData(tx);
-    // PUT: kunci baris bahan sebelum membaca apa pun (sama dengan stok masuk) → stok terkunci = nilai terbaru
-    const [locked] = materialId == null
-      ? [null]
-      : await tx.$queryRaw`SELECT stock FROM raw_materials WHERE material_id = ${BigInt(materialId)} FOR UPDATE`;
-    if (materialId != null && !locked) throw httpError(404, NOT_FOUND_MESSAGE);
-
+    const locked = create ? null : await lockMaterials(tx, [materialId]);
     const materials = (await tx.rawMaterial.findMany({ orderBy: { materialId: 'asc' } })).map(mapMaterial);
-    const existing = materialId == null ? null : materials.find((m) => m.material_id === String(materialId));
-    // Edit tanpa `stock` divalidasi dengan stok terkunci (nilai yang akan tetap tersimpan)
-    const checked = existing && isBlank(input.stock) ? { ...input, stock: String(locked.stock) } : input;
-    const errors = validateMaterial(checked, materials, existing?.material_id ?? null, MATERIAL_LIMITS);
-    if (Object.keys(errors).length) {
-      throw Object.assign(httpError(400, Object.values(errors)[0]), { fieldErrors: errors });
-    }
-    const stock = existing ? resolveStockUpdate(input, String(locked.stock)) : String(input.stock).trim();
-    const data = {
-      name: String(input.name).trim(),
-      unit: String(input.unit).trim(),
-      ...(stock == null ? {} : { stock }),
-      minStock: String(input.min_stock).trim(),
-    };
-    const saved = existing
-      ? await tx.rawMaterial.update({ where: { materialId: BigInt(existing.material_id) }, data })
-      : await tx.rawMaterial.create({ data });
-    if (existing && stock != null) {
-      await recordAudit(tx, {
-        actorId, action: AUDIT_ACTION.CORRECT_RAW_MATERIAL_STOCK, entity: AUDIT_ENTITY.RAW_MATERIALS, entityId: existing.material_id, now,
+    if (create) {
+      assertValid(input, materials, null);
+      const saved = await tx.rawMaterial.create({
+        data: { name: String(input.name).trim(), unit: String(input.unit).trim(), stock: normalizeDecimal(input.stock), minStock: normalizeDecimal(input.min_stock) },
       });
+      const [{ stock }] = await tx.$queryRaw`SELECT CAST(stock AS CHAR) AS stock FROM raw_materials WHERE material_id = ${saved.materialId}`;
+      await createOpeningBalance(tx, { materialId: saved.materialId, stock, actorId, requestId: requestId ?? null });
+      await recordAudit(tx, { actorId, action: AUDIT_ACTION.CREATE_RAW_MATERIAL, entity: AUDIT_ENTITY.RAW_MATERIALS, entityId: saved.materialId, now });
+      return mapMaterial(saved);
     }
-    return mapMaterial(saved);
+    const lockedStock = locked.get(String(materialId));
+    const existing = materials.find((m) => m.material_id === String(materialId));
+    // Edit tanpa `stock` divalidasi dengan stok terkunci (nilai yang akan tetap tersimpan)
+    assertValid(isBlank(input.stock) ? { ...input, stock: lockedStock } : input, materials, existing.material_id);
+    const stock = resolveStockUpdate(input, lockedStock);
+    const saved = await tx.rawMaterial.update({
+      where: { materialId: BigInt(materialId) },
+      data: { name: String(input.name).trim(), unit: String(input.unit).trim(), minStock: normalizeDecimal(input.min_stock) },
+    });
+    if (stock == null) return mapMaterial(saved);
+    const doc = await tx.stockAdjustment.create({
+      data: { materialId: BigInt(materialId), kind: 'stock_opname', countedStock: stock, systemStock: lockedStock, createdBy: BigInt(actorId), operationRequestId: requestId ?? null },
+      select: { adjustmentId: true },
+    });
+    const delta = decimalToCents(stock) - decimalToCents(lockedStock);
+    await writeMovements(tx, locked, [{ material_id: String(materialId), delta, type: 'stock_opname' }], () => ({ adjustmentId: doc.adjustmentId }), actorId);
+    await recordAudit(tx, { actorId, action: AUDIT_ACTION.CORRECT_RAW_MATERIAL_STOCK, entity: AUDIT_ENTITY.RAW_MATERIALS, entityId: materialId, now });
+    return mapMaterial(await tx.rawMaterial.findUnique({ where: { materialId: BigInt(materialId) } }));
   });
 }
 
 /**
- * POST /api/admin/raw-materials/:id/stock-in { qty } — "Catat Stok Masuk": stok bertambah sejumlah barang diterima.
- * Step 6.5 C5: audit `raw_material_stock_in` (entity raw_materials, entity_id material_id) setiap stok masuk berhasil.
- * Urutan kunci: pelaku users S → baris bahan X → UPDATE → audit.
- * @param {string|number|bigint} actorId — req.user.userId
+ * POST /api/admin/raw-materials/:id/stock-in { qty } — "Catat Stok Masuk" (validasi lama tetap). Dokumen stok_masuk +
+ * mutasi + stok baru; audit `raw_material_stock_in`. Urutan kunci: pelaku S → operation_requests → baris bahan X.
+ * @returns {Promise<{statusCode, body, replay}>}
  */
-async function recordStockIn(actorId, materialId, qty, now = new Date()) {
-  return prisma.$transaction(async (tx) => {
-    await lockAuditActor(tx, actorId); // C5 (K5): pelaku S sebelum kunci baris bahan & INSERT audit
-    const id = BigInt(materialId);
-    const [locked] = await tx.$queryRaw`SELECT stock FROM raw_materials WHERE material_id = ${id} FOR UPDATE`;
-    if (!locked) throw httpError(404, NOT_FOUND_MESSAGE);
-    const error = validateStockIn(qty, Number(locked.stock), MAX_MATERIAL_QTY);
+async function recordStockIn(actorId, materialId, qty, { requestId, now = new Date() } = {}) {
+  return runOperation({
+    actorId, requestId, operation: 'raw_material_stock_in', targetType: 'raw_material', targetId: String(materialId),
+    payload: { qty: normalizeDecimal(qty) }, successStatus: 200,
+  }, async (tx) => {
+    const locked = await lockMaterials(tx, [materialId]);
+    const lockedStock = locked.get(String(materialId));
+    const error = validateStockIn(qty, Number(lockedStock), MAX_MATERIAL_QTY);
     if (error) throw httpError(400, error);
-
-    await tx.$executeRaw`UPDATE raw_materials SET stock = stock + CAST(${String(qty).trim()} AS DECIMAL(10,2))
-      WHERE material_id = ${id}`;
-    await recordAudit(tx, { actorId, action: AUDIT_ACTION.RAW_MATERIAL_STOCK_IN, entity: AUDIT_ENTITY.RAW_MATERIALS, entityId: id, now });
-    return mapMaterial(await tx.rawMaterial.findUnique({ where: { materialId: id } }));
+    const amount = normalizeDecimal(qty);
+    const doc = await tx.stockAdjustment.create({
+      data: { materialId: BigInt(materialId), kind: 'stok_masuk', qty: amount, createdBy: BigInt(actorId), operationRequestId: requestId ?? null },
+      select: { adjustmentId: true },
+    });
+    await writeMovements(tx, locked, [{ material_id: String(materialId), delta: decimalToCents(amount), type: 'stok_masuk' }],
+      () => ({ adjustmentId: doc.adjustmentId }), actorId);
+    await recordAudit(tx, { actorId, action: AUDIT_ACTION.RAW_MATERIAL_STOCK_IN, entity: AUDIT_ENTITY.RAW_MATERIALS, entityId: materialId, now });
+    return mapMaterial(await tx.rawMaterial.findUnique({ where: { materialId: BigInt(materialId) } }));
   });
 }
 
-module.exports = {
-  getRawMaterialBoard,
-  saveRawMaterial,
-  recordStockIn,
-};
+module.exports = { MATERIAL_NOT_FOUND, mapMaterial, getRawMaterialBoard, saveRawMaterial, recordStockIn };

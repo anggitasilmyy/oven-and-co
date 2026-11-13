@@ -1602,7 +1602,8 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 **Step 6.8 — Supplier & Purchasing Management (CR-04a)**
 - Status: **CR-04a disetujui Pemilik Project 12 Nov 2026** (K01 – K25, C-1 – C-13). CP0 selesai (PR #26); CP1
   (sinkronisasi dokumen) selesai (PR #27); CP2 (database, migrasi, seed, integritas buku mutasi) selesai (PR #28);
-  CP3 (aturan murni server = client) selesai di PR CP3; **CP4 – CP7 belum diizinkan** — setiap CP memerlukan izin Pemilik Project.
+  CP3 (aturan murni server = client) selesai (PR #29); CP4 (middleware request_id, buku mutasi AD-07) selesai di PR CP4;
+  **CP5 – CP7 belum diizinkan** — setiap CP memerlukan izin Pemilik Project.
 - Ruang lingkup: FR-41 – FR-44, UC-33 – UC-35, BR-17 – BR-24, BR-30 – BR-32, BR-34, BR-35, AC-41.1 – AC-44.8, AD-12
   Pembelian & perluasan AD-07, 9 tabel (30 → 39) — `docs/SPEC.md` bagian 2, 3, 5, 6, 7, 8, 10, 13; rincian normatif
   `docs/change-requests/CR-04_DRAFT_0.8.3.md` + Errata E1 + E1.1.
@@ -1616,8 +1617,8 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 | CP0 | Simpan Draft 0.8.3, Errata E1, E1.1, paket & rekaman persetujuan di `docs/change-requests/` | Hash cocok; PR dokumen | Keputusan Pemilik Project | **Selesai** (PR #26, 12 Nov 2026) |
 | CP1 | AGENTS.md §1, SPEC (bagian 2/3/5/6/7/8/9/10/13), ROADMAP; E-6 versi CR-04a dicatat **belum aktif** | Hanya dokumen; test K-14 & `db:check-spec` tetap lulus | CP0 | **Selesai** (PR #27, 12 Nov 2026) |
 | CP2 | Schema & migrasi `cr04a` (9 tabel, CHECK, FK RESTRICT, saldo awal set-based), seed + preflight, `createOpeningBalance`, `db:check-ledger` (IMPL-CP2-1), snapshot M-4 deterministik (IMPL-CP2-2), `checkSchemaAgainstSpec.js` 39 tabel + rancangan bagian 8 dipindah ke Data Dictionary | IT-01 – IT-04, IT-34 – IT-36; `db:check-spec` lulus | CP1 + izin | **Selesai** (PR #28, 12 Nov 2026) — lihat catatan CP2 |
-| CP3 | Aturan murni server = client: desimal/milli, nilai PO & penerimaan, status PO, dampak bersih & rujukan P/R, opname, payload kanonik + SHA-256, invarian | Unit node:test + Vitest, uji silang client = server | CP2 + izin | **Selesai** (PR CP3, 12 Nov 2026) — lihat catatan CP3 |
-| CP4 | Middleware `request_id` (allowlist, idempotensi), satu layanan buku mutasi untuk endpoint AD-07 lama, endpoint opname, pembalik/koreksi stok masuk, riwayat mutasi, audit | Route test; MySQL IT-06 – IT-08, IT-12, IT-13, IT-31 (AD-07), IT-37; regresi AD-07 & MySQL 16 – 18 | CP3 + izin | Belum diizinkan |
+| CP3 | Aturan murni server = client: desimal/milli, nilai PO & penerimaan, status PO, dampak bersih & rujukan P/R, opname, payload kanonik + SHA-256, invarian | Unit node:test + Vitest, uji silang client = server | CP2 + izin | **Selesai** (PR #29, 12 Nov 2026) — lihat catatan CP3 |
+| CP4 | Middleware `request_id` (allowlist, idempotensi), satu layanan buku mutasi untuk endpoint AD-07 lama, endpoint opname, pembalik/koreksi stok masuk, riwayat mutasi, audit | Route test; MySQL IT-06 – IT-08, IT-12, IT-13, IT-31 (AD-07), IT-37; regresi AD-07 & MySQL 16 – 18 | CP3 + izin | **Selesai** (PR CP4, 12 Nov 2026) — lihat catatan CP4 |
 | CP5 | API supplier, PO, penerimaan, pembalik/koreksi penerimaan, nilai; audit | Route test; MySQL IT-05, IT-09 – IT-11, IT-14, IT-15, IT-30; 0 deadlock | CP4 + izin | Belum diizinkan |
 | CP6 | Frontend AD-12 (tab PO & Supplier, detail, penerimaan, koreksi), AD-07 (opname, riwayat, pembalik/koreksi), mock (tabel & ledger mock), rute & sidebar AD-12; **aktivasi E-6 versi CR-04a** dalam satu commit (teks aktif SPEC + `MATERIAL_REQUIREMENT_NOTE` + test K-14 + uji integrasi/e2e terkait) | Mock = API (IT-38); e2e mock & API 390/768/1440 px; teks tampil = perilaku aktif | CP5 + izin | Belum diizinkan |
 | CP7 | Regresi penuh (server, client, Vitest, MySQL 01 – 18 + baru, e2e per-step), gladi migrasi IT-02, IT-03, IT-33, status ROADMAP | Semua lulus kecuali 14 P1b (kegagalan lama); PR CR-04a | CP6 + izin | Belum diizinkan |
@@ -1651,6 +1652,27 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   tersendiri → bukan regresi; 0 deadlock). **Belum di CP3 (CP4/CP5):** penulisan dokumen + mutasi + stok dalam transaksi
   berkunci, penyimpanan `operation_requests` (nilai sementara 102, `REQUEST_IN_PROGRESS`), rollback & uji MySQL IT-05 –
   IT-15, IT-30, IT-31, IT-37; aturan belum dipakai endpoint/mock mana pun.
+- Catatan CP4 (12 Nov 2026): middleware global `middlewares/requestId.js` (allowlist §5.1; request_id di luar daftar →
+  400; wajib dicek setelah auth); `services/operationRequest.service.js` (`runOperation`: users S → INSERT
+  `operation_requests` 102 → pekerjaan → respons final → COMMIT; duplikat → replay + `Idempotent-Replay: true` atau 409
+  `REQUEST_ID_REUSED`; lock wait/deadlock pada kunci unik → 409 `REQUEST_IN_PROGRESS`); `services/stockLedger.service.js`
+  (satu jalur tulis stok: kunci bahan urut ID, aturan CP3 `applyStockDeltas`, mutasi ≠ 0, stok eksak); AD-07 lama
+  (`adminRawMaterial.service.js`): POST bahan + saldo awal satu transaksi, PUT koreksi → `stock_opname` + mutasi, stok
+  masuk → `stok_masuk` + mutasi, `request_id` opsional, kontrak respons tetap; audit `create_raw_material` untuk bahan
+  baru (keputusan Pemilik Project 13 Nov 2026 atas Errata E1 B.4, menggantikan "bahan baru tanpa audit" Step 6.5 C5); baru (`adminStockDocument.service.js`,
+  `routes/admin/stockAdjustment.routes.js`, `validators/stockLedger.validator.js`): `POST /raw-materials/:id/stock-counts`,
+  `POST /stock-adjustments/:id/reverse|correct`, `GET /raw-materials/:id/movements`, audit `count_stock`,
+  `reverse_stock_in`, `correct_stock_in`. Uji: server `npm test` 768/768 (`tests/stockLedgerRoute.test.js` 6/6 termasuk
+  audit `create_raw_material` & rollback; route test AD-07 lama dan uji audit disesuaikan ke jalur buku mutasi & keputusan
+  audit bahan baru); MySQL `tests-mysql/21-cr04a-ad07-ledger` 7/7 (IT-37 lengkap termasuk audit tepat sekali, replay tanpa
+  duplikat, kegagalan disuntik pada dokumen/mutasi/audit → rollback seluruh tabel; IT-12, IT-13, IT-06/07/08/31 bagian AD-07,
+  rollback audit stok masuk; 40 putaran konkurensi); suite 16 A1 disesuaikan (bahan baru → `create_raw_material`); harness
+  penuh 01 – 21: 153/153 (14 P1b — kegagalan lama yang bergantung jam — kebetulan lulus pada run ini; 0 deadlock; 11 lock
+  timeout = 10 baseline + 1 uji `REQUEST_IN_PROGRESS` disengaja); regresi AD-07 & CR-03 (suite 16 – 18) lulus; client
+  `test:unit` 310/310, Vitest 15/15; `db:check-spec` lulus. **Ditunda ke CP5 sesuai ROADMAP:** bagian penerimaan PO dari
+  IT-06 – IT-08 & bagian supplier/PO dari IT-31. `request_id` sebagai field body multipart (upload foto AD-06, C-11, C-19 —
+  di luar allowlist) tidak dilihat middleware global, tetapi tetap ditolak 400 sebelum service (multer `fields: 1` atau
+  field JSON wajib hilang) sehingga kontrak BR-31 terpenuhi; dibuktikan `tests/requestIdMultipart.test.js`.
 - Rencana awal di bawah dipertahankan sebagai catatan historis; yang berlaku adalah CR-04a di atas.
 - Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
 - Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;

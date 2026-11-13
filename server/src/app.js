@@ -21,6 +21,7 @@ const adminMaterialRequirementRoutes = require('./routes/admin/materialRequireme
 const adminCustomOptionRoutes = require('./routes/admin/customOption.routes');
 const adminStockRoutes = require('./routes/admin/stock.routes');
 const adminRawMaterialRoutes = require('./routes/admin/rawMaterial.routes');
+const adminStockAdjustmentRoutes = require('./routes/admin/stockAdjustment.routes');
 const paymentMethodRoutes = require('./routes/admin/paymentMethod.routes');
 const adminDashboardRoutes = require('./routes/admin/dashboard.routes');
 const adminReportRoutes = require('./routes/admin/report.routes');
@@ -32,6 +33,7 @@ const adminPaymentMethodRoutes = require('./routes/admin/paymentMethodAdmin.rout
 const adminStaffRoutes = require('./routes/admin/staff.routes');
 
 const errorHandler = require('./middlewares/errorHandler');
+const { requestId: requestIdMiddleware } = require('./middlewares/requestId');
 const { getReferencePhotoDir } = require('./utils/referencePhotoStorage');
 const { getReviewPhotoDir } = require('./utils/reviewPhotoStorage');
 const { getProductPhotoDir } = require('./utils/productPhotoStorage');
@@ -41,6 +43,8 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// CR-04a CP4 · BR-31: allowlist request_id global (Draft 0.8.3 §5.1) — sebelum semua router
+app.use(requestIdMiddleware);
 
 app.use(
   cors({
@@ -97,6 +101,7 @@ app.use('/api/admin/products', adminProductRoutes);
 app.use('/api/admin/custom-options', adminCustomOptionRoutes);
 app.use('/api/admin/stocks', adminStockRoutes);
 app.use('/api/admin/raw-materials', adminRawMaterialRoutes);
+app.use('/api/admin/stock-adjustments', adminStockAdjustmentRoutes); // CR-04a CP4
 app.use('/api/admin/material-requirements', adminMaterialRequirementRoutes); // CR-03 CP5
 app.use('/api/admin/dashboard', adminDashboardRoutes);
 app.use('/api/admin/reports', adminReportRoutes);

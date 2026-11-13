@@ -588,7 +588,8 @@ Endpoint lain (termasuk endpoint lama di luar daftar dan semua GET) menolak `req
 middleware allowlist; selain itu perilakunya tidak berubah. Audit (`audit_logs`, tanpa layar): `create_supplier`,
 `update_supplier`, `set_supplier_active`, `create_purchase_order`, `update_purchase_order`, `order_purchase_order`,
 `cancel_purchase_order`, `receive_purchase_order`, `reverse_goods_receipt`, `correct_goods_receipt`, `count_stock`,
-`reverse_stock_in`, `correct_stock_in`; aksi AD-07 lama tetap.
+`reverse_stock_in`, `correct_stock_in`, `create_raw_material` (bahan baru + saldo awal, Errata E1 B.4; keputusan Pemilik
+Project 13 Nov 2026); aksi AD-07 lama tetap.
 
 ### Acceptance criteria CR-04a
 
