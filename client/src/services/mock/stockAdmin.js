@@ -6,7 +6,9 @@
 
 import { getTables, updateTable, nextUserRowId, USER_ROW_ID_START } from './db';
 import { getMockTodayKey } from './mockClock';
-import { getRemainingStock, getDailyStockStatus, validateDailyPlan, getMaterialStatus, validateMaterial, validateStockIn, addDecimal } from '../../utils/businessRules';
+import { getRemainingStock, getDailyStockStatus, validateDailyPlan, getMaterialStatus, validateMaterial, validateStockIn } from '../../utils/businessRules';
+import { decimalToCents, centsToDecimalString } from '../../utils/rules/decimalInput';
+import { loadLedgerTables, openingRows, applyMovements, runMockOperation, nextId, nowIso, toDecimalText } from './ledgerMock';
 import { AVAILABILITY_TYPE } from '../../constants/product';
 import { PRODUCT_FIELD_MAX, MAX_MATERIAL_QTY, MATERIAL_STOCK_MESSAGE } from '../../constants/adminCatalog';
 import { resolveExpectedUpdate } from '../../utils/rules/expectedValue';
@@ -80,7 +82,7 @@ export function saveDailyStockPlans(plans) {
 
 /** Tab "Bahan Baku": bahan + status (Aman/Menipis/Habis) + ringkasan jumlah per status */
 export function buildRawMaterialBoard() {
-  const rows = getTables('raw_materials').raw_materials
+  const rows = loadLedgerTables().raw_materials // CR-04a: saldo awal dipastikan ada (Errata E1.1 §4)
     .map((m) => ({ ...m, status: getMaterialStatus(m) }))
     .sort((a, b) => a.material_id - b.material_id);
   const summary = { aman: 0, menipis: 0, habis: 0 };
@@ -88,38 +90,74 @@ export function buildRawMaterialBoard() {
   return { rows, summary };
 }
 
+// CR-04a CP6 · FR-44 · BR-23 · Errata E1 B.4: setiap perubahan stok = dokumen + mutasi buku mutasi (ledgerMock), sama
+// dengan server CP4 (adminRawMaterial.service): tambah → saldo awal; koreksi stok → stock_opname; stok masuk → stok_masuk.
+// request_id opsional (kontrak idempotensi penuh bila dikirim). Validasi & pesan lama AD-07 tetap.
+const isDecimal = (v) => /^\d+(\.\d{1,2})?$/.test(String(v ?? '').trim());
+const normalizeDecimal = (v) => (isDecimal(v) ? centsToDecimalString(decimalToCents(String(v).trim())) : (v == null || String(v).trim() === '' ? null : String(v).trim()));
+const materialPayload = (input) => ({
+  name: String(input.name ?? '').trim(), unit: String(input.unit ?? '').trim(), stock: normalizeDecimal(input.stock),
+  min_stock: normalizeDecimal(input.min_stock), expected_stock: normalizeDecimal(input.expected_stock),
+});
+const view = (row) => ({ ...row, status: getMaterialStatus(row) });
+
 /** Tambah (materialId = null) atau ubah bahan baku: nama, satuan, stok, batas minimum */
-export function saveRawMaterial(materialId, input) {
-  const { raw_materials: materials } = getTables('raw_materials');
-  const existing = materialId == null ? null : (materials.find((m) => m.material_id === Number(materialId)) ?? fail('Bahan baku tidak ditemukan'));
-  const errors = validateMaterial(input, materials, existing?.material_id ?? null, MATERIAL_LIMITS);
-  if (Object.keys(errors).length) throw Object.assign(new Error(Object.values(errors)[0]), { fieldErrors: errors });
-  // Step 6.6 (CP6 · G7): ubah → aturan expected_stock sama dengan API (400/409 + fieldErrors.stock); stok tidak ditimpa
-  // bila tidak dikoreksi, sehingga stok masuk sejak form dibuka tetap utuh
-  let stock = Number(input.stock);
-  if (existing) {
+export function saveRawMaterial(actor, materialId, input, { requestId } = {}) {
+  const create = materialId == null;
+  return runMockOperation({
+    requestId, actorId: actor.user_id, operation: create ? 'create_raw_material' : 'update_raw_material', targetType: create ? null : 'raw_material',
+    targetId: create ? null : String(materialId), payload: materialPayload(input), successStatus: create ? 201 : 200,
+  }, () => {
+    const t = loadLedgerTables();
+    const existing = create ? null : (t.raw_materials.find((m) => m.material_id === Number(materialId)) ?? fail('Bahan baku tidak ditemukan'));
+    const errors = validateMaterial(input, t.raw_materials, existing?.material_id ?? null, MATERIAL_LIMITS);
+    if (Object.keys(errors).length) throw Object.assign(new Error(Object.values(errors)[0]), { fieldErrors: errors });
+    const next = { raw_materials: t.raw_materials, stock_adjustments: t.stock_adjustments, material_movements: t.material_movements };
+    if (create) {
+      const stock = normalizeDecimal(input.stock);
+      const row = { material_id: nextUserRowId(t.raw_materials, 'material_id'), name: String(input.name).trim(), unit: String(input.unit).trim(), stock: Number(stock), min_stock: Number(input.min_stock) };
+      next.raw_materials = [...t.raw_materials, row];
+      openingRows(next, row.material_id, stock, { actorId: actor.user_id, requestId: requestId ?? null });
+      return { data: view(row), tables: next };
+    }
+    // Step 6.6 (CP6 · G7): aturan expected_stock sama dengan API (400/409 + fieldErrors.stock); stok tidak ditimpa bila tidak dikoreksi
     const check = resolveExpectedUpdate(input.stock, input.expected_stock, existing.stock, MATERIAL_STOCK_MESSAGE);
     if (check.status) throw createApiError(check.message, check.status, undefined, { fieldErrors: { stock: check.message } });
-    if (!check.write) stock = existing.stock;
-  }
-  const row = {
-    material_id: existing?.material_id ?? nextUserRowId(materials, 'material_id'),
-    name: String(input.name).trim(),
-    unit: String(input.unit).trim(),
-    stock,
-    min_stock: Number(input.min_stock),
-  };
-  updateTable('raw_materials', (rows) => (existing ? rows.map((m) => (m.material_id === row.material_id ? row : m)) : [...rows, row]));
-  return { ...row, status: getMaterialStatus(row) };
+    const info = { name: String(input.name).trim(), unit: String(input.unit).trim(), min_stock: Number(input.min_stock) };
+    next.raw_materials = t.raw_materials.map((m) => (m.material_id === existing.material_id ? { ...m, ...info } : m));
+    if (check.write) {
+      const counted = normalizeDecimal(input.stock);
+      const system = toDecimalText(existing.stock);
+      const docId = nextId(t.stock_adjustments, 'adjustment_id');
+      next.stock_adjustments = [...t.stock_adjustments, {
+        adjustment_id: docId, material_id: existing.material_id, kind: 'stock_opname', qty: null, counted_stock: counted, system_stock: system,
+        reverses_id: null, replaces_id: null, reason: null, opening_material_id: null, operation_request_id: requestId ?? null, created_by: actor.user_id, created_at: nowIso(),
+      }];
+      applyMovements(next, [{ material_id: String(existing.material_id), delta: decimalToCents(counted) - decimalToCents(system), type: 'stock_opname' }],
+        () => ({ adjustment_id: docId }), actor.user_id);
+    }
+    return { data: view(next.raw_materials.find((m) => m.material_id === existing.material_id)), tables: next };
+  });
 }
 
-/** "Catat Stok Masuk": stok bahan bertambah sejumlah barang yang diterima */
-export function recordMaterialStockIn(materialId, qty) {
-  const { raw_materials: materials } = getTables('raw_materials');
-  const existing = materials.find((m) => m.material_id === Number(materialId)) ?? fail('Bahan baku tidak ditemukan');
-  const error = validateStockIn(qty, existing.stock, MAX_MATERIAL_QTY);
-  if (error) fail(error);
-  const row = { ...existing, stock: addDecimal(existing.stock, qty) };
-  updateTable('raw_materials', (rows) => rows.map((m) => (m.material_id === row.material_id ? row : m)));
-  return { ...row, status: getMaterialStatus(row) };
+/** "Catat Stok Masuk": dokumen stok_masuk + mutasi (+qty); validasi lama tetap */
+export function recordMaterialStockIn(actor, materialId, qty, { requestId } = {}) {
+  return runMockOperation({
+    requestId, actorId: actor.user_id, operation: 'raw_material_stock_in', targetType: 'raw_material', targetId: String(materialId),
+    payload: { qty: normalizeDecimal(qty) }, successStatus: 200,
+  }, () => {
+    const t = loadLedgerTables();
+    const existing = t.raw_materials.find((m) => m.material_id === Number(materialId)) ?? fail('Bahan baku tidak ditemukan');
+    const error = validateStockIn(qty, existing.stock, MAX_MATERIAL_QTY);
+    if (error) fail(error);
+    const amount = normalizeDecimal(qty);
+    const next = { raw_materials: t.raw_materials, stock_adjustments: t.stock_adjustments, material_movements: t.material_movements };
+    const docId = nextId(t.stock_adjustments, 'adjustment_id');
+    next.stock_adjustments = [...t.stock_adjustments, {
+      adjustment_id: docId, material_id: existing.material_id, kind: 'stok_masuk', qty: amount, counted_stock: null, system_stock: null,
+      reverses_id: null, replaces_id: null, reason: null, opening_material_id: null, operation_request_id: requestId ?? null, created_by: actor.user_id, created_at: nowIso(),
+    }];
+    applyMovements(next, [{ material_id: String(existing.material_id), delta: decimalToCents(amount), type: 'stok_masuk' }], () => ({ adjustment_id: docId }), actor.user_id);
+    return { data: view(next.raw_materials.find((m) => m.material_id === existing.material_id)), tables: next };
+  });
 }

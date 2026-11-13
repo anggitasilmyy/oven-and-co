@@ -4,6 +4,7 @@
 //    tab Kebutuhan Bahan bertambah tepat Δtakaran × rencana croissant hari ini (BR-14/BR-15, tanpa pembulatan).
 // 2. AC-40.12: Catat Stok Masuk Butter di tab Bahan Baku → stok & sisa di Kebutuhan Bahan ikut bertambah.
 // 3. Hak akses: Owner & Staf membuka AD-06/AD-07; pelanggan diarahkan keluar dari admin dan service ditolak.
+// 4. CR-04a CP6: teks keterangan wajib tab Kebutuhan Bahan yang tampil = E-6 versi CR-04a (teks aktif SPEC bagian 10).
 // Jalankan: BASE=http://localhost:5173 node tests/step-6.7/integration.e2e.mjs   (mode API: BASE=http://localhost:5174)
 import { createRequire } from 'node:module';
 
@@ -88,6 +89,10 @@ await loginAdmin('owner@demo.com');
 await p.goto(`${B}/admin/stok?tab=kebutuhan`);
 check('Owner membuka tab Kebutuhan Bahan', await p.getByRole('heading', { name: /^Stok dialokasikan/ }).isVisible({ timeout: 10000 }).catch(() => false)
   || await p.getByRole('heading', { name: /^Stok dialokasikan/ }).waitFor({ timeout: 10000 }).then(() => true, () => false));
+// CR-04a CP6 · E-6 versi CR-04a aktif: teks keterangan wajib yang tampil = konstanta aktif (kalimat penutup baru)
+const noteText = (await p.locator('main').innerText()).replace(/\s+/g, ' ');
+check('teks keterangan tampil = E-6 versi CR-04a (bukan kalimat CR-03)', noteText.includes('Estimasi ini tidak mengurangi stok bahan; stok hanya berubah lewat Catat Stok Masuk, penerimaan pembelian, stock opname, serta pembalik atau koreksi transaksi tersebut.')
+  && !noteText.includes('Stok bahan tidak dikurangi otomatis'));
 await logout();
 await p.goto(`${B}/masuk`); await p.waitForTimeout(500);
 await p.fill('#masuk-identifier', 'pelanggan@demo.com'); await p.fill('#masuk-password', 'demo1234');

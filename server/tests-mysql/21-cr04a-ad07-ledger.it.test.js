@@ -125,6 +125,10 @@ test('IT-12: pembalik & koreksi stok masuk; dokumen tidak berlaku 409; opname & 
     WHERE material_id = ? AND adjustment_id > ? ORDER BY adjustment_id`, id, O);
   assert.deepEqual(docs.map((d) => [d.kind, d.qty, d.op]), [['pembalik_stok_masuk', '10.00', op], ['pengganti_stok_masuk', '8.00', op]]);
   assert.equal((await rows('SELECT adjustment_id FROM material_movements WHERE material_id = ? ORDER BY movement_id DESC LIMIT 1', id))[0].adjustment_id, docs[1].adjustment_id);
+  const ledger = (await api('GET', `/raw-materials/${id}/movements`)).body.data.movements;
+  const effectiveOf = (docId) => ledger.find((m) => m.document.id === String(docId))?.document.effective;
+  assert.deepEqual([effectiveOf(O), effectiveOf(docs[1].adjustment_id)], [false, true], 'CP6: asal dikoreksi → tidak berlaku; pengganti berlaku');
+  assert.equal(ledger.find((m) => m.document.id === String(docs[1].adjustment_id)).document.qty, 8, 'CP6: qty dokumen pengganti (bukan mutasi bersih −2)');
   for (const target of [O, docs[0].adjustment_id]) {
     res = await api('POST', `/stock-adjustments/${target}/reverse`, { reason: 'ulang', request_id: rid() });
     assert.deepEqual([res.status, res.body.code], [409, 'DOCUMENT_ALREADY_SUPERSEDED'], target);
@@ -192,6 +196,8 @@ test('IT-06/IT-31 (AD-07): replay identik + header, 409 REUSED, 409 IN_PROGRESS,
   assert.equal((await rows('SELECT COUNT(*) AS n FROM operation_requests WHERE response_status = 102'))[0].n, '0');
   const history = await api('GET', `/raw-materials/${id}/movements`);
   assert.deepEqual(history.body.data.movements.map((m) => [m.type, m.stock_after]), [['saldo_awal', 2], ['stok_masuk', 3.5], ['stok_masuk', 4.5]]);
+  // CP6: dokumen stok berlaku → effective true (belum dibalik/dikoreksi)
+  assert.deepEqual(history.body.data.movements.map((m) => m.document.effective), [true, true, true]);
 });
 
 test('IT-07 (AD-07): stok masuk × opname × koreksi PUT × request_id kembar bersamaan — invarian lulus, 0 deadlock', async () => {

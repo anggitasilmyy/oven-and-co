@@ -451,8 +451,8 @@ Simpan semua nilai berikut di store_settings / konstanta agar mudah diganti:
 | E-3 | Rencana ready hari ini dihitung penuh (bisa berlebih bila sebagian sudah dibuat dan stok dikoreksi) | CR-03 |
 | E-4 | Custom cake memakai takaran ukuran standar | CR-03 |
 | E-5 | Pesanan Sedang Disiapkan dihitung penuh | CR-03 |
-| E-6 (**AKTIF**) | Stok bahan tidak dikurangi otomatis; akurasi bergantung pada koreksi stok AD-07 | CR-03 |
-| E-6 versi CR-04a (**BELUM AKTIF** — berlaku setelah Step 6.8 CP6 berhasil) | Estimasi tidak mengurangi stok bahan; stok hanya berubah lewat transaksi yang dicatat — Catat Stok Masuk, penerimaan pembelian, stock opname, serta pembalik atau koreksi transaksi tersebut; akurasi bergantung pada pencatatan transaksi dan stock opname AD-07 | CR-04a |
+| E-6 versi CR-03 (**tidak berlaku lagi** sejak Step 6.8 CP6) | Stok bahan tidak dikurangi otomatis; akurasi bergantung pada koreksi stok AD-07 | CR-03 |
+| E-6 versi CR-04a (**AKTIF** sejak Step 6.8 CP6) | Estimasi tidak mengurangi stok bahan; stok hanya berubah lewat transaksi yang dicatat — Catat Stok Masuk, penerimaan pembelian, stock opname, serta pembalik atau koreksi transaksi tersebut; akurasi bergantung pada pencatatan transaksi dan stock opname AD-07 | CR-04a |
 | E-7 | Produk tanpa komposisi tidak dihitung; ditampilkan terpisah | CR-03 |
 | E-8 | Item ready di pesanan campuran dihitung pada tanggal pesanan dibuat (TF-12), bukan `ready_date` | CR-03 (diterima) |
 | E-9 | Klasifikasi memakai tipe produk saat estimasi; perubahan tipe setelah pesanan dibuat dapat membuat estimasi kurang/berlebih | CR-03 |
@@ -465,25 +465,22 @@ Simpan semua nilai berikut di store_settings / konstanta agar mudah diganti:
 | Batas stok & harga | Stok/kuantitas 0 – 99.999.999,99; harga > 0 – 9.999.999.999,99 | CR-04a |
 | Lock wait transaksi stok | 2 detik; 1205/1213 → rollback penuh | CR-04a |
 
-Teks keterangan wajib di tab Kebutuhan Bahan (CR-03, memuat E-1 – E-10, selalu tampil; **teks AKTIF**): *"Angka ini estimasi, bukan
+Teks keterangan wajib di tab Kebutuhan Bahan (CR-03 + E-6 versi CR-04a, memuat E-1 – E-10, selalu tampil; **teks AKTIF**): *"Angka ini estimasi, bukan
 catatan pemakaian bahan. Dihitung dari pesanan pre-order & custom yang sudah dikonfirmasi atau sedang disiapkan —
 pesanan yang sedang disiapkan dihitung penuh — ditambah seluruh rencana produk ready hari ini, termasuk yang mungkin
 sudah dibuat. Produk ready untuk tanggal mendatang belum termasuk. Produk ready dalam pesanan campuran dihitung pada
 tanggal pesanan dibuat, bukan tanggal siap. Custom cake dihitung dengan ukuran standar, dan varian produk tidak
 dihitung terpisah. Produk tanpa komposisi tidak dihitung dan ditampilkan terpisah. Jenis produk dibaca dari data
-produk saat ini; bila diubah setelah pesanan dibuat, estimasi dapat kurang atau berlebih. Stok bahan tidak dikurangi
-otomatis; perbarui lewat Catat Stok Masuk atau koreksi stok."*
+produk saat ini; bila diubah setelah pesanan dibuat, estimasi dapat kurang atau berlebih. Estimasi ini tidak mengurangi
+stok bahan; stok hanya berubah lewat Catat Stok Masuk, penerimaan pembelian, stock opname, serta pembalik atau koreksi
+transaksi tersebut."*
 
-**E-6 versi CR-04a — BELUM AKTIF.** Berlaku setelah Step 6.8 CP6 berhasil (buku mutasi & integrasi AD-07 benar-benar
-berfungsi). Saat itu kalimat penutup teks aktif di atas ("Stok bahan tidak dikurangi otomatis; …") diganti dengan
-kalimat berikut, sedangkan bagian awal tidak berubah:
-
-> Estimasi ini tidak mengurangi stok bahan; stok hanya berubah lewat Catat Stok Masuk, penerimaan pembelian, stock
-> opname, serta pembalik atau koreksi transaksi tersebut.
-
-Penggantian dilakukan **dalam satu commit CP6**: teks aktif di SPEC, konstanta `MATERIAL_REQUIREMENT_NOTE`, unit test
-K-14, dan uji integrasi/e2e yang memeriksa teks. Sebelum itu teks aktif, konstanta, dan uji tidak diubah, sehingga teks
-yang tampil selalu sesuai perilaku sistem yang aktif. Versi CR-04b (E-6 + E-11) dicadangkan dan belum berlaku.
+**E-6 versi CR-04a — AKTIF sejak Step 6.8 CP6** (buku mutasi & integrasi AD-07/AD-12 berfungsi di mode mock & API).
+Kalimat penutup teks aktif di atas menggantikan kalimat penutup versi CR-03 ("Stok bahan tidak dikurangi otomatis;
+perbarui lewat Catat Stok Masuk atau koreksi stok."); bagian awal tidak berubah. Penggantian dilakukan dalam satu commit
+CP6: teks aktif di SPEC, konstanta `MATERIAL_REQUIREMENT_NOTE`, unit test K-14, dan uji integrasi/e2e yang memeriksa teks,
+sehingga teks yang tampil selalu sesuai perilaku sistem yang aktif. Versi CR-04b (E-6 + E-11) dicadangkan dan belum
+berlaku.
 
 ## 11. Catatan Perubahan Requirement — CR-01 (Responsive Web)
 
@@ -645,7 +642,7 @@ Sumber matriks: Errata E1 Lampiran A (A.2 – A.6); IT-24 pada E1 A.5 FR-43 adal
 
 Tidak berubah: FR-39, FR-40, BR-13 – BR-16, aturan & API estimasi kebutuhan bahan, `product_materials`, AD-06, struktur &
 presisi `raw_materials`, peringatan ubah satuan K-06. Satu-satunya dampak pada CR-03 adalah kalimat penutup teks
-keterangan wajib (E-6, bagian 10) yang berganti **setelah CP6**. Pernyataan bagian 12 bahwa supplier dan purchase order
+keterangan wajib (E-6, bagian 10) yang berganti **pada CP6** (versi CR-04a kini aktif). Pernyataan bagian 12 bahwa supplier dan purchase order
 di luar lingkup digantikan oleh catatan ini; produksi/work order dan laporan bahan/pembelian/produksi tetap di luar
 lingkup sampai CR-04b/c disetujui.
 

@@ -48,3 +48,24 @@ export const REQUEST_ID_POLICY = Object.freeze({
   reverse_stock_in: 'required',
   correct_stock_in: 'required',
 });
+
+// CR-04a CP6 · AD-12 Pembelian — tab (?tab=supplier), label & badge status PO, label jenis dokumen & mutasi (tampilan)
+export const PURCHASING_TAB = Object.freeze({ PO: 'po', SUPPLIER: 'supplier' });
+export const PURCHASING_TABS = Object.freeze([
+  { key: PURCHASING_TAB.PO, label: 'Purchase Order' },
+  { key: PURCHASING_TAB.SUPPLIER, label: 'Supplier' },
+]);
+export const PO_STATUS_META = Object.freeze({
+  draft: { label: 'Draft', variant: 'neutral' },
+  dipesan: { label: 'Dipesan', variant: 'preorder' },
+  diterima_sebagian: { label: 'Diterima Sebagian', variant: 'custom' },
+  diterima: { label: 'Diterima', variant: 'ready' },
+  dibatalkan: { label: 'Dibatalkan', variant: 'error' },
+});
+export const RECEIPT_KIND_LABEL = Object.freeze({ normal: 'Penerimaan', pembalik: 'Pembalik', pengganti: 'Koreksi (pengganti)' });
+export const MOVEMENT_TYPE_LABEL = Object.freeze({
+  saldo_awal: 'Saldo awal', stok_masuk: 'Stok masuk', pembalik_stok_masuk: 'Pembalik stok masuk', koreksi_stok_masuk: 'Koreksi stok masuk',
+  stock_opname: 'Stock opname', penerimaan: 'Penerimaan PO', pembalik_penerimaan: 'Pembalik penerimaan', koreksi_penerimaan: 'Koreksi penerimaan',
+});
+/** Dokumen stok masuk yang dapat dibalik/dikoreksi dari riwayat mutasi AD-07 (BR-30) */
+export const REVERSIBLE_STOCK_KINDS = Object.freeze(['stok_masuk', 'pengganti_stok_masuk']);
