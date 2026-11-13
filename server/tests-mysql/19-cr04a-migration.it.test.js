@@ -49,6 +49,10 @@ test('IT-01 · IT-34 · IT-02: upgrade 30 → 39 tabel dengan snapshot M-4, back
   // M-5/M-6: backup + restore uji
   S.dump(UP, BACKUP);
   S.restore(RESTORED, BACKUP);
+  // CP7 · IT-02 (Draft §18): jumlah baris & CHECKSUM TABLE setiap tabel hasil restore = database sumber
+  const fingerprint = (name) => S.tableFingerprint(name).replaceAll(`${name}.`, ''); // CHECKSUM TABLE mencetak db.tabel
+  assert.equal(fingerprint(RESTORED), fingerprint(UP));
+  assert.match(fingerprint(UP), /raw_materials\t6\n/);
   assert.equal(S.snapshot(RESTORED, ['--compare', SNAP]).status, 0);
   S.mysql('UPDATE raw_materials SET stock = 0.02 WHERE material_id = 2;', RESTORED);
   assert.equal(S.snapshot(RESTORED, ['--compare', SNAP]).status, 1, 'nilai berubah → hash beda');

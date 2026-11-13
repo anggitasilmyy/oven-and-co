@@ -105,7 +105,9 @@ for (const path of ['/admin/produk', '/admin/stok']) {
   await p.goto(`${B}${path}`); await wait(600);
   check(`Pelanggan tidak bisa membuka ${path}`, !p.url().includes('/admin'), p.url());
 }
-check('Pelanggan: service produk/stok ditolak', [(await svc(PRODUCTS, 'saveProduct', 1, {})).error, (await svc(STOCK, 'recordStockIn', 1, 5)).error].every((e) => e === 'Akses ditolak untuk peran ini'));
+// CR-04a CP7: stok masuk (endpoint buku mutasi) di mode mock memakai kontrak rute API — 403 dengan pesan requireRole server
+check('Pelanggan: service produk/stok ditolak', (await svc(PRODUCTS, 'saveProduct', 1, {})).error === 'Akses ditolak untuk peran ini'
+  && (await svc(STOCK, 'recordStockIn', 1, 5)).error === 'Anda tidak memiliki izin untuk mengakses resource ini.');
 await loginAdmin('owner@demo.com');
 await p.goto(`${B}/admin/produk`); await wait(900);
 check('Owner: AD-06 terbuka dengan tabel produk', (await p.getByRole('table', { name: 'Daftar produk' }).count()) === 1);

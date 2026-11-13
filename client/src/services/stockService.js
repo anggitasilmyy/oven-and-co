@@ -11,6 +11,10 @@ import {
 import { buildMaterialRequirements } from './mock/materialRequirementAdmin';
 import { countStock as mockCountStock, reverseOrCorrectStockIn, buildMaterialMovements } from './mock/stockDocumentAdmin';
 import { ROLES } from '../constants/roles';
+import * as R from './mock/requestBody';
+
+const MATERIAL_ID = 'ID bahan baku tidak valid.';
+const ADJUSTMENT_ID = 'ID dokumen stok tidak valid.';
 
 const ADMIN_ROLES = [ROLES.STAF, ROLES.OWNER];
 const asAdmin = (fn) => (...args) => {
@@ -40,7 +44,6 @@ export function getRawMaterials() {
   return apiClient('/admin/raw-materials', { mockHandler: asAdmin(buildRawMaterialBoard) });
 }
 
-const mockActor = () => requireMockRole(...ADMIN_ROLES);
 const withId = (body, requestId) => (requestId ? { ...body, request_id: requestId } : body);
 
 /**
@@ -51,7 +54,10 @@ export function saveMaterial(materialId, input, requestId) {
   return apiClient(materialId == null ? '/admin/raw-materials' : `/admin/raw-materials/${materialId}`, {
     method: materialId == null ? 'POST' : 'PUT',
     body: withId(input, requestId),
-    mockHandler: () => saveRawMaterial(mockActor(), materialId, input, { requestId }),
+    mockHandler: () => R.mockRoute({
+      operation: materialId == null ? 'create_raw_material' : 'update_raw_material', requestId,
+      ids: materialId == null ? [] : [[materialId, MATERIAL_ID]], body: input, validate: R.validateMaterialBody,
+    }, (actor, body) => saveRawMaterial(actor, materialId, body, { requestId })),
   });
 }
 
@@ -60,7 +66,9 @@ export function recordStockIn(materialId, qty, requestId) {
   return apiClient(`/admin/raw-materials/${materialId}/stock-in`, {
     method: 'POST',
     body: withId({ qty }, requestId),
-    mockHandler: () => recordMaterialStockIn(mockActor(), materialId, qty, { requestId }),
+    mockHandler: () => R.mockRoute({
+      operation: 'raw_material_stock_in', requestId, ids: [[materialId, MATERIAL_ID]], body: { qty }, validate: R.validateStockInBody,
+    }, (actor, body) => recordMaterialStockIn(actor, materialId, body.qty, { requestId })),
   });
 }
 
@@ -68,7 +76,9 @@ export function recordStockIn(materialId, qty, requestId) {
 export function countStock(materialId, input, requestId) {
   return apiClient(`/admin/raw-materials/${materialId}/stock-counts`, {
     method: 'POST', body: withId(input, requestId),
-    mockHandler: () => mockCountStock(mockActor(), materialId, input, { requestId }),
+    mockHandler: () => R.mockRoute({
+      operation: 'count_stock', requestId, ids: [[materialId, MATERIAL_ID]], body: input, validate: R.validateStockCountBody,
+    }, (actor, body) => mockCountStock(actor, materialId, body, { requestId })),
   });
 }
 
@@ -76,13 +86,16 @@ export function countStock(materialId, input, requestId) {
 export function reverseOrCorrectStockInDocument(adjustmentId, input, requestId, { correct }) {
   return apiClient(`/admin/stock-adjustments/${adjustmentId}/${correct ? 'correct' : 'reverse'}`, {
     method: 'POST', body: withId(input, requestId),
-    mockHandler: () => reverseOrCorrectStockIn(mockActor(), adjustmentId, input, { requestId, correct }),
+    mockHandler: () => R.mockRoute({
+      operation: correct ? 'correct_stock_in' : 'reverse_stock_in', requestId, ids: [[adjustmentId, ADJUSTMENT_ID]], body: input,
+      validate: (body) => R.validateStockDocumentBody(body, correct),
+    }, (actor, body) => reverseOrCorrectStockIn(actor, adjustmentId, body, { requestId, correct })),
   });
 }
 
 /** CR-04a · FR-44: riwayat mutasi bahan → {material, movements[]} */
 export function getMaterialMovements(materialId) {
-  return apiClient(`/admin/raw-materials/${materialId}/movements`, { mockHandler: asAdmin(() => buildMaterialMovements(materialId)) });
+  return apiClient(`/admin/raw-materials/${materialId}/movements`, { mockHandler: () => R.mockRoute({ operation: null, ids: [[materialId, MATERIAL_ID]] }, () => buildMaterialMovements(materialId)) });
 }
 
 /**

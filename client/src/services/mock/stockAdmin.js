@@ -15,6 +15,11 @@ import { resolveExpectedUpdate } from '../../utils/rules/expectedValue';
 import { createApiError } from '../../utils/apiErrors';
 
 const fail = (message) => { throw new Error(message); };
+const isBlank = (v) => v == null || String(v).trim() === ''; // = adminRawMaterial.service server
+const EXPECTED_STOCK_INVALID = 'Stok awal form tidak valid. Muat ulang data.'; // = adminRawMaterial.service server
+// CR-04a CP7: status HTTP = server (adminRawMaterial.service / stockLedger.lockMaterials) untuk jalur buku mutasi AD-07
+const notFound = () => { throw createApiError('Bahan baku tidak ditemukan.', 404); };
+const badRequest = (message, fieldErrors) => { throw createApiError(message, 400, undefined, fieldErrors ? { fieldErrors } : undefined); };
 const MATERIAL_LIMITS = { nameMax: PRODUCT_FIELD_MAX.materialName, unitMax: PRODUCT_FIELD_MAX.materialUnit, qtyMax: MAX_MATERIAL_QTY };
 
 /** Produk yang stok hariannya dikelola: ready & aktif (BR-01) */
@@ -109,9 +114,11 @@ export function saveRawMaterial(actor, materialId, input, { requestId } = {}) {
     targetId: create ? null : String(materialId), payload: materialPayload(input), successStatus: create ? 201 : 200,
   }, () => {
     const t = loadLedgerTables();
-    const existing = create ? null : (t.raw_materials.find((m) => m.material_id === Number(materialId)) ?? fail('Bahan baku tidak ditemukan'));
-    const errors = validateMaterial(input, t.raw_materials, existing?.material_id ?? null, MATERIAL_LIMITS);
-    if (Object.keys(errors).length) throw Object.assign(new Error(Object.values(errors)[0]), { fieldErrors: errors });
+    const existing = create ? null : (t.raw_materials.find((m) => m.material_id === Number(materialId)) ?? notFound());
+    // CP7: ubah tanpa `stock` divalidasi dengan stok saat ini (= server adminRawMaterial: stok terkunci tetap tersimpan)
+    const checked = existing && isBlank(input.stock) ? { ...input, stock: existing.stock } : input;
+    const errors = validateMaterial(checked, t.raw_materials, existing?.material_id ?? null, MATERIAL_LIMITS);
+    if (Object.keys(errors).length) badRequest(Object.values(errors)[0], errors);
     const next = { raw_materials: t.raw_materials, stock_adjustments: t.stock_adjustments, material_movements: t.material_movements };
     if (create) {
       const stock = normalizeDecimal(input.stock);
@@ -121,6 +128,9 @@ export function saveRawMaterial(actor, materialId, input, { requestId } = {}) {
       return { data: view(row), tables: next };
     }
     // Step 6.6 (CP6 · G7): aturan expected_stock sama dengan API (400/409 + fieldErrors.stock); stok tidak ditimpa bila tidak dikoreksi
+    // CP7: expected_stock bukan desimal ≤ 2 angka → 400 sebelum perbandingan (= resolveStockUpdate server; tanpa ini
+    // "7.001" dibulatkan menjadi 7.00 dan koreksi stok ditulis, padahal server menolak)
+    if (!isBlank(input.stock) && !isBlank(input.expected_stock) && !isDecimal(input.expected_stock)) badRequest(EXPECTED_STOCK_INVALID);
     const check = resolveExpectedUpdate(input.stock, input.expected_stock, existing.stock, MATERIAL_STOCK_MESSAGE);
     if (check.status) throw createApiError(check.message, check.status, undefined, { fieldErrors: { stock: check.message } });
     const info = { name: String(input.name).trim(), unit: String(input.unit).trim(), min_stock: Number(input.min_stock) };
@@ -147,9 +157,9 @@ export function recordMaterialStockIn(actor, materialId, qty, { requestId } = {}
     payload: { qty: normalizeDecimal(qty) }, successStatus: 200,
   }, () => {
     const t = loadLedgerTables();
-    const existing = t.raw_materials.find((m) => m.material_id === Number(materialId)) ?? fail('Bahan baku tidak ditemukan');
+    const existing = t.raw_materials.find((m) => m.material_id === Number(materialId)) ?? notFound();
     const error = validateStockIn(qty, existing.stock, MAX_MATERIAL_QTY);
-    if (error) fail(error);
+    if (error) badRequest(error);
     const amount = normalizeDecimal(qty);
     const next = { raw_materials: t.raw_materials, stock_adjustments: t.stock_adjustments, material_movements: t.material_movements };
     const docId = nextId(t.stock_adjustments, 'adjustment_id');

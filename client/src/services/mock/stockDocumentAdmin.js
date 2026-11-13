@@ -6,10 +6,8 @@
 import { getMockUsers } from './users';
 import { loadLedgerTables, applyMovements, runMockOperation, nextId, nowIso, toDecimalText, movementView } from './ledgerMock';
 import { getMaterialStatus } from '../../utils/businessRules';
-import { reversalTargetError, planReversalOrCorrection, correctionShapeError, planStockCount, validateStockCountInput } from '../../utils/rules/stockLedger';
-import { decimalToCents, parseDecimalInput, centsToDecimalString } from '../../utils/rules/decimalInput';
-import { reasonError } from '../../utils/rules/purchasing';
-import { STOCK_QTY_MAX } from '../../constants/purchasing';
+import { reversalTargetError, planReversalOrCorrection, correctionShapeError, planStockCount } from '../../utils/rules/stockLedger';
+import { decimalToCents } from '../../utils/rules/decimalInput';
 import { decimalToMilli, milliToNumber } from '../../utils/rules/recipe';
 import { createApiError } from '../../utils/apiErrors';
 
@@ -19,47 +17,10 @@ const doc = (t, fields) => ({
   adjustment_id: nextId(t.stock_adjustments, 'adjustment_id'), qty: null, counted_stock: null, system_stock: null, reverses_id: null,
   replaces_id: null, reason: null, opening_material_id: null, created_at: nowIso(), ...fields,
 });
-// Validasi body = validators/stockLedger.validator.js server (skema ketat, desimal teks, alasan); hasil ter-normalisasi
-// dipakai untuk hash request_id seperti server.
-const BODY_INVALID_TEXT = 'Data tidak valid.';
-function strictBody(body, keys) {
-  const input = body ?? {};
-  if (typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some((k) => !keys.includes(k))) throw createApiError(BODY_INVALID_TEXT, 400);
-  return input;
-}
-function fail(fieldErrors) {
-  throw createApiError(Object.values(fieldErrors)[0], 400, undefined, { fieldErrors });
-}
-const requiredReason = (input) => (typeof input.reason === 'string' ? reasonError(input.reason) : 'Alasan wajib diisi.');
-
-function validateStockCountBody(body) {
-  const input = strictBody(body, ['counted_stock', 'expected_stock', 'reason']);
-  const result = validateStockCountInput(input);
-  const reason = reasonError(input.reason, { required: false });
-  const errors = { ...(result.errors ?? {}), ...(reason ? { reason } : {}) };
-  if (input.reason !== undefined && input.reason !== null && typeof input.reason !== 'string') errors.reason = BODY_INVALID_TEXT;
-  if (Object.keys(errors).length) fail(errors);
-  return { ...result.value, reason: typeof input.reason === 'string' && input.reason.trim() ? input.reason.trim() : null };
-}
-function validateReverseOrCorrectBody(body, correct) {
-  const input = strictBody(body, correct ? ['qty', 'reason'] : ['reason']);
-  const errors = {};
-  if (correct) {
-    const qty = parseDecimalInput(input.qty, { max: STOCK_QTY_MAX });
-    if (qty.error) errors.qty = qty.error;
-    else input.qty = centsToDecimalString(qty.cents);
-  }
-  const reason = requiredReason(input);
-  if (reason) errors.reason = reason;
-  if (Object.keys(errors).length) fail(errors);
-  return correct ? { qty: input.qty, reason: input.reason.trim() } : { reason: input.reason.trim() };
-}
-
 const tablesOf = (t) => ({ raw_materials: t.raw_materials, stock_adjustments: t.stock_adjustments, material_movements: t.material_movements });
 
-/** POST stock-counts { counted_stock, expected_stock, reason? } */
-export function countStock(actor, materialId, body, { requestId }) {
-  const input = validateStockCountBody(body);
+/** POST stock-counts — input sudah divalidasi & dinormalisasi rute mock (requestBody.validateStockCountBody) */
+export function countStock(actor, materialId, input, { requestId }) {
   return runMockOperation({
     requestId, actorId: actor.user_id, operation: 'count_stock', targetType: 'raw_material', targetId: String(materialId), payload: input, successStatus: 201,
   }, () => {
@@ -81,9 +42,8 @@ export function countStock(actor, materialId, body, { requestId }) {
   });
 }
 
-/** POST stock-adjustments/:id/reverse { reason } · /correct { qty, reason } */
-export function reverseOrCorrectStockIn(actor, adjustmentId, body, { requestId, correct }) {
-  const input = validateReverseOrCorrectBody({ ...body }, correct);
+/** POST stock-adjustments/:id/reverse { reason } · /correct { qty, reason } — input dari requestBody.validateStockDocumentBody */
+export function reverseOrCorrectStockIn(actor, adjustmentId, input, { requestId, correct }) {
   return runMockOperation({
     requestId, actorId: actor.user_id, operation: correct ? 'correct_stock_in' : 'reverse_stock_in', targetType: 'stock_adjustment',
     targetId: String(adjustmentId), payload: input, successStatus: 201,
