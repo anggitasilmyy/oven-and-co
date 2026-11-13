@@ -238,6 +238,17 @@ const AUDIT_ACTION = Object.freeze({
   // CR-04a · FR-44 · BR-34 (Draft 0.8.3 §10.2): dokumen stok AD-07 baru; aksi AD-07 lama tetap
   // Errata E1 B.4 (keputusan Pemilik Project 13 Nov 2026): bahan baru + saldo awal dalam satu transaksi
   CREATE_RAW_MATERIAL: 'create_raw_material',
+  // CR-04a · FR-41 – FR-43 · BR-34 (Draft 0.8.3 §10.2): pembelian
+  CREATE_SUPPLIER: 'create_supplier',
+  UPDATE_SUPPLIER: 'update_supplier',
+  SET_SUPPLIER_ACTIVE: 'set_supplier_active',
+  CREATE_PURCHASE_ORDER: 'create_purchase_order',
+  UPDATE_PURCHASE_ORDER: 'update_purchase_order',
+  ORDER_PURCHASE_ORDER: 'order_purchase_order',
+  CANCEL_PURCHASE_ORDER: 'cancel_purchase_order',
+  RECEIVE_PURCHASE_ORDER: 'receive_purchase_order',
+  REVERSE_GOODS_RECEIPT: 'reverse_goods_receipt',
+  CORRECT_GOODS_RECEIPT: 'correct_goods_receipt',
   COUNT_STOCK: 'count_stock',
   REVERSE_STOCK_IN: 'reverse_stock_in',
   CORRECT_STOCK_IN: 'correct_stock_in',
@@ -249,6 +260,9 @@ const AUDIT_ENTITY = Object.freeze({
   CUSTOM_OPTIONS: 'custom_options',
   DAILY_STOCKS: 'daily_stocks',
   RAW_MATERIALS: 'raw_materials',
+  SUPPLIERS: 'suppliers', // CR-04a
+  PURCHASE_ORDERS: 'purchase_orders', // CR-04a
+  GOODS_RECEIPTS: 'goods_receipts', // CR-04a
 });
 // Pesan 401 pelaku tidak ada / nonaktif — sama dengan middleware auth & adminStaffRules ACTOR_INACTIVE
 const AUDIT_ACTOR_INACTIVE_TEXT = 'Akun tidak ditemukan atau tidak aktif.';
@@ -420,6 +434,7 @@ const OWNER_ROLE = 'owner';
 // CR-04a · FR-41 – FR-44 · BR-17 – BR-24, BR-30, BR-31, BR-35 (SPEC §5, §6, §10; Draft 0.8.3 §3 – §7, §14) — pembelian
 // & buku mutasi. Batas ditulis sebagai teks desimal (dibaca lewat BigInt, tidak pernah float).
 const PO_MAX_ITEMS = 30; // asumsi prototype SPEC §10
+const PO_NUMBER_PREFIX = 'PO'; // nomor PO-YYMMDD-NNN (SPEC §10), tanggal WIB saat PO dibuat
 const STOCK_QTY_MAX = '99999999.99'; // DECIMAL(10,2)
 const PURCHASE_PRICE_MAX = '9999999999.99'; // DECIMAL(12,2); juga batas nilai baris & nilai PO
 const DOCUMENT_REASON_MAX = 255;
@@ -466,6 +481,7 @@ const REQUEST_ID_POLICY = Object.freeze({
 module.exports = {
   MILLI_PRECISION_LOST_TEXT,
   PO_MAX_ITEMS,
+  PO_NUMBER_PREFIX,
   STOCK_QTY_MAX,
   PURCHASE_PRICE_MAX,
   DOCUMENT_REASON_MAX,
