@@ -78,6 +78,15 @@ test('nilai PO, nilai penerimaan, nilai sisa dibatalkan, alasan, sisa item — i
   }
 });
 
+test('nomor PO-YYMMDD-NNN (SPEC §10) — identik dengan server', () => {
+  const existing = ['PO-261113-001', 'PO-261113-009', 'PO-261112-050', 'PO-261113-0x1', 'OVC-261113-099'];
+  for (const key of ['2026-11-13', '2026-11-12', '2027-01-01']) {
+    assert.equal(P.nextPurchaseOrderNumber(existing, key), SP.nextPurchaseOrderNumber(existing, key));
+  }
+  assert.equal(P.nextPurchaseOrderNumber(existing, '2026-11-13'), 'PO-261113-010');
+  assert.equal(P.formatPurchaseOrderNumber('2027-01-01', 1), 'PO-270101-001');
+});
+
 test('supplier, PO, transisi, penerimaan, koreksi, pembatalan — identik dengan server', () => {
   const materials = new Set(['1', '2', '3']);
   const suppliers = [F.SUPPLIER_OK, { ...F.SUPPLIER_OK, phone: '0812', email: 'x', material_ids: ['1', '1', '7'] }, {}];

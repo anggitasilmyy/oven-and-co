@@ -29,18 +29,18 @@ function isLockConflict(err) {
   return /\b(1205|1213|P2034)\b|Lock wait timeout|Deadlock/i.test(text);
 }
 
-const isDuplicateRequest = (err) => err?.code === 'P2002';
+const isDuplicateRequest = (err) => err?.code === 'P2002' || /\b1062\b|Duplicate entry/.test(`${err?.meta?.code ?? ''} ${err?.message ?? ''}`);
 
 class DuplicateRequestError extends Error {}
 
+// INSERT mentah (bukan Prisma create): create Prisma menjalankan SELECT sesudah INSERT, dan SELECT biasa pertama membuat
+// read view REPEATABLE READ SEBELUM baris bisnis dikunci → pembacaan berikutnya bisa basi (terbukti: penerimaan PO
+// bersamaan melewati sisa). Tanpa SELECT biasa di sini, read view baru terbentuk setelah seluruh kunci diambil.
 async function insertPending(tx, { requestId, operation, actorId, targetType, targetId, hash }) {
   try {
-    await tx.operationRequest.create({
-      data: {
-        requestId, operation, actorId: BigInt(actorId), targetType, targetId: targetId == null ? null : BigInt(targetId),
-        payloadHash: hash, responseStatus: PENDING_STATUS, responseBody: PENDING_BODY,
-      },
-    });
+    await tx.$executeRaw`INSERT INTO operation_requests (request_id, operation, actor_id, target_type, target_id, payload_hash,
+      response_status, response_body) VALUES (${requestId}, ${operation}, ${BigInt(actorId)}, ${targetType},
+      ${targetId == null ? null : BigInt(targetId)}, ${hash}, ${PENDING_STATUS}, ${JSON.stringify(PENDING_BODY)})`;
   } catch (err) {
     if (isDuplicateRequest(err)) throw new DuplicateRequestError(requestId);
     if (isLockConflict(err)) throw inProgressError();

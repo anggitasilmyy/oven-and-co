@@ -5,6 +5,7 @@
 // CR-04a · FR-41 – FR-44 · BR-17 – BR-24, BR-30, BR-31, BR-35 (SPEC §5, §6, §10; Draft 0.8.3 §3 – §7, §14) — pembelian
 // & buku mutasi. Batas ditulis sebagai teks desimal (dibaca lewat BigInt, tidak pernah float).
 export const PO_MAX_ITEMS = 30; // asumsi prototype SPEC §10
+export const PO_NUMBER_PREFIX = 'PO'; // nomor PO-YYMMDD-NNN (SPEC §10), tanggal WIB saat PO dibuat
 export const STOCK_QTY_MAX = '99999999.99'; // DECIMAL(10,2)
 export const PURCHASE_PRICE_MAX = '9999999999.99'; // DECIMAL(12,2); juga batas nilai baris & nilai PO
 export const DOCUMENT_REASON_MAX = 255;

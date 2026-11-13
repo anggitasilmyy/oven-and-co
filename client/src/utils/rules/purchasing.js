@@ -6,7 +6,7 @@
 // Port dari server services/purchasingRules.service.js — perilaku & pesan identik (uji silang client tests/vitest/purchasingRules.test.mjs).
 
 import {
-  PO_MAX_ITEMS, STOCK_QTY_MAX, PURCHASE_PRICE_MAX, PO_STATUS, PO_MANUAL_TRANSITIONS, PO_RECEIVABLE_STATUSES,
+  PO_MAX_ITEMS, PO_NUMBER_PREFIX, STOCK_QTY_MAX, PURCHASE_PRICE_MAX, PO_STATUS, PO_MANUAL_TRANSITIONS, PO_RECEIVABLE_STATUSES,
   SUPPLIER_FIELD_MAX, DOCUMENT_REASON_MAX,
 } from '../../constants/purchasing';
 import { parseDecimalInput, decimalToCents, centsToDecimalString } from './decimalInput';
@@ -176,6 +176,20 @@ function cancellationQuantities(items) {
   }));
 }
 
+/** Nomor PO-YYMMDD-NNN untuk kunci tanggal WIB "YYYY-MM-DD" (SPEC §10) */
+function formatPurchaseOrderNumber(dateKey, seq) {
+  const [y, m, d] = dateKey.split('-');
+  return `${PO_NUMBER_PREFIX}-${y.slice(2)}${m}${d}-${String(seq).padStart(3, '0')}`;
+}
+
+/** Nomor PO berikutnya untuk tanggal itu = urutan terbesar + 1 (pemanggil menyerialkan penomoran) */
+function nextPurchaseOrderNumber(existingNumbers, dateKey) {
+  const prefix = formatPurchaseOrderNumber(dateKey, 0).slice(0, -3);
+  const maxSeq = existingNumbers.filter((n) => n.startsWith(prefix))
+    .reduce((max, n) => (/^\d+$/.test(n.slice(prefix.length)) && Number(n.slice(prefix.length)) > max ? Number(n.slice(prefix.length)) : max), 0);
+  return formatPurchaseOrderNumber(dateKey, maxSeq + 1);
+}
+
 /** Alasan pembalik/koreksi (wajib) atau catatan (opsional): 1 – 255 karakter setelah trim */
 function reasonError(value, { required = true } = {}) {
   const v = text(value);
@@ -186,5 +200,5 @@ function reasonError(value, { required = true } = {}) {
 export {
   validateSupplier, validatePurchaseOrderItems, purchaseOrderTransitionError, itemRemainingCents,
   purchaseOrderStatusFromReceipts, validateReceiptLines, validateReceiptCorrection, validateDocumentLines,
-  cancellationQuantities, reasonError,
+  cancellationQuantities, reasonError, formatPurchaseOrderNumber, nextPurchaseOrderNumber,
 };

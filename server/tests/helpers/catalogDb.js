@@ -302,6 +302,16 @@ function installCatalogDb(fakePrisma, today) {
         state.t.dailyStocks.push({ stockId: id('stock'), productId, stockDate, qtyPlanned: 0, qtySold: 0 });
         return 1;
       }
+      // CR-04a CP5: operation_requests nilai sementara (INSERT mentah, tanpa SELECT sesudahnya)
+      if (/^INSERT INTO operation_requests \(request_id, operation, actor_id, target_type, target_id, payload_hash,\s+response_status, response_body\) VALUES/.test(sql)) {
+        fail('operationRequest.create');
+        const [requestId, operation, actorId, targetType, targetId, payloadHash, responseStatus, responseBody] = values;
+        if (state.t.operationRequests.some((r) => r.requestId === requestId)) {
+          throw Object.assign(new Error("Duplicate entry for key 'PRIMARY'"), { code: 'P2010', meta: { code: '1062' } });
+        }
+        state.t.operationRequests.push({ requestId, operation, actorId, targetType, targetId, payloadHash, responseStatus, responseBody: JSON.parse(responseBody) });
+        return 1;
+      }
       // CR-04a CP4: stok baru eksak dari buku mutasi
       if (/^UPDATE raw_materials SET stock = CAST\(\? AS DECIMAL\(10,2\)\) WHERE material_id = \?$/.test(sql)) {
         fail('rawMaterial.setStock');
