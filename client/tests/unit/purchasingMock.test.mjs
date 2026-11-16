@@ -219,3 +219,38 @@ test('CP7 temuan mock ≠ API (diperbaiki): urutan rute, body ketat, koreksi tan
   const after = loadLedgerTables();
   assert.equal(after.material_movements.length, JSON.parse(before).material_movements.length, 'penolakan & ubah info tidak menambah mutasi');
 });
+
+test('Draft §7 & BR-21 & AC-42.1 (mock = API, tests-mysql/24): PO Dipesan tidak terpengaruh supplier; koreksi PO Dibatalkan hanya mengurangi', async () => {
+  as('staf');
+  const body = (name, materialIds) => ({ name, phone: '+6281234567890', address: 'Jl. B', email: 'b@c.id', contact_person: 'R', material_ids: materialIds });
+  const sup = await P.saveSupplier(null, body('Toko Penutup', ['1', '2']), rid());
+  const order = async (items) => {
+    const po = await P.savePurchaseOrder(null, { supplier_id: sup.supplier_id, items }, rid());
+    return P.changePurchaseOrderStatus(po.po_id, { from: 'draft', to: 'dipesan' }, rid());
+  };
+  const po = await order([{ material_id: '1', qty_ordered: '10', unit_price: '100' }, { material_id: '2', qty_ordered: '5', unit_price: '50' }]);
+  const po2 = await order([{ material_id: '1', qty_ordered: '2.5', unit_price: '1000.01' }]);
+  const [i1, i2] = po.items.map((i) => i.po_item_id);
+  const [s1, s2] = [stockOf(1), stockOf(2)];
+  // Bahan 1 dilepas, supplier dinonaktifkan: PO baru ditolak, PO Dipesan tetap diterima/dikoreksi/dibatalkan
+  await P.saveSupplier(sup.supplier_id, body('Toko Penutup', ['2']));
+  await P.setSupplierActive(sup.supplier_id, false);
+  assert.equal((await failOf(P.savePurchaseOrder(null, { supplier_id: sup.supplier_id, items: [{ material_id: '2', qty_ordered: '1', unit_price: '1' }] }, rid()))).status, 400);
+  const rec = await P.receivePurchaseOrder(po.po_id, { lines: [{ po_item_id: i1, qty: '4' }, { po_item_id: i2, qty: '5' }] }, rid());
+  assert.deepEqual([rec.purchase_order.status, stockOf(1) - s1, stockOf(2) - s2], ['diterima_sebagian', 4, 5]);
+  const c1 = await P.reverseOrCorrectReceipt(rec.receipt_id, { lines: [{ po_item_id: i1, qty: '3' }, { po_item_id: i2, qty: '5' }], reason: 'salah hitung' }, rid(), { correct: true });
+  const cancelled = await P.changePurchaseOrderStatus(po.po_id, { from: 'diterima_sebagian', to: 'dibatalkan' }, rid());
+  assert.deepEqual(cancelled.items.map((i) => i.qty_cancelled), [7, 0]);
+  // BR-21: menambah ditolak 409 tanpa efek; mengurangi diterima, qty_cancelled tetap historis
+  const before = JSON.stringify(loadLedgerTables());
+  const up = await failOf(P.reverseOrCorrectReceipt(c1.replacement_id, { lines: [{ po_item_id: i1, qty: '4' }, { po_item_id: i2, qty: '5' }], reason: 'x' }, rid(), { correct: true }));
+  assert.deepEqual([up.status, up.message], [409, 'Jumlah melebihi sisa yang belum diterima.']);
+  assert.equal(JSON.stringify(loadLedgerTables()), before);
+  const down = await P.reverseOrCorrectReceipt(c1.replacement_id, { lines: [{ po_item_id: i1, qty: '2' }, { po_item_id: i2, qty: '5' }], reason: 'lebih' }, rid(), { correct: true });
+  assert.deepEqual([down.purchase_order.status, down.purchase_order.items[0].net_received, down.purchase_order.items[0].qty_cancelled, stockOf(1) - s1], ['dibatalkan', 2, 7, 2]);
+  // AC-42.1: Dipesan → Dibatalkan tanpa penerimaan; Dibatalkan final
+  const c2 = await P.changePurchaseOrderStatus(po2.po_id, { from: 'dipesan', to: 'dibatalkan', cancel_reason: 'batal' }, rid());
+  assert.deepEqual([c2.status, c2.items[0].qty_cancelled, c2.values.cancelled_value, c2.values.received_value], ['dibatalkan', 2.5, 2500.03, 0]);
+  assert.equal((await failOf(P.changePurchaseOrderStatus(po2.po_id, { from: 'dibatalkan', to: 'dipesan' }, rid()))).status, 409);
+  assert.deepEqual(serverLedgerViolations(), []);
+});

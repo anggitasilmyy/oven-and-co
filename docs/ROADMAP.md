@@ -1604,8 +1604,9 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   (sinkronisasi dokumen) selesai (PR #27); CP2 (database, migrasi, seed, integritas buku mutasi) selesai (PR #28);
   CP3 (aturan murni server = client) selesai (PR #29); CP4 (middleware request_id, buku mutasi AD-07) selesai (PR #30);
   CP5 (API supplier, PO, penerimaan) selesai (PR #31); CP6 (frontend AD-12 & AD-07, mock, aktivasi E-6) selesai (PR #32);
-  CP7 (regresi penuh, paritas mock = API, gladi migrasi) selesai di PR CP7 — **kesiapan CR-04a: READY WITH NOTES**
-  (lihat catatan CP7: prasyarat deployment P-OPS-1 – P-OPS-4; bagian laporan AC-42.1 menunggu CR-04c).
+  CP7 (regresi penuh, paritas mock = API, gladi migrasi) selesai (PR #33); validasi akhir implementasi & cakupan uji
+  acceptance CR-04a selesai di PR validasi CR-04a — **status CR-04a: READY WITH NOTES** (lihat catatan validasi akhir:
+  prasyarat deployment P-OPS-1 – P-OPS-4; bagian laporan AC-42.1 menunggu CR-04c).
 - Ruang lingkup: FR-41 – FR-44, UC-33 – UC-35, BR-17 – BR-24, BR-30 – BR-32, BR-34, BR-35, AC-41.1 – AC-44.8, AD-12
   Pembelian & perluasan AD-07, 9 tabel (30 → 39) — `docs/SPEC.md` bagian 2, 3, 5, 6, 7, 8, 10, 13; rincian normatif
   `docs/change-requests/CR-04_DRAFT_0.8.3.md` + Errata E1 + E1.1.
@@ -1623,7 +1624,7 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 | CP4 | Middleware `request_id` (allowlist, idempotensi), satu layanan buku mutasi untuk endpoint AD-07 lama, endpoint opname, pembalik/koreksi stok masuk, riwayat mutasi, audit | Route test; MySQL IT-06 – IT-08, IT-12, IT-13, IT-31 (AD-07), IT-37; regresi AD-07 & MySQL 16 – 18 | CP3 + izin | **Selesai** (PR #30, 13 Nov 2026) — lihat catatan CP4 |
 | CP5 | API supplier, PO, penerimaan, pembalik/koreksi penerimaan, nilai; audit | Route test; MySQL IT-05, IT-09 – IT-11, IT-14, IT-15, IT-30; 0 deadlock | CP4 + izin | **Selesai** (PR #31, 13 Nov 2026) — lihat catatan CP5 |
 | CP6 | Frontend AD-12 (tab PO & Supplier, detail, penerimaan, koreksi), AD-07 (opname, riwayat, pembalik/koreksi), mock (tabel & ledger mock), rute & sidebar AD-12; **aktivasi E-6 versi CR-04a** dalam satu commit (teks aktif SPEC + `MATERIAL_REQUIREMENT_NOTE` + test K-14 + uji integrasi/e2e terkait) | Mock = API (IT-38); e2e mock & API 390/768/1440 px; teks tampil = perilaku aktif | CP5 + izin | **Selesai** (PR #32, 13 Nov 2026) — lihat catatan CP6 |
-| CP7 | Regresi penuh (server, client, Vitest, MySQL 01 – 18 + baru, e2e per-step), gladi migrasi IT-02, IT-03, IT-33, status ROADMAP | Semua lulus kecuali 14 P1b (kegagalan lama); PR CR-04a | CP6 + izin | **Selesai** (PR CP7, 13 Nov 2026) — lihat catatan CP7 |
+| CP7 | Regresi penuh (server, client, Vitest, MySQL 01 – 18 + baru, e2e per-step), gladi migrasi IT-02, IT-03, IT-33, status ROADMAP | Semua lulus kecuali 14 P1b (kegagalan lama); PR CR-04a | CP6 + izin | **Selesai** (PR #33, 13 Nov 2026) — lihat catatan CP7 |
 
 - Catatan CP2 (12 Nov 2026): migrasi `20261112000000_cr04a_purchasing` (30 → 39 tabel; 27 FK RESTRICT/RESTRICT; 12 CHECK;
   saldo awal set-based tanpa mengubah `raw_materials`); Prisma schema 9 model; seed dengan preflight hanya-baca K-A – K-D
@@ -1761,6 +1762,24 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   (AC-44.1); (2) AC-42.1 bagian "nilai identik di laporan" menunggu CR-04c (belum diizinkan); (3) fixture suite 16 – 18
   tetap memerlukan mode `--legacy-fixtures`; (4) mock di luar CR-04a (stok harian, produk, notifikasi) masih memakai
   pesan error lama khusus mock.
+- Catatan validasi akhir CR-04a (14 – 16 Nov 2026): audit per requirement terhadap SPEC bagian 3/5/6/13 dan Draft
+  0.8.3 (§5 – §7, §15, §16) setelah CP7. Implementasi FR-41 – FR-44 sudah lengkap (CP2 – CP6); **tidak ada cacat kode** —
+  yang ditutup adalah celah uji (tanpa perubahan kode aplikasi, schema, migrasi, maupun fixture lama):
+  `server/tests-mysql/24-cr04a-closure.it.test.js` — BR-34 audit tepat satu per operasi untuk batal PO, terima/balik/
+  koreksi penerimaan, opname, balik/koreksi stok masuk (replay & penolakan tanpa audit); Draft §7 supplier dinonaktifkan &
+  bahan dilepas setelah PO Dipesan → penerimaan, koreksi, batal, pembalik tetap berjalan (PO baru tetap ditolak, BR-18);
+  BR-21 koreksi pada PO Dibatalkan hanya boleh mengurangi (menambah → 409 tanpa efek); AC-42.1 bagian API Draft → ubah →
+  Dipesan → Dibatalkan tanpa penerimaan. Skenario yang sama di mode mock (`client/tests/unit/purchasingMock.test.mjs`) dan
+  di `client/tests/step-6.8/parity.diff.mjs` (+15 langkah; normalisasi ID dokumen penerimaan vs dokumen stok dipisah).
+  `client/tests/step-6.8/visual.e2e.mjs` (AC-NF AD-12 & dialog CR-04a AD-07, 360 – 1920 px: overflow, dialog, area
+  sentuh ≥ 44 px, input berlabel). **Hasil:** harness MySQL 01 – 24 **166/166** (exit 0; 0 deadlock; 11 lock timeout =
+  baseline); server `npm test` **772/772**; client `test:unit` **317/317**; Vitest **21/21**; paritas mock vs API
+  **111/111** langkah identik (59 penolakan tanpa efek di kedua mode); visual AD-12 **210 pemeriksaan, 0 masalah**; lint
+  0 error, build & `db:check-spec` lulus; e2e step-5.x/6.7/6.8 baseline CP7 berlaku (kode aplikasi tidak berubah).
+  **Status CR-04a: READY WITH NOTES** — AC-41.1, AC-41.2, AC-42.1 (API & mock), AC-42.2, AC-43.1 – AC-43.5,
+  AC-44.2 – AC-44.8, AC-NF lulus; AC-42.1 bagian laporan **menunggu CR-04c**; AC-44.1 di lingkungan target menunggu
+  **P-OPS-1 – P-OPS-4** (prasyarat deployment; mekanisme lulus gladi IT-33 CP7). Fixture suite 16 – 18 tetap memerlukan
+  `db:check-ledger --legacy-fixtures` (bahan lewat aplikasi 0 pelanggaran).
 - Rencana awal di bawah dipertahankan sebagai catatan historis; yang berlaku adalah CR-04a di atas.
 - Tujuan: pengadaan bahan baku memakai master bahan dari 6.7.
 - Ruang lingkup: (1) master supplier; (2) hubungan supplier dengan bahan baku; (3) purchase order;
