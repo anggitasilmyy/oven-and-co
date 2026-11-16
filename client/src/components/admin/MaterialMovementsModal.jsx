@@ -15,6 +15,7 @@ import StockInCorrectionModal from './StockInCorrectionModal';
 import useServiceQuery from '../../hooks/useServiceQuery';
 import { getMaterialMovements, reverseOrCorrectStockInDocument } from '../../services/stockService';
 import { MOVEMENT_TYPE_LABEL, RECEIPT_KIND_LABEL, REVERSIBLE_STOCK_KINDS } from '../../constants/purchasing';
+import { ISSUE_KIND_LABEL } from '../../constants/workOrder';
 import { formatNumber, formatDateShort } from '../../utils/format';
 
 const time = (iso) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' });
@@ -64,7 +65,8 @@ export default function MaterialMovementsModal({ material, onClose, onChanged })
                         {m.created_by ? ` · ${m.created_by}` : ''}
                       </p>
                       <p className="text-xs text-cocoa/65">
-                        {d.source === 'goods_receipt' ? `${RECEIPT_KIND_LABEL[d.kind]} #${d.id} (Pembelian)` : `Dokumen #${d.id}`}
+                        {d.source === 'goods_receipt' ? `${RECEIPT_KIND_LABEL[d.kind]} #${d.id} (Pembelian)`
+                          : d.source === 'material_issue' ? `${ISSUE_KIND_LABEL[d.kind]} #${d.id} (Produksi)` : `Dokumen #${d.id}`}
                         {d.source === 'stock_adjustment' && !d.effective ? ' · sudah dibalik/dikoreksi' : ''}
                         {d.reason ? ` · Alasan: ${d.reason}` : ''}
                       </p>

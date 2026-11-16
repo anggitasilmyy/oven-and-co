@@ -59,6 +59,32 @@ test('I-10: opname selisih ≠ 0 tepat satu mutasi fisik − sistem; selisih 0 t
   assert.ok(codes(material('5.00', [opening(1, '5.00'), opname('3.00', '5.00')], base)).includes('I-10'));
 });
 
+test('CR-04b I-8 & I-5: pengeluaran mengurangi stok (mutasi = −jumlah bertanda); koreksi pengeluaran rujuk P/R; aktual WO ≥ 0', () => {
+  const op = '22222222-2222-4222-8222-222222222222';
+  const line = (issueId, kind, qty, at, extra = {}) => ({ issueId: String(issueId), woId: '7', qty, kind, operationRequestId: `op-${issueId}`, createdAt: later(at), ...extra });
+  const base = [mv(1, 'saldo_awal', '20.00', '0.00', '20.00', { adjustmentId: '1' })];
+  const issued = [...base, mv(2, 'pengeluaran_produksi', '-10.00', '20.00', '10.00', { issueId: '1' })];
+  const ok = { ...material('10.00', [opening(1, '20.00')], issued), issueLines: [line(1, 'normal', '10.00', 1)] };
+  assert.deepEqual(codes(ok), []);
+  // Pengeluaran tanpa mutasi / mutasi bertanda salah → I-8; jenis mutasi salah → T-28
+  assert.ok(codes({ ...material('20.00', [opening(1, '20.00')], base), issueLines: [line(1, 'normal', '10.00', 1)] }).includes('I-8'));
+  const wrongSign = [...base, mv(2, 'pengeluaran_produksi', '10.00', '20.00', '30.00', { issueId: '1' })];
+  assert.ok(codes({ ...material('30.00', [opening(1, '20.00')], wrongSign), issueLines: [line(1, 'normal', '10.00', 1)] }).includes('I-8'));
+  const wrongType = [...base, mv(2, 'stok_masuk', '-10.00', '20.00', '10.00', { issueId: '1' })];
+  assert.ok(codes({ ...material('10.00', [opening(1, '20.00')], wrongType), issueLines: [line(1, 'normal', '10.00', 1)] }).includes('T-28'));
+  // Koreksi 10 → 8: R (10) + P (8) satu operasi, mutasi bersih +2 merujuk P (IT-21)
+  const corrected = { ...material('12.00', [opening(1, '20.00')], [...issued, mv(3, 'koreksi_pengeluaran', '2.00', '10.00', '12.00', { issueId: '3' })]),
+    issueLines: [line(1, 'normal', '10.00', 1), line(2, 'pembalik', '10.00', 2, { operationRequestId: op }), line(3, 'pengganti', '8.00', 2, { operationRequestId: op })] };
+  assert.deepEqual(codes(corrected), []);
+  // I-5: pembalik melebihi pengeluaran WO → aktual negatif
+  const negative = { ...material('25.00', [opening(1, '20.00')], [...base, mv(2, 'pembalik_pengeluaran', '5.00', '20.00', '25.00', { issueId: '2' })]),
+    issueLines: [line(2, 'pembalik', '5.00', 1)] };
+  assert.ok(codes(negative).includes('I-5'));
+  // I-11: pengeluaran sebelum saldo awal
+  const early = { ...ok, issueLines: [line(1, 'normal', '10.00', -1)] };
+  assert.ok(codes(early).includes('I-11'));
+});
+
 test('I-11: saldo awal harus dokumen & mutasi pertama, sebelum penerimaan', () => {
   const docs = [{ adjustmentId: '1', kind: 'stok_masuk', qty: '1.00', operationRequestId: null, createdAt: T0 }, opening(2, '0.00', { createdAt: later(5) })];
   assert.ok(codes(material('1.00', docs, [mv(1, 'stok_masuk', '1.00', '0.00', '1.00', { adjustmentId: '1' })])).includes('I-11'));

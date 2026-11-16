@@ -18,6 +18,7 @@ import {
   ChefHat,
   LogOut,
   Truck,
+  Factory,
 } from 'lucide-react';
 import { ADMIN_ROUTES } from '../../constants/routes';
 import { ROLE_LABEL } from '../../constants/roles';
@@ -34,6 +35,7 @@ const SIDEBAR_MENU = [
   { label: 'Produk & Custom Cake', to: ADMIN_ROUTES.PRODUK, Icon: ShoppingBag, roles: ['owner', 'staf'] },
   { label: 'Stok', to: ADMIN_ROUTES.STOK, Icon: Boxes, roles: ['owner', 'staf'] },
   { label: 'Pembelian', to: ADMIN_ROUTES.PEMBELIAN, Icon: Truck, roles: ['owner', 'staf'] }, // CR-04a · AD-12
+  { label: 'Produksi', to: ADMIN_ROUTES.PRODUKSI, Icon: Factory, roles: ['owner', 'staf'] }, // CR-04b · AD-13
   { label: 'Laporan', to: ADMIN_ROUTES.LAPORAN, Icon: BarChart2, roles: ['owner'] },
   { label: 'Promo & Loyalty', to: ADMIN_ROUTES.PROMO, Icon: Tag, roles: ['owner'] },
   { label: 'Pelanggan & Ulasan', to: ADMIN_ROUTES.PELANGGAN, Icon: Users, roles: ['owner', 'staf'] },

@@ -32,7 +32,7 @@ export const MATERIAL_DEMAND_STATUS_META = Object.freeze({
 
 /**
  * K-14 (CR-03 §B3.7): teks keterangan wajib tab Kebutuhan Bahan — memuat E-1 – E-10, selalu tampil, tidak dapat disembunyikan.
- * CR-04a CP6: kalimat penutup = E-6 versi CR-04a (aktif bersama buku mutasi AD-07 & penerimaan AD-12; SPEC bagian 10).
+ * CR-04b CP5: kalimat penutup = E-6 versi CR-04b + E-11 (aktif bersama pengeluaran bahan produksi AD-13; SPEC bagian 10).
  */
 export const MATERIAL_REQUIREMENT_NOTE =
   'Angka ini estimasi, bukan catatan pemakaian bahan. Dihitung dari pesanan pre-order & custom yang sudah dikonfirmasi '
@@ -42,7 +42,8 @@ export const MATERIAL_REQUIREMENT_NOTE =
   + 'standar, dan varian produk tidak dihitung terpisah. Produk tanpa komposisi tidak dihitung dan ditampilkan terpisah. '
   + 'Jenis produk dibaca dari data produk saat ini; bila diubah setelah pesanan dibuat, estimasi dapat kurang atau '
   + 'berlebih. Estimasi ini tidak mengurangi stok bahan; stok hanya berubah lewat Catat Stok Masuk, penerimaan pembelian, '
-  + 'stock opname, serta pembalik atau koreksi transaksi tersebut.';
+  + 'pemakaian bahan produksi, stock opname, serta pembalik atau koreksi transaksi tersebut. Pemakaian bahan produksi yang '
+  + 'sudah dicatat mengurangi stok, sedangkan pesanan dan rencana yang sama tetap dihitung, sehingga estimasi dapat berlebih.';
 
 /** SPEC §5 fail-safe presisi — pesan aman sama dengan server (CR-03 CP5) */
 export const MILLI_PRECISION_LOST_TEXT = 'Hasil perhitungan tidak dapat direpresentasikan secara aman.';

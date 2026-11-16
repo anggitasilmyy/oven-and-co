@@ -33,11 +33,17 @@ function toLedgerMaterial(m, t) {
     movements: t.material_movements.filter((v) => idEq(v.material_id, m.material_id)).map((v) => ({
       movementId: String(v.movement_id), materialId: String(v.material_id), type: v.type, qtyChange: v.qty_change, stockBefore: v.stock_before,
       stockAfter: v.stock_after, adjustmentId: v.adjustment_id == null ? null : String(v.adjustment_id),
-      receiptId: v.receipt_id == null ? null : String(v.receipt_id), poItemId: v.po_item_id == null ? null : String(v.po_item_id), createdAt: v.created_at,
+      receiptId: v.receipt_id == null ? null : String(v.receipt_id), poItemId: v.po_item_id == null ? null : String(v.po_item_id),
+      issueId: v.issue_id == null ? null : String(v.issue_id), createdAt: v.created_at,
     })),
     receiptLines: t.goods_receipt_lines.filter((l) => idEq(items.get(String(l.po_item_id))?.material_id, m.material_id)).map((l) => {
       const r = receipts.get(String(l.receipt_id));
       return { receiptId: String(l.receipt_id), poItemId: String(l.po_item_id), qty: l.qty, kind: r.kind, operationRequestId: r.operation_request_id, createdAt: r.created_at };
+    }),
+    // CR-04b: baris pengeluaran bahan ini (I-5, I-8 pengeluaran — ledgerRules server = client)
+    issueLines: (t.material_issue_lines ?? []).filter((l) => idEq(l.material_id, m.material_id)).map((l) => {
+      const d = t.material_issues.find((x) => idEq(x.issue_id, l.issue_id));
+      return { issueId: String(l.issue_id), woId: String(d.wo_id), qty: l.qty, kind: d.kind, operationRequestId: d.operation_request_id, createdAt: d.created_at };
     }),
   };
 }
@@ -105,7 +111,7 @@ export function applyMovements(t, plan, referenceOf, actorId) {
   for (const m of result.movements) {
     const row = {
       movement_id: nextId(movements, 'movement_id'), material_id: Number(m.material_id), type: m.type, qty_change: m.qty_change,
-      stock_before: m.stock_before, stock_after: m.stock_after, adjustment_id: null, receipt_id: null, po_item_id: null,
+      stock_before: m.stock_before, stock_after: m.stock_after, adjustment_id: null, receipt_id: null, po_item_id: null, issue_id: null,
       created_by: actorId, created_at: at, ...referenceOf(m),
     };
     movements = [...movements, row];

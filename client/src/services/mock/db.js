@@ -78,6 +78,8 @@ const USER_SCHEMA_VERSION = 1;
 export const LEDGER_TABLES = [
   'operation_requests', 'suppliers', 'supplier_materials', 'purchase_orders', 'purchase_order_items', 'goods_receipts',
   'goods_receipt_lines', 'stock_adjustments', 'material_movements',
+  // CR-04b: Work Order, snapshot resep, pengeluaran bahan, hasil produksi
+  'work_orders', 'work_order_recipes', 'material_issues', 'material_issue_lines', 'production_outputs',
 ];
 
 export const ADMIN_TABLES = [

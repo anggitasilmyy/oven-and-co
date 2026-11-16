@@ -76,6 +76,13 @@ export function reverseOrCorrectStockIn(actor, adjustmentId, input, { requestId,
   });
 }
 
+// CR-04b: dokumen pengeluaran bahan WO (= adminStockDocument.getMaterialMovements server)
+function issueDocument(t, issueId) {
+  const d = (t.material_issues ?? []).find((x) => String(x.issue_id) === String(issueId));
+  const superseded = (t.material_issues ?? []).some((x) => String(x.reverses_id) === String(d.issue_id) || String(x.replaces_id) === String(d.issue_id));
+  return { source: 'material_issue', id: String(d.issue_id), kind: d.kind, reason: d.reason, wo_id: String(d.wo_id), effective: d.kind !== 'pembalik' && !superseded };
+}
+
 const num = (value) => (value == null ? null : milliToNumber(decimalToMilli(String(value))));
 
 /** GET raw-materials/:id/movements → { material, movements[] } (urut movement_id naik) */
@@ -98,7 +105,8 @@ export function buildMaterialMovements(materialId) {
           source: 'stock_adjustment', id: String(d.adjustment_id), kind: d.kind, qty: num(d.qty), reason: d.reason,
           effective: !t.stock_adjustments.some((x) => String(x.reverses_id) === String(d.adjustment_id) || String(x.replaces_id) === String(d.adjustment_id)),
         }
-          : { source: 'goods_receipt', id: String(r.receipt_id), kind: r.kind, reason: r.reason, po_id: String(r.po_id) },
+          : r ? { source: 'goods_receipt', id: String(r.receipt_id), kind: r.kind, reason: r.reason, po_id: String(r.po_id) }
+            : issueDocument(t, m.issue_id),
       };
     }),
   };

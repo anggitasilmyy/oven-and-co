@@ -47,6 +47,16 @@ export const REQUEST_ID_POLICY = Object.freeze({
   count_stock: 'required',
   reverse_stock_in: 'required',
   correct_stock_in: 'required',
+  // CR-04b (Draft §5.1)
+  create_work_order: 'required',
+  update_work_order: 'optional',
+  transition_work_order: 'required',
+  issue_material: 'required',
+  reverse_material_issue: 'required',
+  correct_material_issue: 'required',
+  complete_work_order: 'required',
+  reverse_production_output: 'required',
+  correct_production_output: 'required',
 });
 
 // CR-04a CP6 · AD-12 Pembelian — tab (?tab=supplier), label & badge status PO, label jenis dokumen & mutasi (tampilan)
@@ -66,6 +76,8 @@ export const RECEIPT_KIND_LABEL = Object.freeze({ normal: 'Penerimaan', pembalik
 export const MOVEMENT_TYPE_LABEL = Object.freeze({
   saldo_awal: 'Saldo awal', stok_masuk: 'Stok masuk', pembalik_stok_masuk: 'Pembalik stok masuk', koreksi_stok_masuk: 'Koreksi stok masuk',
   stock_opname: 'Stock opname', penerimaan: 'Penerimaan PO', pembalik_penerimaan: 'Pembalik penerimaan', koreksi_penerimaan: 'Koreksi penerimaan',
+  // CR-04b
+  pengeluaran_produksi: 'Pengeluaran produksi', pembalik_pengeluaran: 'Pembalik pengeluaran', koreksi_pengeluaran: 'Koreksi pengeluaran',
 });
 /** Dokumen stok masuk yang dapat dibalik/dikoreksi dari riwayat mutasi AD-07 (BR-30) */
 export const REVERSIBLE_STOCK_KINDS = Object.freeze(['stok_masuk', 'pengganti_stok_masuk']);

@@ -27,11 +27,27 @@ async function lockMaterials(tx, materialIds) {
 }
 
 /**
+ * CR-04b: kunci baris bahan yang ADA di antara id kandidat (FOR UPDATE, urut material_id naik) tanpa 404 — bahan yang
+ * tidak ada ditolak 400 per baris oleh aturan murni (baris pengeluaran bebas memilih bahan master). Id tidak berpola sah
+ * diabaikan. → Map(material_id → stok teks) hanya untuk bahan yang ada.
+ */
+async function lockExistingMaterials(tx, candidateIds) {
+  const ids = [...new Set(candidateIds.map((v) => String(v ?? '').trim()).filter((v) => /^[1-9]\d{0,18}$/.test(v)))]
+    .sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : 1));
+  const stocks = new Map();
+  for (const id of ids) {
+    const [row] = await tx.$queryRaw`SELECT stock FROM raw_materials WHERE material_id = ${BigInt(id)} FOR UPDATE`;
+    if (row) stocks.set(id, String(row.stock));
+  }
+  return stocks;
+}
+
+/**
  * Tulis mutasi bersih + stok baru untuk rencana dampak (sudah tanpa Δ = 0).
  * @param {object} tx
  * @param {Map<string, string>} lockedStocks — dari lockMaterials
  * @param {{material_id: string, delta: bigint, type: string}[]} plan
- * @param {(row) => {adjustmentId?: bigint, receiptId?: bigint, poItemId?: bigint}} referenceOf — dokumen yang dirujuk
+ * @param {(row) => {adjustmentId?: bigint, receiptId?: bigint, poItemId?: bigint, issueId?: bigint}} referenceOf — dokumen yang dirujuk
  * @param {string|number|bigint} actorId
  * @returns {Promise<object[]>} mutasi yang ditulis (qty_change, stock_before, stock_after sebagai teks)
  */
@@ -64,4 +80,4 @@ const movementView = (m) => (m ? {
   movement_id: m.movement_id, type: m.type, qty_change: m.qty_change, stock_before: m.stock_before, stock_after: m.stock_after,
 } : null);
 
-module.exports = { MATERIAL_NOT_FOUND, lockMaterials, writeMovements, movementView };
+module.exports = { MATERIAL_NOT_FOUND, lockMaterials, lockExistingMaterials, writeMovements, movementView };

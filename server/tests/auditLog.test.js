@@ -24,7 +24,8 @@ const TODAY = new Date('2026-11-03T00:00:00.000Z');
 
 test('konstanta: semua action & entity ≤ 50 karakter; entity = nama tabel', () => {
   for (const v of [...Object.values(AUDIT_ACTION), ...Object.values(AUDIT_ENTITY)]) assert.ok(v.length <= 50, v);
-  assert.deepEqual(Object.values(AUDIT_ENTITY).sort(), ['custom_options', 'daily_stocks', 'goods_receipts', 'orders', 'product_variants', 'products', 'purchase_orders', 'raw_materials', 'suppliers']); // + CR-04a CP5
+  assert.deepEqual(Object.values(AUDIT_ENTITY).sort(), ['custom_options', 'daily_stocks', 'goods_receipts', 'material_issues', 'orders',
+    'product_variants', 'production_outputs', 'products', 'purchase_orders', 'raw_materials', 'suppliers', 'work_orders']); // + CR-04a CP5, CR-04b (Draft §10.2)
 });
 
 test('created_at = detik penuh ke bawah (DATETIME(0)); decimalChanged memakai DECIMAL', () => {

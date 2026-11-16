@@ -73,6 +73,8 @@ test('purchasePayload client = server (urutan ID numerik, desimal ter-normalisas
     assert.deepEqual(CP.receiptLines(lines), SP.receiptLines(lines), `lines ${n}`);
     assert.deepEqual(CP.orderItems(items), SP.orderItems(items), `items ${n}`);
     assert.deepEqual(CP.materialIds(ids), SP.materialIds(ids), `ids ${n}`);
+    const issue = lines.map((l) => ({ material_id: l.po_item_id, qty: l.qty }));
+    assert.deepEqual(CP.issueLines(issue), SP.issueLines(issue), `issue lines ${n}`);
   }
   for (const v of [undefined, null, 'x', 5, {}]) {
     assert.deepEqual(CP.receiptLines(v), SP.receiptLines(v));

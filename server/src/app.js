@@ -25,6 +25,9 @@ const adminStockAdjustmentRoutes = require('./routes/admin/stockAdjustment.route
 const adminSupplierRoutes = require('./routes/admin/supplier.routes');
 const adminPurchaseOrderRoutes = require('./routes/admin/purchaseOrder.routes');
 const adminGoodsReceiptRoutes = require('./routes/admin/goodsReceipt.routes');
+const adminWorkOrderRoutes = require('./routes/admin/workOrder.routes'); // CR-04b
+const adminMaterialIssueRoutes = require('./routes/admin/materialIssue.routes'); // CR-04b
+const adminProductionOutputRoutes = require('./routes/admin/productionOutput.routes'); // CR-04b
 const paymentMethodRoutes = require('./routes/admin/paymentMethod.routes');
 const adminDashboardRoutes = require('./routes/admin/dashboard.routes');
 const adminReportRoutes = require('./routes/admin/report.routes');
@@ -108,6 +111,9 @@ app.use('/api/admin/stock-adjustments', adminStockAdjustmentRoutes); // CR-04a C
 app.use('/api/admin/suppliers', adminSupplierRoutes); // CR-04a CP5
 app.use('/api/admin/purchase-orders', adminPurchaseOrderRoutes); // CR-04a CP5
 app.use('/api/admin/goods-receipts', adminGoodsReceiptRoutes); // CR-04a CP5
+app.use('/api/admin/work-orders', adminWorkOrderRoutes); // CR-04b
+app.use('/api/admin/material-issues', adminMaterialIssueRoutes); // CR-04b
+app.use('/api/admin/production-outputs', adminProductionOutputRoutes); // CR-04b
 app.use('/api/admin/material-requirements', adminMaterialRequirementRoutes); // CR-03 CP5
 app.use('/api/admin/dashboard', adminDashboardRoutes);
 app.use('/api/admin/reports', adminReportRoutes);

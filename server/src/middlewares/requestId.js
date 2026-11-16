@@ -27,6 +27,16 @@ const REQUEST_ID_ROUTES = Object.freeze([
   ['POST', /^\/api\/admin\/raw-materials\/[^/]+\/stock-counts\/?$/, 'count_stock'],
   ['POST', /^\/api\/admin\/stock-adjustments\/[^/]+\/reverse\/?$/, 'reverse_stock_in'],
   ['POST', /^\/api\/admin\/stock-adjustments\/[^/]+\/correct\/?$/, 'correct_stock_in'],
+  // CR-04b (Draft §5.1)
+  ['POST', /^\/api\/admin\/work-orders\/?$/, 'create_work_order'],
+  ['PUT', /^\/api\/admin\/work-orders\/[^/]+\/?$/, 'update_work_order'],
+  ['PATCH', /^\/api\/admin\/work-orders\/[^/]+\/status\/?$/, 'transition_work_order'],
+  ['POST', /^\/api\/admin\/work-orders\/[^/]+\/issues\/?$/, 'issue_material'],
+  ['POST', /^\/api\/admin\/work-orders\/[^/]+\/complete\/?$/, 'complete_work_order'],
+  ['POST', /^\/api\/admin\/material-issues\/[^/]+\/reverse\/?$/, 'reverse_material_issue'],
+  ['POST', /^\/api\/admin\/material-issues\/[^/]+\/correct\/?$/, 'correct_material_issue'],
+  ['POST', /^\/api\/admin\/production-outputs\/[^/]+\/reverse\/?$/, 'reverse_production_output'],
+  ['POST', /^\/api\/admin\/production-outputs\/[^/]+\/correct\/?$/, 'correct_production_output'],
 ]);
 
 function operationFor(method, path) {

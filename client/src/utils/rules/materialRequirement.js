@@ -14,7 +14,7 @@ const STATUS_ORDER = [MATERIAL_DEMAND_STATUS.KURANG, MATERIAL_DEMAND_STATUS.MENI
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 // Kunci tanggal kalender (UTC, tanpa zona waktu perangkat) — sama dengan server utils/jakartaDate.js
-function isValidDateKey(value) {
+export function isValidDateKey(value) {
   if (typeof value !== 'string' || !DATE_KEY_PATTERN.test(value)) return false;
   const [y, m, d] = value.split('-').map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));

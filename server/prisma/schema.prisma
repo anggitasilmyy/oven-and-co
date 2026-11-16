@@ -137,6 +137,9 @@ model User {
   goodsReceipts     GoodsReceipt[]
   stockAdjustments  StockAdjustment[]
   materialMovements MaterialMovement[]
+  workOrders        WorkOrder[] // CR-04b
+  materialIssues    MaterialIssue[]
+  productionOutputs ProductionOutput[]
 
   @@map("users")
 }
@@ -241,6 +244,7 @@ model Product {
   vouchers          Voucher[]
   wishlists         Wishlist[]
   productMaterials  ProductMaterial[]
+  workOrders        WorkOrder[] // CR-04b
 
   @@map("products")
 }
@@ -299,6 +303,8 @@ model RawMaterial {
   purchaseOrderItems PurchaseOrderItem[]
   stockAdjustments   StockAdjustment[]
   movements          MaterialMovement[]
+  workOrderRecipes   WorkOrderRecipe[] // CR-04b
+  materialIssueLines MaterialIssueLine[]
 
   @@map("raw_materials")
 }
@@ -685,6 +691,9 @@ enum MaterialMovementType {
   penerimaan
   pembalik_penerimaan
   koreksi_penerimaan
+  pengeluaran_produksi // CR-04b
+  pembalik_pengeluaran
+  koreksi_pengeluaran
 }
 
 /// CR-04a · idempotensi `request_id` (UUID v4 kanonik); respons final disimpan untuk replay
@@ -699,11 +708,14 @@ model OperationRequest {
   responseBody   Json     @map("response_body")
   createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
-  actor            User              @relation(fields: [actorId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
-  createdSupplier  Supplier?         @relation("SupplierCreatedRequest")
-  createdPurchase  PurchaseOrder?    @relation("PurchaseOrderCreatedRequest")
-  goodsReceipts    GoodsReceipt[]
-  stockAdjustments StockAdjustment[]
+  actor             User               @relation(fields: [actorId], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  createdSupplier   Supplier?          @relation("SupplierCreatedRequest")
+  createdPurchase   PurchaseOrder?     @relation("PurchaseOrderCreatedRequest")
+  goodsReceipts     GoodsReceipt[]
+  stockAdjustments  StockAdjustment[]
+  workOrders        WorkOrder[] // CR-04b
+  materialIssues    MaterialIssue[]
+  productionOutputs ProductionOutput[]
 
   @@index([actorId], map: "ix_opreq_actor")
   @@index([targetType, targetId], map: "ix_opreq_target")
@@ -879,6 +891,7 @@ model MaterialMovement {
   adjustmentId BigInt?              @unique(map: "uq_mm_adjustment") @map("adjustment_id")
   receiptId    BigInt?              @map("receipt_id")
   poItemId     BigInt?              @map("po_item_id")
+  issueId      BigInt?              @map("issue_id") // CR-04b
   createdBy    BigInt?              @map("created_by")
   createdAt    DateTime             @default(now()) @map("created_at") @db.DateTime(3)
 
@@ -886,12 +899,148 @@ model MaterialMovement {
   adjustment StockAdjustment?   @relation(fields: [adjustmentId], references: [adjustmentId], onDelete: Restrict, onUpdate: Restrict)
   receipt    GoodsReceipt?      @relation(fields: [receiptId], references: [receiptId], onDelete: Restrict, onUpdate: Restrict)
   poItem     PurchaseOrderItem? @relation(fields: [poItemId], references: [poItemId], onDelete: Restrict, onUpdate: Restrict)
+  issue      MaterialIssue?     @relation(fields: [issueId], references: [issueId], onDelete: Restrict, onUpdate: Restrict)
   creator    User?              @relation(fields: [createdBy], references: [userId], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([receiptId, poItemId], map: "uq_mm_receipt_item")
+  @@unique([issueId, materialId], map: "uq_mm_issue_material")
   @@index([materialId, movementId], map: "ix_mm_material")
   @@index([createdAt], map: "ix_mm_created")
   @@index([type, createdAt], map: "ix_mm_type")
   @@index([poItemId], map: "ix_mm_item")
   @@map("material_movements")
+}
+
+// ─── CR-04b · Step 6.9 · FR-45, FR-46 (Draft 0.8.3 §8, §12.3) — Work Order, pengeluaran bahan, hasil produksi ─────────
+
+enum WorkOrderStatus {
+  draft
+  diproses
+  selesai
+  dibatalkan
+}
+
+enum MaterialIssueKind {
+  normal
+  pembalik
+  pengganti
+}
+
+enum ProductionOutputKind {
+  normal
+  pembalik
+  pengganti
+}
+
+model WorkOrder {
+  woId             BigInt          @id @default(autoincrement()) @map("wo_id")
+  woNumber         String          @unique(map: "uq_wo_number") @map("wo_number") @db.VarChar(20)
+  productId        BigInt          @map("product_id")
+  productionDate   DateTime        @map("production_date") @db.Date
+  qtyPlanned       Int             @map("qty_planned")
+  status           WorkOrderStatus @default(draft)
+  note             String?         @db.VarChar(255)
+  recipeSnapshotAt DateTime?       @map("recipe_snapshot_at") @db.DateTime(3)
+  startedAt        DateTime?       @map("started_at") @db.DateTime(3)
+  completedAt      DateTime?       @map("completed_at") @db.DateTime(3)
+  cancelledAt      DateTime?       @map("cancelled_at") @db.DateTime(3)
+  createdBy        BigInt          @map("created_by")
+  createdRequestId String          @unique(map: "uq_wo_req") @map("created_request_id") @db.Char(36)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.DateTime(3)
+
+  product        Product            @relation(fields: [productId], references: [productId], onDelete: Restrict, onUpdate: Restrict)
+  creator        User               @relation(fields: [createdBy], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  createdRequest OperationRequest   @relation(fields: [createdRequestId], references: [requestId], onDelete: Restrict, onUpdate: Restrict)
+  recipes        WorkOrderRecipe[]
+  issues         MaterialIssue[]
+  outputs        ProductionOutput[] @relation("WorkOrderOutputs")
+  normalOutput   ProductionOutput?  @relation("WorkOrderNormalOutput")
+
+  @@index([productId], map: "ix_wo_product")
+  @@index([status], map: "ix_wo_status")
+  @@index([productionDate], map: "ix_wo_date")
+  @@map("work_orders")
+}
+
+model WorkOrderRecipe {
+  woId       BigInt  @map("wo_id")
+  materialId BigInt  @map("material_id")
+  qtyPerUnit Decimal @map("qty_per_unit") @db.Decimal(10, 3)
+
+  workOrder WorkOrder   @relation(fields: [woId], references: [woId], onDelete: Restrict, onUpdate: Restrict)
+  material  RawMaterial @relation(fields: [materialId], references: [materialId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([woId, materialId])
+  @@index([materialId], map: "ix_wor_material")
+  @@map("work_order_recipes")
+}
+
+model MaterialIssue {
+  issueId            BigInt            @id @default(autoincrement()) @map("issue_id")
+  woId               BigInt            @map("wo_id")
+  kind               MaterialIssueKind
+  reversesId         BigInt?           @unique(map: "uq_mi_reverses") @map("reverses_id")
+  replacesId         BigInt?           @unique(map: "uq_mi_replaces") @map("replaces_id")
+  reason             String?           @db.VarChar(255)
+  operationRequestId String            @map("operation_request_id") @db.Char(36)
+  createdBy          BigInt            @map("created_by")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+
+  workOrder        WorkOrder           @relation(fields: [woId], references: [woId], onDelete: Restrict, onUpdate: Restrict)
+  reverses         MaterialIssue?      @relation("MaterialIssueReverses", fields: [reversesId], references: [issueId], onDelete: Restrict, onUpdate: Restrict)
+  reversedBy       MaterialIssue?      @relation("MaterialIssueReverses")
+  replaces         MaterialIssue?      @relation("MaterialIssueReplaces", fields: [replacesId], references: [issueId], onDelete: Restrict, onUpdate: Restrict)
+  replacedBy       MaterialIssue?      @relation("MaterialIssueReplaces")
+  operationRequest OperationRequest    @relation(fields: [operationRequestId], references: [requestId], onDelete: Restrict, onUpdate: Restrict)
+  creator          User                @relation(fields: [createdBy], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+  lines            MaterialIssueLine[]
+  movements        MaterialMovement[]
+
+  @@index([woId], map: "ix_mi_wo")
+  @@index([operationRequestId], map: "ix_mi_opreq")
+  @@index([createdAt], map: "ix_mi_created")
+  @@map("material_issues")
+}
+
+model MaterialIssueLine {
+  lineId     BigInt  @id @default(autoincrement()) @map("line_id")
+  issueId    BigInt  @map("issue_id")
+  materialId BigInt  @map("material_id")
+  qty        Decimal @db.Decimal(10, 2)
+
+  issue    MaterialIssue @relation(fields: [issueId], references: [issueId], onDelete: Restrict, onUpdate: Restrict)
+  material RawMaterial   @relation(fields: [materialId], references: [materialId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([issueId, materialId], map: "uq_mil")
+  @@index([materialId], map: "ix_mil_material")
+  @@map("material_issue_lines")
+}
+
+model ProductionOutput {
+  outputId           BigInt               @id @default(autoincrement()) @map("output_id")
+  woId               BigInt               @map("wo_id")
+  kind               ProductionOutputKind
+  qtyOutput          Int                  @map("qty_output")
+  normalWoId         BigInt?              @unique(map: "uq_po_normal") @map("normal_wo_id")
+  reversesId         BigInt?              @unique(map: "uq_po_reverses") @map("reverses_id")
+  replacesId         BigInt?              @unique(map: "uq_po_replaces") @map("replaces_id")
+  reason             String?              @db.VarChar(255)
+  operationRequestId String               @map("operation_request_id") @db.Char(36)
+  createdBy          BigInt               @map("created_by")
+  recordedAt         DateTime             @default(now()) @map("recorded_at") @db.DateTime(3)
+
+  workOrder        WorkOrder         @relation("WorkOrderOutputs", fields: [woId], references: [woId], onDelete: Restrict, onUpdate: Restrict)
+  normalOf         WorkOrder?        @relation("WorkOrderNormalOutput", fields: [normalWoId], references: [woId], onDelete: Restrict, onUpdate: Restrict)
+  reverses         ProductionOutput? @relation("ProductionOutputReverses", fields: [reversesId], references: [outputId], onDelete: Restrict, onUpdate: Restrict)
+  reversedBy       ProductionOutput? @relation("ProductionOutputReverses")
+  replaces         ProductionOutput? @relation("ProductionOutputReplaces", fields: [replacesId], references: [outputId], onDelete: Restrict, onUpdate: Restrict)
+  replacedBy       ProductionOutput? @relation("ProductionOutputReplaces")
+  operationRequest OperationRequest  @relation(fields: [operationRequestId], references: [requestId], onDelete: Restrict, onUpdate: Restrict)
+  creator          User              @relation(fields: [createdBy], references: [userId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([woId], map: "ix_out_wo")
+  @@index([recordedAt], map: "ix_out_recorded")
+  @@index([operationRequestId], map: "ix_out_opreq")
+  @@map("production_outputs")
 }

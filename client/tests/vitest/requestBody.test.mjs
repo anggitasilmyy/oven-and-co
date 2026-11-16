@@ -12,6 +12,7 @@ const require = createRequire(import.meta.url);
 const SP = require('../../../server/src/validators/purchasing.validator.js');
 const SL = require('../../../server/src/validators/stockLedger.validator.js');
 const SC = require('../../../server/src/validators/adminCatalog.validator.js');
+const SW = require('../../../server/src/validators/workOrder.validator.js');
 const C = await import('../../src/services/mock/requestBody.js');
 
 const run = (fn, body) => {
@@ -58,4 +59,18 @@ test('ID parameter = validateIdParam server (400 INVALID_ID)', () => {
   for (const id of ['1', '0', '01', 'abc', '-1', '1.5', '9223372036854775807', '9223372036854775808', '12345678901234567890', '', ' 1']) {
     assert.deepEqual(run((v) => C.validateIdParam(v, 'ID tidak valid.'), id), run((v) => SC.validateIdParam(v, 'ID tidak valid.'), id), id);
   }
+});
+
+test('CR-04b produksi: WO, transisi, pengeluaran, selesai, pembalik & koreksi pengeluaran/hasil = server', () => {
+  const issueLine = { material_id: '1', qty: '2' };
+  same('WO', SW.validateWorkOrderBody, C.validateWorkOrderBody, [...odd, {}, { product_id: '1', production_date: '2026-11-16', qty_planned: 5, note: 'x' }, { product_id: 1, extra: 1 }]);
+  same('transisi WO', SW.validateWorkOrderTransitionBody, C.validateWorkOrderTransitionBody, [...odd, {}, { from: 'draft', to: 'diproses' }, { from: 'draft', to: 'selesai_sebagian' },
+    { from: 'draft', to: 'dibatalkan', cancel_reason: 'x' }, { from: 'x', to: 'diproses' }]);
+  same('pengeluaran', SW.validateIssueBody, C.validateIssueBody, [...odd, {}, { lines: [] }, { lines: [issueLine] }, { lines: [{ ...issueLine, x: 1 }] }, { lines: 'x' }, { lines: [null] }]);
+  same('balik pengeluaran', SW.validateIssueReverseBody, C.validateIssueReverseBody, [...odd, {}, { reason: 'ok' }, { reason: '' }, { reason: 5 }, { reason: 'ok', lines: [] }]);
+  same('koreksi pengeluaran', SW.validateIssueCorrectBody, C.validateIssueCorrectBody, [...odd, {}, { lines: [issueLine] }, { lines: [issueLine], reason: 'ok' }, { lines: 'x', reason: 'ok' }]);
+  same('selesai', SW.validateCompleteBody, C.validateCompleteBody, [...odd, {}, { qty_output: 5 }, { qty_output: '5', lines: [issueLine] }, { qty_output: 5, lines: 'x' },
+    { qty_output: 5, lines: [{ ...issueLine, x: 1 }] }, { qty_output: 5, lines: null }, { qty_output: 5, x: 1 }]);
+  same('balik hasil', SW.validateOutputReverseBody, C.validateOutputReverseBody, [...odd, {}, { reason: 'ok' }, { reason: '  ' }]);
+  same('koreksi hasil', SW.validateOutputCorrectBody, C.validateOutputCorrectBody, [...odd, {}, { qty_output: 3, reason: 'ok' }, { qty_output: 3 }, { qty_output: 3, reason: 'ok', x: 1 }]);
 });
