@@ -10,6 +10,7 @@ import { reasonError } from '../../utils/rules/purchasing';
 import { validateStockCountInput } from '../../utils/rules/stockLedger';
 import { parseDecimalInput, centsToDecimalString } from '../../utils/rules/decimalInput';
 import { PO_STATUS, STOCK_QTY_MAX } from '../../constants/purchasing';
+import { WO_STATUS } from '../../constants/workOrder';
 import { createApiError } from '../../utils/apiErrors';
 import { API_ERROR_CODE } from '../../constants/apiErrors';
 import useAuthStore from '../../stores/useAuthStore';
@@ -98,6 +99,27 @@ export function validateTransitionBody(body) {
 export const validateReceiptBody = (body) => strictBody(body, ['lines', 'note'], { lines: LINE_KEYS });
 export const validateReceiptReverseBody = (body) => requireReason(strictBody(body, ['reason']));
 export const validateReceiptCorrectBody = (body) => requireReason(strictBody(body, ['lines', 'reason', 'note'], { lines: LINE_KEYS }));
+
+// CR-04b: endpoint produksi (port validators/workOrder.validator.js server)
+const WORK_ORDER_KEYS = ['product_id', 'production_date', 'qty_planned', 'note'];
+export const validateWorkOrderBody = (body) => strictBody(body, WORK_ORDER_KEYS);
+export function validateWorkOrderTransitionBody(body) {
+  const input = strictBody(body, ['from', 'to']);
+  const statuses = Object.values(WO_STATUS);
+  if (!statuses.includes(input.from) || !statuses.includes(input.to)) throw invalid();
+  return input;
+}
+const ISSUE_LINE_KEYS = ['material_id', 'qty'];
+export const validateIssueBody = (body) => strictBody(body, ['lines'], { lines: ISSUE_LINE_KEYS });
+export const validateIssueReverseBody = (body) => requireReason(strictBody(body, ['reason']));
+export const validateIssueCorrectBody = (body) => requireReason(strictBody(body, ['lines', 'reason'], { lines: ISSUE_LINE_KEYS }));
+export function validateCompleteBody(body) {
+  const input = strictBody(body, ['qty_output', 'lines']);
+  if (input.lines !== undefined && (!Array.isArray(input.lines) || !input.lines.every((row) => strictObject(row, ISSUE_LINE_KEYS)))) throw invalid();
+  return input;
+}
+export const validateOutputReverseBody = (body) => requireReason(strictBody(body, ['reason']));
+export const validateOutputCorrectBody = (body) => requireReason(strictBody(body, ['qty_output', 'reason']));
 
 // Endpoint AD-07 lama (Step 6.4): z.object TIDAK ketat (field lain diabaikan), teks/angka boleh, pesan umum
 const LEGACY_INVALID_TEXT = 'Data permintaan tidak valid.';

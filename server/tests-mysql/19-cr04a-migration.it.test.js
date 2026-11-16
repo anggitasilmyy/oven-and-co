@@ -58,7 +58,7 @@ test('IT-01 · IT-34 · IT-02: upgrade 30 → 39 tabel dengan snapshot M-4, back
   assert.equal(S.snapshot(RESTORED, ['--compare', SNAP]).status, 1, 'nilai berubah → hash beda');
 
   // M-7 migrasi, M-8 validasi
-  const migrate = S.deploy(UP);
+  const migrate = S.deploy(UP, { upToCr04a: true }); // langkah CR-04a saja (CR-04b: tests-mysql/25)
   assert.equal(migrate.status, 0, migrate.output);
   assert.equal(tableCount(UP), 39);
   assert.equal(S.snapshot(UP, ['--compare', SNAP]).status, 0, 'raw_materials tidak berubah');
@@ -139,7 +139,7 @@ test('IT-03: kegagalan M-7 disuntik → restore backup M-5 → identik, tanpa CR
   S.restore(FAIL, BACKUP);
   const before = S.tableFingerprint(FAIL);
   S.mysql('CREATE TABLE material_movements (x INT);', FAIL); // tabrakan nama → CREATE TABLE migrasi gagal di tengah
-  const failed = S.deploy(FAIL);
+  const failed = S.deploy(FAIL, { upToCr04a: true });
   assert.notEqual(failed.status, 0);
   assert.ok(Number(S.mysql('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = \'ovenco_cp2_failed_test\'')) > 31, 'keadaan parsial');
   // Pemulihan §11.4: hapus & buat ulang database → restore backup M-5 → verifikasi

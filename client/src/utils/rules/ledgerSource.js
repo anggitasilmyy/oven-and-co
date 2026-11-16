@@ -5,6 +5,8 @@
 //     stock_adjustments; penerimaan ↔ baris penerimaan item PO bahan itu).
 //   - I-8(a) per operasi (operation_request_id, atau dokumen tunggal tanpa request_id): Σ mutasi = Σ jumlah bertanda
 //     dokumen operasi (+qty normal/pengganti, −qty pembalik). I-8(b) kumulatif mengikuti dari (a).
+//   - CR-04b (Draft §2.4, BR-23): pengeluaran ↔ baris material_issues bahan itu; tanda mutasi = −jumlah bertanda dokumen
+//     (pengeluaran mengurangi stok). I-5: per WO per bahan, jumlah bertanda dokumen pengeluaran (aktual) ≥ 0.
 // Port dari server services/ledgerSourceRules.service.js — perilaku & pesan identik (uji silang client tests/vitest/purchasingRules.test.mjs).
 
 import { decimalToMilli } from './recipe';
@@ -25,6 +27,12 @@ const RECEIPT_MOVEMENT_TYPES = {
   pengganti: ['koreksi_penerimaan'],
 };
 const STOCK_IN_KINDS = ['stok_masuk', 'pembalik_stok_masuk', 'pengganti_stok_masuk'];
+// CR-04b: jenis dokumen pengeluaran → jenis mutasi (koreksi merujuk P bila bahan ada di P, selain itu R — §4.3)
+const ISSUE_MOVEMENT_TYPES = {
+  normal: ['pengeluaran_produksi'],
+  pembalik: ['pembalik_pengeluaran', 'koreksi_pengeluaran'],
+  pengganti: ['koreksi_pengeluaran'],
+};
 
 const signOf = (kind) => (kind.startsWith('pembalik') ? -1n : 1n);
 const opKey = (prefix, doc, id) => doc.operationRequestId ?? `${prefix}:${id}`;
@@ -76,6 +84,27 @@ function checkReceiptSources(m, fail) {
   compareSums(docSums, movementSums, 'operasi penerimaan', fail);
 }
 
+function checkIssueSources(m, fail) {
+  const lines = m.issueLines ?? [];
+  const issues = new Map(lines.map((l) => [String(l.issueId), l]));
+  const docSums = new Map();
+  const movementSums = new Map();
+  const actualByWo = new Map();
+  for (const line of lines) {
+    const signed = signOf(line.kind) * toMilli(line.qty);
+    addTo(docSums, opKey('mi', line, line.issueId), -signed); // pengeluaran: mutasi = −jumlah bertanda dokumen
+    addTo(actualByWo, String(line.woId), signed);
+  }
+  for (const [woId, actual] of actualByWo) if (actual < 0n) fail('I-5', `WO ${woId}: pemakaian aktual ${actual} < 0 (milli)`);
+  for (const mv of m.movements.filter((x) => x.issueId !== null && x.issueId !== undefined)) {
+    const issue = issues.get(String(mv.issueId));
+    if (!issue) { fail('T-28', `mutasi ${mv.movementId} merujuk pengeluaran tanpa baris bahan ini`); continue; }
+    if (!ISSUE_MOVEMENT_TYPES[issue.kind].includes(mv.type)) fail('T-28', `mutasi ${mv.movementId} (${mv.type}) ≠ pengeluaran ${issue.kind}`);
+    addTo(movementSums, opKey('mi', issue, mv.issueId), toMilli(mv.qtyChange));
+  }
+  compareSums(docSums, movementSums, 'operasi pengeluaran', fail);
+}
+
 /** @returns {{invariant: string, message: string}[]} */
 function checkSourceConsistency(material) {
   const violations = [];
@@ -85,7 +114,8 @@ function checkSourceConsistency(material) {
   }
   checkAdjustmentSources(material, fail);
   checkReceiptSources(material, fail);
+  checkIssueSources(material, fail);
   return violations;
 }
 
-export { ADJUSTMENT_MOVEMENT_TYPES, RECEIPT_MOVEMENT_TYPES, checkSourceConsistency };
+export { ADJUSTMENT_MOVEMENT_TYPES, RECEIPT_MOVEMENT_TYPES, ISSUE_MOVEMENT_TYPES, checkSourceConsistency };

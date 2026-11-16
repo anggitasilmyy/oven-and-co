@@ -57,15 +57,17 @@ test('tab ketiga "Kebutuhan Bahan" (?tab=kebutuhan); label status §B3.8', () =>
     [['kurang', 'Kurang', 'error'], ['menipis', 'Menipis', 'preorder'], ['cukup', 'Cukup', 'ready']]);
 });
 
-test('K-14: teks keterangan wajib = teks AKTIF SPEC bagian 10 (CR-03 §B3.7 + E-6 versi CR-04a) kata per kata', () => {
+test('K-14: teks keterangan wajib = teks AKTIF SPEC bagian 10 (CR-03 §B3.7 + E-6 versi CR-04b + E-11) kata per kata', () => {
   const spec = readFileSync(new URL('../../../docs/SPEC.md', import.meta.url), 'utf8').replace(/\s+/g, ' ');
   const quoted = spec.match(/Teks keterangan wajib di tab Kebutuhan Bahan \([^)]*\): \*"([^"]+)"\*/)[1];
   assert.equal(MATERIAL_REQUIREMENT_NOTE, quoted);
-  // CR-04a CP6: E-6 versi CR-04a aktif — kalimat penutup baru, kalimat CR-03 tidak tampil lagi; tanpa klaim produksi/laporan (CR-04b/c)
+  // CR-04b CP5: E-6 versi CR-04b + E-11 aktif — kalimat CR-03 & CR-04a tidak tampil lagi; tanpa klaim laporan (CR-04c)
   assert.ok(MATERIAL_REQUIREMENT_NOTE.endsWith('Estimasi ini tidak mengurangi stok bahan; stok hanya berubah lewat Catat Stok Masuk, '
-    + 'penerimaan pembelian, stock opname, serta pembalik atau koreksi transaksi tersebut.'));
+    + 'penerimaan pembelian, pemakaian bahan produksi, stock opname, serta pembalik atau koreksi transaksi tersebut. Pemakaian bahan '
+    + 'produksi yang sudah dicatat mengurangi stok, sedangkan pesanan dan rencana yang sama tetap dihitung, sehingga estimasi dapat berlebih.'));
   assert.ok(!MATERIAL_REQUIREMENT_NOTE.includes('Stok bahan tidak dikurangi otomatis'));
-  assert.ok(!/produksi|work order|laporan/i.test(MATERIAL_REQUIREMENT_NOTE));
+  assert.ok(!MATERIAL_REQUIREMENT_NOTE.includes('penerimaan pembelian, stock opname'));
+  assert.ok(!/work order|laporan/i.test(MATERIAL_REQUIREMENT_NOTE));
 });
 
 test('AC-40.14: hasil mock identik dengan aturan murni server untuk data yang sama (beberapa tanggal)', async () => {

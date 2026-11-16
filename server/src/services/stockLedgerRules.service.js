@@ -4,6 +4,7 @@
 // akhir ∈ [0, 99.999.999,99]. Pemanggil (CP4/CP5) mengunci baris lalu menulis dokumen + mutasi + stok dalam SATU
 // transaksi; satu pelanggaran → seluruh operasi ditolak (rollback). BigInt sen, tanpa float.
 // Client setara: utils/rules/stockLedger.js (uji silang di client tests/vitest).
+// CR-04b: keluarga `material_issue` (pengeluaran bahan) — tanda dampak terbalik: Δ = qty(O) − qty(P) (§2.4, §4.3).
 
 const { STOCK_QTY_MAX, LEDGER_ERROR_CODE } = require('../utils/businessConstants');
 const { decimalToCents, centsToDecimalString, parseDecimalInput } = require('./decimalInputRules.service');
@@ -12,19 +13,24 @@ const STOCK_MAX_CENTS = decimalToCents(STOCK_QTY_MAX);
 const EFFECTIVE_KINDS = Object.freeze({
   goods_receipt: Object.freeze(['normal', 'pengganti']),
   stock_adjustment: Object.freeze(['saldo_awal', 'stok_masuk', 'pengganti_stok_masuk', 'stock_opname']),
+  material_issue: Object.freeze(['normal', 'pengganti']),
 });
 const REVERSIBLE_KINDS = Object.freeze({
   goods_receipt: Object.freeze(['normal', 'pengganti']),
   stock_adjustment: Object.freeze(['stok_masuk', 'pengganti_stok_masuk']),
+  material_issue: Object.freeze(['normal', 'pengganti']),
 });
 const MOVEMENT_TYPES = Object.freeze({
   goods_receipt: Object.freeze({ normal: 'penerimaan', reverse: 'pembalik_penerimaan', correct: 'koreksi_penerimaan' }),
   stock_adjustment: Object.freeze({ normal: 'stok_masuk', reverse: 'pembalik_stok_masuk', correct: 'koreksi_stok_masuk' }),
+  material_issue: Object.freeze({ normal: 'pengeluaran_produksi', reverse: 'pembalik_pengeluaran', correct: 'koreksi_pengeluaran' }),
 });
+// Arah dampak stok per keluarga: penerimaan & stok masuk menambah (+1), pengeluaran mengurangi (−1)
+const STOCK_SIGN = Object.freeze({ goods_receipt: 1n, stock_adjustment: 1n, material_issue: -1n });
 
 /**
  * Dokumen asal O boleh dibalik/dikoreksi? Berlaku = jenis normal/pengganti yang belum dirujuk reverses_id/replaces_id.
- * @param {'goods_receipt'|'stock_adjustment'} family
+ * @param {'goods_receipt'|'stock_adjustment'|'material_issue'} family
  * @param {{kind: string, reversed: boolean, replaced: boolean}} doc
  * @returns {null | {status: number, code?: string, message: string}}
  */
@@ -42,8 +48,8 @@ const keyOf = (line) => String(line.po_item_id ?? line.material_id);
 
 /**
  * Dampak bersih per baris (§4.3). O = dokumen asal, P = pengganti (kosong untuk pembalik murni).
- * Δ = qty(P) − qty(O); Δ = 0 → tanpa mutasi; rujuk P bila baris ada di P, selain itu R.
- * @param {'goods_receipt'|'stock_adjustment'} family
+ * Δ = qty(P) − qty(O) (pengeluaran: qty(O) − qty(P)); Δ = 0 → tanpa mutasi; rujuk P bila baris ada di P, selain itu R.
+ * @param {'goods_receipt'|'stock_adjustment'|'material_issue'} family
  * @param {{po_item_id?, material_id, qty}[]} original
  * @param {{po_item_id?, material_id, qty}[]|null} replacement — null = pembalik murni
  */
@@ -56,7 +62,7 @@ function planReversalOrCorrection(family, original, replacement) {
     rows.set(keyOf(line), { ...row, after: decimalToCents(line.qty), inP: true });
   }
   return [...rows.values()]
-    .map((r) => ({ key: keyOf(r), po_item_id: r.po_item_id ?? null, material_id: String(r.material_id), delta: r.after - r.before, reference: r.inP ? 'P' : 'R', type }))
+    .map((r) => ({ key: keyOf(r), po_item_id: r.po_item_id ?? null, material_id: String(r.material_id), delta: STOCK_SIGN[family] * (r.after - r.before), reference: r.inP ? 'P' : 'R', type }))
     .filter((r) => r.delta !== 0n)
     .sort((a, b) => (BigInt(a.material_id) < BigInt(b.material_id) ? -1 : BigInt(a.material_id) > BigInt(b.material_id) ? 1 : (a.key < b.key ? -1 : 1)));
 }
@@ -120,6 +126,6 @@ function planStockCount(lockedStock, countedStock, expectedStock) {
 }
 
 module.exports = {
-  EFFECTIVE_KINDS, REVERSIBLE_KINDS, MOVEMENT_TYPES, reversalTargetError, planReversalOrCorrection, correctionShapeError,
+  EFFECTIVE_KINDS, REVERSIBLE_KINDS, MOVEMENT_TYPES, STOCK_SIGN, reversalTargetError, planReversalOrCorrection, correctionShapeError,
   applyStockDeltas, validateStockCountInput, planStockCount,
 };

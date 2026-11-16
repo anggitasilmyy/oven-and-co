@@ -54,6 +54,7 @@ import KalenderPage from '../pages/admin/KalenderPage';
 import ProdukAdminPage from '../pages/admin/ProdukAdminPage';
 import StokPage from '../pages/admin/StokPage';
 import PembelianPage from '../pages/admin/PembelianPage'; // CR-04a · AD-12
+import ProduksiPage from '../pages/admin/ProduksiPage'; // CR-04b · AD-13
 import LaporanPage from '../pages/admin/LaporanPage';
 import PromoPage from '../pages/admin/PromoPage';
 import PelangganPage from '../pages/admin/PelangganPage';
@@ -194,6 +195,7 @@ export default function AppRoutes() {
         <Route path="produk" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.PRODUK]}><ProdukAdminPage /></RoleRoute>} />
         <Route path="stok" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.STOK]}><StokPage /></RoleRoute>} />
         <Route path="pembelian" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.PEMBELIAN]}><PembelianPage /></RoleRoute>} />
+        <Route path="produksi" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.PRODUKSI]}><ProduksiPage /></RoleRoute>} />
         <Route path="pelanggan" element={<RoleRoute roles={ADMIN_PAGE_ROLES[ADMIN_ROUTES.PELANGGAN]}><PelangganPage /></RoleRoute>} />
 
         {/* Owner only */}

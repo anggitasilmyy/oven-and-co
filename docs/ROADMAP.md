@@ -183,13 +183,13 @@ Catatan khusus:
 | 6.6 | Ganti `VITE_USE_MOCK=false`, sesuaikan service frontend, uji semua layar | `client/src/services/*` |
 | 6.7 | Komposisi bahan (resep ringan) & estimasi kebutuhan bahan — CR-03: FR-39 (AD-06), FR-40 (AD-07), tabel `product_materials` | lihat "Step 6.7 – 6.10" di bawah (CP0 – CP8 selesai) |
 | 6.8 | Supplier & Purchasing Management — **CR-04a** (disetujui 12 Nov 2026): FR-41 – FR-44, AD-12, buku mutasi AD-07, 9 tabel | lihat "Step 6.8" di bawah (CP0 selesai, CP1 dokumen; CP2 – CP7 belum diizinkan) |
-| 6.9 | Manufacturing Management — **CR-04b, direncanakan, belum diizinkan** | — |
+| 6.9 | Manufacturing Management — **CR-04b** (izin mulai setelah CR-04a di-merge): FR-45, FR-46, AD-13, 5 tabel (39 → 44) | lihat "Step 6.9" di bawah (CP1 – CP6 selesai; **READY FOR REVIEW** — PR CR-04b) |
 | 6.10 | Advanced Reporting — **CR-04c, direncanakan, belum diizinkan**; laporan penjualan AD-08 & KPI AD-02 tetap berlaku | — |
 
 **Hasil (target akhir Step 6):** aplikasi berjalan penuh dengan MySQL; data tersimpan setelah server restart; Prisma Studio
 bisa dipakai saat presentasi. Setelah 6.7 (CR-03): komposisi bahan per produk dan estimasi kebutuhan bahan tersedia di
 AD-06/AD-07 untuk Staf & Owner. Step 6.8 – 6.10 direncanakan di CR-04 dan dikerjakan bertahap (6.8 = CR-04a lebih dulu;
-6.9 dan 6.10 belum diizinkan); laporan penjualan AD-08 dan KPI AD-02 tetap berlaku.
+6.9 = CR-04b berikutnya; 6.10 belum diizinkan); laporan penjualan AD-08 dan KPI AD-02 tetap berlaku.
 **Sudah terverifikasi (per `5b74ba6`):** migrasi & seed pada MySQL 8.0.46 lewat harness `tests-mysql/run.sh`, integrasi
 51/51 (lihat catatan 6.1). **Belum terverifikasi:** aplikasi penuh di mode API (6.6), data tetap ada setelah server
 restart, dan pemeriksaan Prisma Studio. → **Ketiganya terverifikasi di 6.6 CP8** (lihat catatan 6.6 CP8).
@@ -1799,29 +1799,42 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 - Kebutuhan pengujian *(usulan teknis)*: unit test aturan PO & penerimaan; route test; integrasi MySQL (penerimaan
   ganda/bersamaan × stok masuk × koreksi `expected_stock`, rollback); regresi 6.7 dan AD-07.
 
-**Step 6.9 — Manufacturing Management**
-- Status: **Direncanakan sebagai CR-04b — belum diizinkan.** Dimulai hanya setelah CR-04a selesai dan disetujui
-  Pemilik Project secara terpisah (K09 – K14, K25 sudah disetujui sebagai desain). Rincian di bawah adalah catatan
-  rencana awal; yang berlaku nanti adalah CR-04b.
-- Tujuan: menjalankan produksi memakai resep (6.7), stok bahan (6.7), dan hasil pengadaan (6.8).
-- Ruang lingkup: (1) perencanaan produksi; (2) perhitungan kebutuhan bahan; (3) work order; (4) pencatatan pemakaian
-  bahan; (5) hasil produksi dan produk selesai.
-- Existing vs lanjutan: rencana stok harian produk ready (`daily_stocks.qty_planned`, AD-07) dan kalender produksi
-  pre-order & custom (AD-05) sudah ada → perencanaan produksi memakai/menghubungkan data ini, bukan menggantinya;
-  (2) memakai perhitungan kebutuhan bahan 6.7 (tidak ditulis ulang); (3), (4), (5) belum ada. Checkbox "Selesai
-  diproduksi" di Stitch sebelumnya tidak dibuat karena tidak ada kolomnya (catatan 5.6) — dibahas ulang di CR ini.
-- Dependensi: 6.7 (resep, kebutuhan bahan, alokasi), 6.8 (ketersediaan bahan), AD-05, AD-07; CR disetujui.
-- Acceptance criteria:
-  · [Scope] perencanaan produksi tersedia dan memakai data AD-07/AD-05 yang ada (tanpa rencana stok atau kalender
-    kedua); kebutuhan bahan dihitung dengan perhitungan 6.7; work order dapat dibuat; pemakaian bahan tercatat; hasil
-    produksi dan produk selesai tercatat.
-  · [Usulan teknis] kebutuhan bahan work order identik dengan hasil fungsi 6.7; pemakaian mengurangi stok bahan tepat
-    sekali dan melepas alokasi terkait; alur pesanan, checkout, dan stok ready existing tidak berubah kecuali yang
-    ditetapkan CR; tanpa deadlock dan stok negatif saat bersamaan dengan checkout & penerimaan 6.8.
-  · [Menunggu CR] hubungan hasil produksi dengan `daily_stocks` (stok ready) dan pesanan pre-order/custom; apakah
-    status pesanan (SPEC §4) ikut berubah; perlakuan selisih pemakaian vs resep; hak akses Staf/Owner.
-- Kebutuhan pengujian *(usulan teknis)*: unit test aturan work order & pemakaian; route test; integrasi MySQL (work
-  order × checkout × penerimaan 6.8 bersamaan, rollback); regresi AD-05, AD-07, checkout 6.3.
+**Step 6.9 — Manufacturing Management (CR-04b)**
+- Status: **Diizinkan** — instruksi Pemilik Project untuk melanjutkan ke CR-04b setelah PR #34 (CR-04a) di-merge ke
+  `main`; keputusan desain K09 – K14, K25 disetujui 12 Nov 2026. Implementasi CP1 – CP6 selesai di branch
+  `cr04b/manufacturing` (dari `origin/main` `6bbb0e0`); finalisasi disetujui Pemilik Project — **status CR-04b: READY FOR
+  REVIEW** (PR CR-04b ke `main`; bagian yang bergantung CR-04c tetap BLOCKED, lihat catatan CP6).
+- Ruang lingkup: FR-45, FR-46, UC-36, UC-37, BR-25 – BR-29, BR-36 (+ BR-23, BR-24, BR-30, BR-31, BR-34 diperluas),
+  AC-45.1 – AC-46.8, AD-13 Produksi `/admin/produksi` (Staf & Owner, K09), 5 tabel (39 → 44), E-6 versi CR-04b + E-11 —
+  `docs/SPEC.md` bagian 3, 5, 6, 7, 8, 10, 14; rincian normatif `docs/change-requests/CR-04_DRAFT_0.8.3.md` §8, §10,
+  §12.3, §13 – §16, §18, §19 + Errata E1/E1.1.
+- Di luar lingkup (tetap): laporan operasional & agregat per periode (CR-04c, Step 6.10), HPP/biaya, penambahan stok
+  produk siap jual dari hasil produksi (K13), reservasi/alokasi bahan, perubahan alur pesanan/checkout/AD-05.
+- Dependensi: 6.7 (resep `product_materials`, FR-40), 6.8 (buku mutasi bahan, idempotensi `request_id`), AD-05, AD-07.
+
+| CP | Isi | Kriteria selesai | Status |
+|---|---|---|---|
+| CP1 | AGENTS.md §1, SPEC (bagian 3/5/6/7/8/10/13/14), ROADMAP | `db:check-spec` & uji K-14 lulus | **Selesai** |
+| CP2 | Schema & migrasi `20261116000000_cr04b_manufacturing` (5 tabel, `material_movements.issue_id`, 3 jenis mutasi pengeluaran, CHECK `ck_wo_*`/`ck_wor_qty`/`ck_mi_kind`/`ck_mil_qty`/`ck_out_kind`, `ck_mm_source`/`ck_mm_sign` versi CR-04b); `db:check-spec` 44 tabel; pemeriksa buku mutasi I-5, I-8 pengeluaran, I-11 | MySQL `25-cr04b-migration` (IT-16, IT-17) | **Selesai** |
+| CP3 | Aturan murni server = client (`workOrderRules`, `workOrderViewRules`, ledger pengeluaran) | node:test + Vitest uji silang | **Selesai** |
+| CP4 | API WO, pengeluaran, hasil, pembalik/koreksi, plan-source; middleware `request_id` (+9 operasi); audit 10 aksi | Route test; MySQL `26-cr04b-production` (IT-18 – IT-26, IT-30/IT-31 bagian CR-04b) | **Selesai** |
+| CP5 | Frontend AD-13 (daftar, form + acuan hanya baca, detail, pengeluaran, selesaikan, pembalik/koreksi, pemakaian bahan), mock setara, rute & sidebar, label mutasi produksi di riwayat AD-07; **aktivasi E-6 versi CR-04b + E-11** (SPEC, `MATERIAL_REQUIREMENT_NOTE`, K-14, e2e 6.7) | e2e & visual AD-13 mode mock & API; paritas mock = API | **Selesai** |
+| CP6 | Regresi penuh | Semua lulus | **Selesai** — lihat catatan |
+
+- Catatan CP6 (16 Nov 2026, kode akhir di working tree): server `npm test` 783/783; `db:check-spec` 44 tabel / 331 kolom /
+  88 FK / 20 CHECK CR-04a/b; harness MySQL penuh **176/176** (01 – 26; 0 deadlock; 11 lock timeout = uji timeout yang
+  disengaja, sama dengan baseline sejak CR-04a CP5); client `test:unit` 320/320, Vitest 28/28; lint 0 error (2 peringatan
+  lama `Toast.jsx`); build lulus. Paritas mode mock = API: CR-04b `tests/step-6.9/parity.diff.mjs` **83/83 langkah
+  identik** (46 langkah ditolak, seluruhnya tanpa efek), CR-04a `step-6.8/parity.diff.mjs` 111/111. Browser:
+  `step-6.9/production.e2e.mjs` 27/27 di 390/768/1440 px mode mock & API; `step-6.9/visual.e2e.mjs` 180 pemeriksaan
+  360 – 1920 px, 0 masalah tata letak; regresi `step-6.8` (purchasing 27/27 mock & API, visual 210 pemeriksaan 0 masalah),
+  `step-6.7` (integration 11/11 mock & API, requirementDate 13/13 API), step 5.1 – 5.8 func/cart/unit/regression lulus
+  (mode mock).
+- Interpretasi yang dicatat (SPEC bagian 14): tidak ada endpoint "pengganti langsung" terpisah (Draft §15); larangan
+  pengganti langsung atas hasil > 0 (IT-22) ditegakkan di aturan murni `directReplacementError` dan diuji di tingkat aturan.
+- Status AC: AC-45.1 – AC-45.3, AC-46.1 – AC-46.4, AC-46.6, AC-46.7, AC-NF **PASS**; AC-46.5 & AC-46.8 **PASS** untuk bagian
+  WO, **BLOCKED** untuk bagian laporan/agregat per periode (menunggu CR-04c). IT-27, IT-28, IT-29 dan agregat per periode
+  IT-23/IT-32 adalah ruang lingkup CR-04c (Step 6.10, belum diizinkan).
 
 **Step 6.10 — Advanced Reporting**
 - Status: **Direncanakan sebagai CR-04c — belum diizinkan.** Dimulai hanya setelah CR-04b selesai dan disetujui

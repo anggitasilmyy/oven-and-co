@@ -9,17 +9,26 @@ async function query(client, sql, ids) {
   return ids ? client.$queryRawUnsafe(sql, ...idList(ids)) : client.$queryRawUnsafe(sql);
 }
 
+// CR-04b: database yang belum dimigrasikan ke CR-04b (39 tabel, mis. pemeriksaan M-0 sebelum migrasi CR-04b) tidak
+// punya material_movements.issue_id / material_issue_lines → buku mutasi dibaca tanpa data pengeluaran.
+async function hasIssueSchema(client) {
+  const rows = await client.$queryRawUnsafe(`SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'material_movements' AND COLUMN_NAME = 'issue_id'`);
+  return Number(rows[0].n) > 0;
+}
+
 const where = (column, ids) => (ids ? `WHERE ${column} IN (${ids.map(() => '?').join(', ')})` : '');
 const str = (value) => (value === null || value === undefined ? null : String(value));
 
 /**
  * @param {object} client — PrismaClient / Prisma.TransactionClient
  * @param {Array<string|number|bigint>|null} materialIds — null = semua bahan
- * @returns {Promise<Array<{materialId, name, stock, adjustments, movements, receiptLines}>>}
+ * @returns {Promise<Array<{materialId, name, stock, adjustments, movements, receiptLines, issueLines}>>}
  */
 async function loadLedgerMaterials(client, materialIds = null) {
   if (Array.isArray(materialIds) && materialIds.length === 0) return [];
   const ids = materialIds;
+  const issues = await hasIssueSchema(client);
   const materials = await query(client, `SELECT material_id, name, CAST(stock AS CHAR) AS stock
     FROM raw_materials ${where('material_id', ids)} ORDER BY material_id`, ids);
   const adjustments = await query(client, `SELECT adjustment_id, material_id, kind, CAST(qty AS CHAR) AS qty,
@@ -28,14 +37,19 @@ async function loadLedgerMaterials(client, materialIds = null) {
     ORDER BY adjustment_id`, ids);
   const movements = await query(client, `SELECT movement_id, material_id, type, CAST(qty_change AS CHAR) AS qty_change,
     CAST(stock_before AS CHAR) AS stock_before, CAST(stock_after AS CHAR) AS stock_after, adjustment_id, receipt_id,
-    po_item_id, created_at FROM material_movements ${where('material_id', ids)} ORDER BY movement_id`, ids);
+    po_item_id, ${issues ? 'issue_id' : 'NULL AS issue_id'}, created_at FROM material_movements ${where('material_id', ids)} ORDER BY movement_id`, ids);
   const lines = await query(client, `SELECT l.receipt_id, l.po_item_id, CAST(l.qty AS CHAR) AS qty, r.kind,
     r.operation_request_id, r.created_at, i.material_id FROM goods_receipt_lines l
     JOIN goods_receipts r ON r.receipt_id = l.receipt_id JOIN purchase_order_items i ON i.po_item_id = l.po_item_id
     ${where('i.material_id', ids)} ORDER BY l.line_id`, ids);
+  // CR-04b: baris pengeluaran bahan (dokumen material_issues)
+  const issueLines = !issues ? [] : await query(client, `SELECT l.issue_id, l.material_id, CAST(l.qty AS CHAR) AS qty, d.kind, d.wo_id,
+    d.operation_request_id, d.created_at FROM material_issue_lines l JOIN material_issues d ON d.issue_id = l.issue_id
+    ${where('l.material_id', ids)} ORDER BY l.line_id`, ids);
 
   const byMaterial = new Map(materials.map((m) => [String(m.material_id), {
     materialId: String(m.material_id), name: m.name, stock: m.stock, adjustments: [], movements: [], receiptLines: [],
+    issueLines: [],
   }]));
   for (const a of adjustments) {
     byMaterial.get(String(a.material_id))?.adjustments.push({
@@ -48,12 +62,18 @@ async function loadLedgerMaterials(client, materialIds = null) {
     byMaterial.get(String(mv.material_id))?.movements.push({
       movementId: String(mv.movement_id), materialId: String(mv.material_id), type: mv.type, qtyChange: mv.qty_change,
       stockBefore: mv.stock_before, stockAfter: mv.stock_after, adjustmentId: str(mv.adjustment_id),
-      receiptId: str(mv.receipt_id), poItemId: str(mv.po_item_id), createdAt: mv.created_at,
+      receiptId: str(mv.receipt_id), poItemId: str(mv.po_item_id), issueId: str(mv.issue_id), createdAt: mv.created_at,
     });
   }
   for (const l of lines) {
     byMaterial.get(String(l.material_id))?.receiptLines.push({
       receiptId: String(l.receipt_id), poItemId: String(l.po_item_id), qty: l.qty, kind: l.kind,
+      operationRequestId: l.operation_request_id, createdAt: l.created_at,
+    });
+  }
+  for (const l of issueLines) {
+    byMaterial.get(String(l.material_id))?.issueLines.push({
+      issueId: String(l.issue_id), woId: String(l.wo_id), qty: l.qty, kind: l.kind,
       operationRequestId: l.operation_request_id, createdAt: l.created_at,
     });
   }

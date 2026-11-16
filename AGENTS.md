@@ -9,15 +9,19 @@ Baca file ini, `docs/SPEC.md`, dan `docs/ROADMAP.md` sebelum mengerjakan tugas a
 - Desain visual per layar: file export Google Stitch di `docs/stitch/` (jika tersedia).
 - JANGAN membuat fitur, halaman, tabel, kolom, atau menu baru yang tidak ada di dokumen.
   Contoh yang DILARANG: menu Bantuan, chat in-app, multi-cabang, langganan, modul keuangan/akuntansi (hutang,
-  pembayaran supplier, pajak, HPP), produksi/work order, laporan operasional, halaman profil pribadi admin, layar audit
+  pembayaran supplier, pajak, HPP), produksi di luar CR-04b, laporan operasional, halaman profil pribadi admin, layar audit
   log. **Resep hanya sebatas CR-03** (komposisi bahan per produk & estimasi kebutuhan bahan; tanpa varian, konversi
   satuan, alokasi tersimpan, atau pengurangan stok otomatis).
 - **Supplier & Purchasing hanya sebatas CR-04a** (`docs/SPEC.md` bagian 13; Step 6.8): supplier & daftar bahan per
   supplier, purchase order, penerimaan bahan (+ pembalik/koreksi), dan buku mutasi stok bahan AD-07 (saldo awal, Catat
   Stok Masuk + pembalik/koreksi, stock opname, riwayat mutasi). Nilai pembelian hanya informasi, bukan akuntansi.
   Implementasi hanya per CP yang sudah diizinkan Pemilik Project (`docs/ROADMAP.md` Step 6.8).
-- CR-04b (produksi/work order, Step 6.9) dan CR-04c (laporan operasional, Step 6.10) sudah direncanakan di
-  `docs/change-requests/` tetapi **belum diizinkan**; larangan di atas tetap berlaku sampai CP1 tahap tersebut disetujui.
+- **Manufacturing hanya sebatas CR-04b** (`docs/SPEC.md` bagian 14; Step 6.9): Work Order satu produk per tanggal (Draft →
+  Diproses → Selesai / Dibatalkan, snapshot resep saat mulai), pengeluaran bahan (+ pembalik/koreksi), hasil produksi
+  (+ pembalik/koreksi tiga kasus), standar/aktual/selisih per WO, isian awal hanya baca dari AD-07/AD-05. Hasil produksi
+  **tidak** menambah stok produk siap jual, `daily_stocks`, atau mengubah pesanan (K13); tanpa HPP/biaya.
+- CR-04c (laporan operasional, Step 6.10) sudah direncanakan di `docs/change-requests/` tetapi **belum diizinkan**;
+  larangan laporan operasional tetap berlaku sampai CP1 tahap tersebut disetujui.
 - Perubahan requirement yang disetujui dicatat di `docs/SPEC.md` (CR-01, CR-03, CR-04, …) dan berlaku sebagai bagian
   dokumen sumber. Dokumen CR lengkap & rekaman persetujuan disimpan di `docs/change-requests/`.
 - Jika dokumen ambigu atau masih open issue, JANGAN mengarang. Pakai asumsi yang tercantum di

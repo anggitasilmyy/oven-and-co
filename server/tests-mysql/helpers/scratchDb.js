@@ -14,6 +14,8 @@ const SERVER_DIR = path.resolve(__dirname, '..', '..');
 const ROOT = new URL(process.env.ROOT_DATABASE_URL);
 const ROOT_PASSWORD = decodeURIComponent(ROOT.password);
 const PRE_CR04A = ['20261017000000_init', '20261111000000_cr03_product_materials'];
+// CR-04b: database "sesudah CR-04a, sebelum CR-04b" (39 tabel) untuk uji langkah migrasi tertentu
+const UP_TO_CR04A = [...PRE_CR04A, '20261112000000_cr04a_purchasing'];
 
 function assertScratchName(name) {
   if (!/^ovenco_cp2_[a-z0-9_]+_test$/.test(name)) throw new Error(`Nama database sementara tidak sah: ${name}`);
@@ -65,9 +67,11 @@ function run(command, args, name, env = {}) {
 }
 
 const prismaBin = path.join(SERVER_DIR, 'node_modules', '.bin', 'prisma');
-/** prisma migrate deploy; `preCr04a` = hanya migrasi sebelum CR-04a */
-const deploy = (name, { preCr04a = false } = {}) => run(prismaBin, ['migrate', 'deploy',
-  ...(preCr04a ? ['--schema', migrationsFolder(PRE_CR04A)] : [])], name);
+/** prisma migrate deploy; `preCr04a` = hanya migrasi sebelum CR-04a; `upToCr04a` = sampai CR-04a (tanpa CR-04b) */
+const deploy = (name, { preCr04a = false, upToCr04a = false } = {}) => {
+  const subset = preCr04a ? PRE_CR04A : upToCr04a ? UP_TO_CR04A : null;
+  return run(prismaBin, ['migrate', 'deploy', ...(subset ? ['--schema', migrationsFolder(subset)] : [])], name);
+};
 const seed = (name, env = {}) => run('node', ['prisma/seed.js'], name, env);
 const checkLedger = (name, args = [], env = {}) => run('node', ['prisma/checkLedger.js', ...args], name, env);
 const snapshot = (name, args) => run('node', ['prisma/stockSnapshot.js', ...args], name);

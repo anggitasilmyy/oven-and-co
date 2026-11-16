@@ -23,6 +23,8 @@ const receiptLines = (lines) => list(lines, (l) => ({ po_item_id: id(l?.po_item_
 const orderItems = (items) => list(items, (i) => ({
   material_id: id(i?.material_id), qty_ordered: decimal(i?.qty_ordered, STOCK_QTY_MAX), unit_price: decimal(i?.unit_price, PURCHASE_PRICE_MAX),
 }), 'material_id');
+// CR-04b: baris pengeluaran bahan (pengeluaran, koreksi, pengeluaran terakhir saat Selesaikan WO) — urut material_id
+const issueLines = (lines) => list(lines, (l) => ({ material_id: id(l?.material_id), qty: decimal(l?.qty, STOCK_QTY_MAX) }), 'material_id');
 const materialIds = (ids) => (Array.isArray(ids) ? ids.map(id).sort((a, b) => byId('v')({ v: a }, { v: b })) : ids ?? null);
 
-module.exports = { receiptLines, orderItems, materialIds };
+module.exports = { receiptLines, orderItems, materialIds, issueLines };

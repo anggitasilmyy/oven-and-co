@@ -118,6 +118,8 @@ async function getMaterialMovements(materialId) {
     include: {
       adjustment: { select: { adjustmentId: true, kind: true, qty: true, reason: true, reversedBy: { select: { adjustmentId: true } }, replacedBy: { select: { adjustmentId: true } } } },
       receipt: { select: { receiptId: true, kind: true, reason: true, poId: true } },
+      // CR-04b: pengeluaran bahan WO (dokumen material_issues)
+      issue: { select: { issueId: true, kind: true, reason: true, woId: true, reversedBy: { select: { issueId: true } }, replacedBy: { select: { issueId: true } } } },
       creator: { select: { name: true } },
     },
   });
@@ -129,7 +131,12 @@ async function getMaterialMovements(materialId) {
       document: m.adjustment
         ? { source: 'stock_adjustment', id: String(m.adjustment.adjustmentId), kind: m.adjustment.kind, qty: num(m.adjustment.qty), reason: m.adjustment.reason,
           effective: !m.adjustment.reversedBy && !m.adjustment.replacedBy }
-        : { source: 'goods_receipt', id: String(m.receipt.receiptId), kind: m.receipt.kind, reason: m.receipt.reason, po_id: String(m.receipt.poId) },
+        : m.receipt
+          ? { source: 'goods_receipt', id: String(m.receipt.receiptId), kind: m.receipt.kind, reason: m.receipt.reason, po_id: String(m.receipt.poId) }
+          : {
+            source: 'material_issue', id: String(m.issue.issueId), kind: m.issue.kind, reason: m.issue.reason, wo_id: String(m.issue.woId),
+            effective: m.issue.kind !== 'pembalik' && !m.issue.reversedBy && !m.issue.replacedBy,
+          },
     })),
   };
 }

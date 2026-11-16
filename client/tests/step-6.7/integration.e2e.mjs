@@ -89,10 +89,10 @@ await loginAdmin('owner@demo.com');
 await p.goto(`${B}/admin/stok?tab=kebutuhan`);
 check('Owner membuka tab Kebutuhan Bahan', await p.getByRole('heading', { name: /^Stok dialokasikan/ }).isVisible({ timeout: 10000 }).catch(() => false)
   || await p.getByRole('heading', { name: /^Stok dialokasikan/ }).waitFor({ timeout: 10000 }).then(() => true, () => false));
-// CR-04a CP6 · E-6 versi CR-04a aktif: teks keterangan wajib yang tampil = konstanta aktif (kalimat penutup baru)
+// CR-04b CP5 · E-6 versi CR-04b + E-11 aktif: teks keterangan wajib yang tampil = konstanta aktif (kalimat penutup baru)
 const noteText = (await p.locator('main').innerText()).replace(/\s+/g, ' ');
-check('teks keterangan tampil = E-6 versi CR-04a (bukan kalimat CR-03)', noteText.includes('Estimasi ini tidak mengurangi stok bahan; stok hanya berubah lewat Catat Stok Masuk, penerimaan pembelian, stock opname, serta pembalik atau koreksi transaksi tersebut.')
-  && !noteText.includes('Stok bahan tidak dikurangi otomatis'));
+check('teks keterangan tampil = E-6 versi CR-04b + E-11 (bukan kalimat CR-03/CR-04a)', noteText.includes('Estimasi ini tidak mengurangi stok bahan; stok hanya berubah lewat Catat Stok Masuk, penerimaan pembelian, pemakaian bahan produksi, stock opname, serta pembalik atau koreksi transaksi tersebut. Pemakaian bahan produksi yang sudah dicatat mengurangi stok, sedangkan pesanan dan rencana yang sama tetap dihitung, sehingga estimasi dapat berlebih.')
+  && !noteText.includes('Stok bahan tidak dikurangi otomatis') && !noteText.includes('penerimaan pembelian, stock opname'));
 await logout();
 await p.goto(`${B}/masuk`); await p.waitForTimeout(500);
 await p.fill('#masuk-identifier', 'pelanggan@demo.com'); await p.fill('#masuk-password', 'demo1234');

@@ -1,6 +1,7 @@
 // utils/rules/ledger.js
 // FR-44 · BR-23 · CR-04a CP2 — aturan murni buku mutasi stok bahan (Draft 0.8.3 §2.6; Errata E1 B.1/B.6; E1.1 §2, §5).
-// Memeriksa satu bahan: I-1, I-2, I-3, I-7, I-10, I-11 (+ I-8 & kesesuaian dokumen ↔ mutasi di ledgerSourceRules).
+// Memeriksa satu bahan: I-1, I-2, I-3, I-7, I-10, I-11 (+ I-5, I-8 & kesesuaian dokumen ↔ mutasi di ledgerSourceRules;
+// CR-04b menambah baris pengeluaran `issueLines`).
 // Juga klasifikasi seed K-A – K-D (E1.1 §2). Tanpa database & tanpa floating point: semua kuantitas BigInt
 // milli-satuan (nilai DECIMAL(10,2) dibaca sebagai string). ID dibandingkan sebagai BigInt.
 // Port dari server services/ledgerRules.service.js — perilaku & pesan identik (uji silang client tests/vitest/purchasingRules.test.mjs).
@@ -22,9 +23,9 @@ function isValidStock(value) {
   return STOCK_PATTERN.test(text) && inRange(toMilli(text));
 }
 
-/** Bahan punya catatan stok apa pun (dokumen, mutasi, baris penerimaan) — Errata E1.1 §2 */
+/** Bahan punya catatan stok apa pun (dokumen, mutasi, baris penerimaan, baris pengeluaran CR-04b) — Errata E1.1 §2 */
 function hasStockRecords(m) {
-  return m.adjustments.length > 0 || m.movements.length > 0 || m.receiptLines.length > 0;
+  return m.adjustments.length > 0 || m.movements.length > 0 || m.receiptLines.length > 0 || (m.issueLines ?? []).length > 0;
 }
 
 function checkOpening(m, saldo, movements, fail) {
@@ -88,11 +89,12 @@ function checkOpeningFirst(m, saldo, movements, fail) {
   if (saldo.movement && movements[0] !== saldo.movement) fail('I-11', 'mutasi saldo_awal bukan mutasi pertama');
   const openedAt = new Date(saldo.doc.createdAt).getTime();
   if (m.receiptLines.some((l) => new Date(l.createdAt).getTime() < openedAt)) fail('I-11', 'penerimaan sebelum saldo awal');
+  if ((m.issueLines ?? []).some((l) => new Date(l.createdAt).getTime() < openedAt)) fail('I-11', 'pengeluaran sebelum saldo awal');
 }
 
 /**
  * Periksa buku mutasi satu bahan.
- * @param {{materialId, name?, stock, adjustments: object[], movements: object[], receiptLines: object[]}} material
+ * @param {{materialId, name?, stock, adjustments: object[], movements: object[], receiptLines: object[], issueLines?: object[]}} material
  * @returns {{invariant: string, message: string}[]} pelanggaran (kosong = lulus)
  */
 function checkMaterialLedger(material) {

@@ -252,6 +252,17 @@ const AUDIT_ACTION = Object.freeze({
   COUNT_STOCK: 'count_stock',
   REVERSE_STOCK_IN: 'reverse_stock_in',
   CORRECT_STOCK_IN: 'correct_stock_in',
+  // CR-04b · FR-45, FR-46 · BR-34 (Draft 0.8.3 §10.2): produksi
+  CREATE_WORK_ORDER: 'create_work_order',
+  UPDATE_WORK_ORDER: 'update_work_order',
+  START_WORK_ORDER: 'start_work_order',
+  CANCEL_WORK_ORDER: 'cancel_work_order',
+  ISSUE_MATERIAL: 'issue_material',
+  REVERSE_MATERIAL_ISSUE: 'reverse_material_issue',
+  CORRECT_MATERIAL_ISSUE: 'correct_material_issue',
+  COMPLETE_WORK_ORDER: 'complete_work_order',
+  REVERSE_PRODUCTION_OUTPUT: 'reverse_production_output',
+  CORRECT_PRODUCTION_OUTPUT: 'correct_production_output',
 });
 const AUDIT_ENTITY = Object.freeze({
   ORDERS: 'orders',
@@ -263,6 +274,9 @@ const AUDIT_ENTITY = Object.freeze({
   SUPPLIERS: 'suppliers', // CR-04a
   PURCHASE_ORDERS: 'purchase_orders', // CR-04a
   GOODS_RECEIPTS: 'goods_receipts', // CR-04a
+  WORK_ORDERS: 'work_orders', // CR-04b
+  MATERIAL_ISSUES: 'material_issues', // CR-04b
+  PRODUCTION_OUTPUTS: 'production_outputs', // CR-04b
 });
 // Pesan 401 pelaku tidak ada / nonaktif — sama dengan middleware auth & adminStaffRules ACTOR_INACTIVE
 const AUDIT_ACTOR_INACTIVE_TEXT = 'Akun tidak ditemukan atau tidak aktif.';
@@ -476,7 +490,30 @@ const REQUEST_ID_POLICY = Object.freeze({
   count_stock: 'required',
   reverse_stock_in: 'required',
   correct_stock_in: 'required',
+  // CR-04b (Draft §5.1)
+  create_work_order: 'required',
+  update_work_order: 'optional',
+  transition_work_order: 'required',
+  issue_material: 'required',
+  reverse_material_issue: 'required',
+  correct_material_issue: 'required',
+  complete_work_order: 'required',
+  reverse_production_output: 'required',
+  correct_production_output: 'required',
 });
+
+// CR-04b · FR-45, FR-46 · BR-25 – BR-29, BR-36 (SPEC §5, §6, §10; Draft 0.8.3 §8, §14) — Work Order & hasil produksi
+const WO_STATUS = Object.freeze({ DRAFT: 'draft', DIPROSES: 'diproses', SELESAI: 'selesai', DIBATALKAN: 'dibatalkan' });
+// Transisi manual WO (BR-25): mulai dari Draft; batal dari Draft/Diproses. Selesai hanya lewat Selesaikan WO. Final.
+const WO_MANUAL_TRANSITIONS = Object.freeze({
+  draft: Object.freeze(['diproses', 'dibatalkan']),
+  diproses: Object.freeze(['dibatalkan']),
+  selesai: Object.freeze([]),
+  dibatalkan: Object.freeze([]),
+});
+const WO_NUMBER_PREFIX = 'WO'; // nomor WO-YYMMDD-NNN (SPEC §10), tanggal WIB saat WO dibuat
+const WO_QTY_MAX = 10000; // rencana & hasil bilangan bulat (Draft §14; menjamin standar ≤ 99.999.999.990,000)
+const WO_MAX_ISSUE_LINES = 30; // asumsi prototype SPEC §10 (sama dengan baris PO)
 
 module.exports = {
   MILLI_PRECISION_LOST_TEXT,
@@ -491,6 +528,11 @@ module.exports = {
   SUPPLIER_FIELD_MAX,
   LEDGER_ERROR_CODE,
   REQUEST_ID_POLICY,
+  WO_STATUS,
+  WO_MANUAL_TRANSITIONS,
+  WO_NUMBER_PREFIX,
+  WO_QTY_MAX,
+  WO_MAX_ISSUE_LINES,
   MATERIAL_DEMAND_STATUSES,
   RECIPE_MAX_ITEMS,
   RECIPE_QTY_DECIMALS,

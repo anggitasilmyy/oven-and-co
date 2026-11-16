@@ -40,6 +40,7 @@ export const ADMIN_ROUTES = {
   PRODUK: '/admin/produk',
   STOK: '/admin/stok',
   PEMBELIAN: '/admin/pembelian', // CR-04a · AD-12
+  PRODUKSI: '/admin/produksi', // CR-04b · AD-13
   LAPORAN: '/admin/laporan',
   PROMO: '/admin/promo',
   PELANGGAN: '/admin/pelanggan',
