@@ -620,6 +620,9 @@ E1.1 §6). Status (Step 6.8 CP7, harness MySQL terisolasi): IT-01 – IT-04, IT-
 otomatis; IT-38 lulus di uji client (mock = API). IT-33 (fencing M-0 – M-9) adalah prosedur operator tanpa otomasi di
 repository: mekanismenya lulus pada gladi manual CP7 di database sekali pakai; verifikasi P-OPS-1 – P-OPS-4 di lingkungan
 target tetap prasyarat deployment (AC-44.1). Bagian CR-04b dalam IT-30/IT-31 (pengeluaran, WO) belum berlaku.
+Validasi akhir CR-04a: uji acceptance tambahan `tests-mysql/24` (audit BR-34, PO Dipesan setelah perubahan supplier,
+koreksi BR-21 pada PO Dibatalkan, alur AC-42.1 bagian API); harness MySQL 01 – 24 166/166, paritas mock = API 111/111;
+status **READY WITH NOTES** — bagian laporan AC-42.1 menunggu CR-04c, P-OPS-1 – P-OPS-4 tetap prasyarat deployment.
 
 ### Ketertelusuran CR-04a
 

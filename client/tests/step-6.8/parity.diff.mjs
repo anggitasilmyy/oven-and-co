@@ -60,6 +60,8 @@ function norm(v, key = '') {
     for (const k of Object.keys(v).sort()) {
       if (/_at$/.test(k)) out[k] = v[k] == null ? null : 'T';
       else if (k === 'id' && v.source) out[k] = idOf(v.source === 'goods_receipt' ? 'R' : 'D', v[k]);
+      // reversal_id/replacement_id: dokumen penerimaan (respons membawa purchase_order) vs dokumen stok AD-07 — ruang ID beda
+      else if ((k === 'reversal_id' || k === 'replacement_id') && v[k] != null) out[k] = idOf('purchase_order' in v ? 'R' : 'D', v[k]);
       else if (k === 'material_ids') out[k] = v[k].map((x) => idOf('M', x));
       else if (k === 'materials' && typeof v[k] === 'string') out[k] = v[k].split(', ').map((x) => idOf('M', x)).join(', '); // fieldErrors STOCK_OUT_OF_RANGE
       else out[k] = norm(v[k], k);
@@ -202,10 +204,29 @@ await step('PO 2 pembalik setelah batal', () => P.reverseOrCorrectReceipt(r2, { 
 await step('PO 2 detail (qty_cancelled & nilai historis)', () => P.getPurchaseOrder(po2.po_id));
 const po3 = await step('PO 3 Draft lalu batal', () => P.savePurchaseOrder(null, { supplier_id: supA.supplier_id, items: items([[ids.m1, '1', '1']]) }, uuid()));
 await step('PO 3 batal dari Draft', () => P.changePurchaseOrderStatus(po3.po_id, { from: 'draft', to: 'dibatalkan' }, uuid()));
+// ── Draft §7: PO yang sudah Dipesan tidak terpengaruh perubahan daftar bahan/status supplier
+const po4 = await step('PO 4 dibuat (M1 & M2)', () => P.savePurchaseOrder(null, { supplier_id: supA.supplier_id, items: items([[ids.m1, '10', '100'], [ids.m2, '5', '50']]) }, uuid()));
+await step('PO 4 pesan', () => P.changePurchaseOrderStatus(po4.po_id, { from: 'draft', to: 'dipesan' }, uuid()));
+const po5 = await step('PO 5 dibuat', () => P.savePurchaseOrder(null, { supplier_id: supA.supplier_id, items: items([[ids.m1, '2.5', '1000.01']]) }, uuid()));
+await step('PO 5 pesan', () => P.changePurchaseOrderStatus(po5.po_id, { from: 'draft', to: 'dipesan' }, uuid()));
+tracked.orders.push(po4.po_id, po5.po_id);
+await step('lepas M1 dari daftar supplier A', () => P.saveSupplier(supA.supplier_id, supplierBody(`Sup A ${TAG}`, [ids.m2])));
 await step('nonaktifkan supplier A', () => P.setSupplierActive(supA.supplier_id, false));
 await step('PO untuk supplier nonaktif → ditolak', () => P.savePurchaseOrder(null, { supplier_id: supA.supplier_id, items: items([[ids.m1, '1', '1']]) }, uuid()));
+const [k1, k2] = (await P.getPurchaseOrder(po4.po_id)).items.map((i) => i.po_item_id);
+await step('PO 4 terima setelah supplier nonaktif & M1 dilepas', () => P.receivePurchaseOrder(po4.po_id, { lines: [{ po_item_id: k1, qty: '4' }, { po_item_id: k2, qty: '5' }] }, uuid()));
+const r4 = (await P.getPurchaseOrder(po4.po_id)).receipts[0].receipt_id;
+const c4 = await step('PO 4 koreksi (M1 4 → 3)', () => P.reverseOrCorrectReceipt(r4, { lines: [{ po_item_id: k1, qty: '3' }, { po_item_id: k2, qty: '5' }], reason: 'salah hitung' }, uuid(), { correct: true }));
+await step('PO 4 batal setelah supplier nonaktif', () => P.changePurchaseOrderStatus(po4.po_id, { from: 'diterima_sebagian', to: 'dibatalkan' }, uuid()));
+await step('BR-21: koreksi PO Dibatalkan menambah (M1 3 → 4) → 409', () => P.reverseOrCorrectReceipt(c4.replacement_id, { lines: [{ po_item_id: k1, qty: '4' }, { po_item_id: k2, qty: '5' }], reason: 'x' }, uuid(), { correct: true }));
+const c4b = await step('BR-21: koreksi PO Dibatalkan mengurangi (M1 3 → 2)', () => P.reverseOrCorrectReceipt(c4.replacement_id, { lines: [{ po_item_id: k1, qty: '2' }, { po_item_id: k2, qty: '5' }], reason: 'lebih hitung' }, uuid(), { correct: true }));
+await step('PO 4 pembalik pengganti', () => P.reverseOrCorrectReceipt(c4b.replacement_id, { reason: 'retur' }, uuid(), { correct: false }));
+await step('PO 4 detail akhir', () => P.getPurchaseOrder(po4.po_id));
+await step('PO 5 Dipesan → Dibatalkan tanpa penerimaan', () => P.changePurchaseOrderStatus(po5.po_id, { from: 'dipesan', to: 'dibatalkan', cancel_reason: 'batal' }, uuid()));
+await step('PO 5 Dibatalkan final → 409', () => P.changePurchaseOrderStatus(po5.po_id, { from: 'dibatalkan', to: 'dipesan' }, uuid()));
+await step('riwayat M1 (akhir)', () => S.getMaterialMovements(ids.m1));
 await step('daftar supplier (uji ini)', async () => (await P.getSuppliers()).filter((s) => s.name.includes(TAG)));
-await step('daftar PO (uji ini)', async () => (await P.getPurchaseOrders()).filter((p) => [po.po_id, po2.po_id, po3.po_id].map(String).includes(String(p.po_id))));
+await step('daftar PO (uji ini)', async () => (await P.getPurchaseOrders()).filter((p) => [po.po_id, po2.po_id, po3.po_id, po4.po_id, po5.po_id].map(String).includes(String(p.po_id))));
 
 // ── Kontrak rute: ID tidak valid, field tak dikenal, tipe salah, request_id tidak valid
 await step('ID PO tidak valid → 400 INVALID_ID', () => P.getPurchaseOrder('abc'));
