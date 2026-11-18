@@ -405,6 +405,17 @@ const REPORT_PERIOD = Object.freeze({ HARIAN: 'harian', MINGGUAN: 'mingguan', BU
 const REPORT_WEEK_DAYS = 7;
 const REPORT_MAX_RANGE_DAYS = 92;
 const REPORT_BEST_SELLER_LIMIT = 5;
+// CR-04c · FR-47 · BR-33 (Draft 0.8.3 §3 aturan 6, §9) — batas kebijakan agregat laporan operasional (|nilai|, positif &
+// negatif): kuantitas 999.999.999.999,999 (milli) & rupiah 9.999.999.999.999,99 (sen). Melebihi → 422 seluruh respons.
+const REPORT_QTY_LIMIT_MILLI = 999999999999999n;
+const REPORT_RUPIAH_LIMIT_CENTS = 999999999999999n;
+const REPORT_ERROR_CODE = Object.freeze({ REPORT_AGGREGATE_LIMIT: 'REPORT_AGGREGATE_LIMIT' });
+const REPORT_AGGREGATE_LIMIT_TEXT = 'Total laporan melebihi batas sistem. Persempit periode laporan.';
+// Urutan jenis mutasi pada laporan (§9 "per jenis"; saldo awal ikut sebagai baris terpisah — keputusan Pemilik Project)
+const REPORT_MOVEMENT_TYPES = Object.freeze(['saldo_awal', 'stok_masuk', 'pembalik_stok_masuk', 'koreksi_stok_masuk', 'stock_opname',
+  'penerimaan', 'pembalik_penerimaan', 'koreksi_penerimaan', 'pengeluaran_produksi', 'pembalik_pengeluaran', 'koreksi_pengeluaran']);
+const REPORT_ISSUE_MOVEMENT_TYPES = Object.freeze(['pengeluaran_produksi', 'pembalik_pengeluaran', 'koreksi_pengeluaran']);
+const REPORT_RECEIPT_MOVEMENT_TYPES = Object.freeze(['penerimaan', 'pembalik_penerimaan', 'koreksi_penerimaan']);
 
 // Step 6.4.8 · FR-35 · AD-10 Pelanggan & Ulasan (client constants/adminCustomer.js). Asumsi prototype: balasan admin
 // maks. 500 karakter (reviews.admin_reply bertipe TEXT); filter rating 'semua' atau bintang tepat 1–5.
@@ -601,6 +612,13 @@ module.exports = {
   REPORT_WEEK_DAYS,
   REPORT_MAX_RANGE_DAYS,
   REPORT_BEST_SELLER_LIMIT,
+  REPORT_QTY_LIMIT_MILLI,
+  REPORT_RUPIAH_LIMIT_CENTS,
+  REPORT_ERROR_CODE,
+  REPORT_AGGREGATE_LIMIT_TEXT,
+  REPORT_MOVEMENT_TYPES,
+  REPORT_ISSUE_MOVEMENT_TYPES,
+  REPORT_RECEIPT_MOVEMENT_TYPES,
   ADMIN_REPLY_MAX,
   ADMIN_REVIEW_RATING_ALL,
   DISCOUNT_TYPE,

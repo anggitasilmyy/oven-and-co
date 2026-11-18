@@ -35,6 +35,17 @@ export function formatRupiah(amount) {
 }
 
 /**
+ * CR-04c · AC-47.4 — Rupiah dengan tepat 2 desimal untuk laporan operasional (nilai pembelian dihitung per baris 2 desimal,
+ * BR-22): tampilan & ekspor tidak membulatkan ke rupiah penuh. Contoh: 15005.5 → "Rp 15.005,50"
+ * @param {number} amount
+ * @returns {string}
+ */
+export function formatRupiahExact(amount) {
+  const value = amount == null || isNaN(amount) ? 0 : Number(amount);
+  return `Rp ${value.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
  * Format tanggal ke format Indonesia singkat.
  * Contoh: new Date('2026-10-13') → "Selasa, 13 Okt"
  * @param {Date|string} date

@@ -184,12 +184,12 @@ Catatan khusus:
 | 6.7 | Komposisi bahan (resep ringan) & estimasi kebutuhan bahan — CR-03: FR-39 (AD-06), FR-40 (AD-07), tabel `product_materials` | lihat "Step 6.7 – 6.10" di bawah (CP0 – CP8 selesai) |
 | 6.8 | Supplier & Purchasing Management — **CR-04a** (disetujui 12 Nov 2026): FR-41 – FR-44, AD-12, buku mutasi AD-07, 9 tabel | lihat "Step 6.8" di bawah (CP0 selesai, CP1 dokumen; CP2 – CP7 belum diizinkan) |
 | 6.9 | Manufacturing Management — **CR-04b** (izin mulai setelah CR-04a di-merge): FR-45, FR-46, AD-13, 5 tabel (39 → 44) | lihat "Step 6.9" di bawah (CP1 – CP6 selesai; **READY FOR REVIEW** — PR CR-04b) |
-| 6.10 | Advanced Reporting — **CR-04c, direncanakan, belum diizinkan**; laporan penjualan AD-08 & KPI AD-02 tetap berlaku | — |
+| 6.10 | Advanced Reporting — **CR-04c** (izin mulai setelah CR-04b di-merge): FR-47, AD-08 tab Operasional (Owner), tanpa migrasi; laporan penjualan AD-08 & KPI AD-02 tetap | lihat "Step 6.10" di bawah (**READY FOR REVIEW** — PR CR-04c) |
 
 **Hasil (target akhir Step 6):** aplikasi berjalan penuh dengan MySQL; data tersimpan setelah server restart; Prisma Studio
 bisa dipakai saat presentasi. Setelah 6.7 (CR-03): komposisi bahan per produk dan estimasi kebutuhan bahan tersedia di
 AD-06/AD-07 untuk Staf & Owner. Step 6.8 – 6.10 direncanakan di CR-04 dan dikerjakan bertahap (6.8 = CR-04a lebih dulu;
-6.9 = CR-04b berikutnya; 6.10 belum diizinkan); laporan penjualan AD-08 dan KPI AD-02 tetap berlaku.
+6.9 = CR-04b, lalu 6.10 = CR-04c); laporan penjualan AD-08 dan KPI AD-02 tetap berlaku.
 **Sudah terverifikasi (per `5b74ba6`):** migrasi & seed pada MySQL 8.0.46 lewat harness `tests-mysql/run.sh`, integrasi
 51/51 (lihat catatan 6.1). **Belum terverifikasi:** aplikasi penuh di mode API (6.6), data tetap ada setelah server
 restart, dan pemeriksaan Prisma Studio. → **Ketiganya terverifikasi di 6.6 CP8** (lihat catatan 6.6 CP8).
@@ -1834,29 +1834,40 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   pengganti langsung atas hasil > 0 (IT-22) ditegakkan di aturan murni `directReplacementError` dan diuji di tingkat aturan.
 - Status AC: AC-45.1 – AC-45.3, AC-46.1 – AC-46.4, AC-46.6, AC-46.7, AC-NF **PASS**; AC-46.5 & AC-46.8 **PASS** untuk bagian
   WO, **BLOCKED** untuk bagian laporan/agregat per periode (menunggu CR-04c). IT-27, IT-28, IT-29 dan agregat per periode
-  IT-23/IT-32 adalah ruang lingkup CR-04c (Step 6.10, belum diizinkan).
+  IT-23/IT-32 adalah ruang lingkup CR-04c (Step 6.10). Pembaruan Step 6.10: bagian tersebut kini diuji dan PASS.
 
-**Step 6.10 — Advanced Reporting**
-- Status: **Direncanakan sebagai CR-04c — belum diizinkan.** Dimulai hanya setelah CR-04b selesai dan disetujui
-  Pemilik Project secara terpisah (K15 – K19 sudah disetujui sebagai desain: tab Operasional AD-08, Owner). Laporan
-  penjualan AD-08 dan KPI AD-02 tetap berlaku dan tidak terdampak. Rincian di bawah adalah catatan rencana awal.
-- Tujuan: laporan terintegrasi dari data penjualan, inventory, purchasing, dan manufacturing.
-- Ruang lingkup: (1) laporan omzet; (2) laporan penggunaan bahan baku; (3) laporan pembelian; (4) laporan produksi;
-  (5) analisis penjualan dan kebutuhan produksi.
-- Existing vs lanjutan: (1) omzet sudah ada di AD-08 (KPI, grafik per hari, terlaris, metode bayar, transaksi, ekspor)
-  dan AD-02 → dipakai ulang, bukan dihitung ulang dengan aturan lain; (2) – (5) belum ada dan bergantung pada data
-  6.7 – 6.9.
-- Dependensi: AD-08 (6.4.7), AD-02 (6.4.6), 6.7, 6.8, 6.9.
-- Acceptance criteria:
-  · [Scope] laporan omzet memakai laporan AD-08 yang ada (tanpa laporan omzet kedua); laporan penggunaan bahan baku,
-    pembelian, dan produksi tersedia dari data 6.7 – 6.9; analisis penjualan dan kebutuhan produksi tersedia.
-  · [Usulan teknis] angka omzet identik dengan AD-08/AD-02 untuk periode yang sama (aturan `salesRules`/`reportRules`,
-    transaksi = lunas & tidak dibatalkan); angka bahan, pembelian, dan produksi sama dengan data sumbernya; satu
-    respons laporan konsisten dalam satu snapshot (`runInReadSnapshot`); validasi periode sama dengan AD-08.
-  · [Menunggu CR] menjadi bagian AD-08 atau layar baru; periode & format ekspor; metode analisis kebutuhan produksi;
-    hak akses (AD-08 saat ini hanya Owner).
-- Kebutuhan pengujian *(usulan teknis)*: unit test agregasi; route test (peran, periode tidak sah); integrasi MySQL
-  (rekonsiliasi angka laporan vs data sumber, snapshot saat ada tulisan bersamaan); regresi AD-02 & AD-08.
+**Step 6.10 — Advanced Reporting (CR-04c)**
+- Status: **Diizinkan** — instruksi Pemilik Project untuk melanjutkan ke CR-04c setelah PR #35 (CR-04b) di-merge ke `main`;
+  keputusan desain K15 – K19 disetujui 12 Nov 2026. Implementasi selesai di branch `cr04c/operational-reports` (dari
+  `origin/main` `c366f37`); finalisasi disetujui Pemilik Project — **status CR-04c: READY FOR REVIEW** (PR CR-04c ke `main`).
+- Ruang lingkup: FR-47, UC-38, BR-33 (+ BR-22), AC-47.1 – AC-47.5 dan bagian laporan AC-42.1, AC-46.5, AC-46.8; IT-23,
+  IT-27 – IT-29, IT-32 — `docs/SPEC.md` bagian 3, 5, 6, 7, 15; rincian normatif Draft 0.8.3 §3 aturan 6, §6, §9, §16, §18.
+- Keputusan Pemilik Project atas butir yang tidak dirinci dokumen (16 Nov 2026): rencana vs hasil per produk **termasuk
+  WO Dibatalkan** — keputusan final 16 November 2026 yang menggantikan keputusan sebelumnya "per produk, tanpa batal"
+  (rencana = Σ `qty_planned` seluruh WO menurut `production_date`; hasil = hasil bersih menurut `recorded_at`; WO Dibatalkan
+  menambah rencana, tidak menambah hasil);
+  analisis = estimasi FR-40 hari ini apa adanya + selisih periode; pembelian/penerimaan/sisa batal per supplier × bahan,
+  mutasi per bahan × jenis, pemakaian per bahan, hasil per WO; saldo awal ikut agregat mutasi (baris terpisah).
+- Implementasi: `GET /api/admin/reports/operations` (Owner; periode = AD-08; satu `runInReadSnapshot` termasuk
+  `getSalesOrders` & FR-40; hanya membaca) · aturan murni `operationsReportRules` server = client `utils/rules/operationsReport.js`
+  (BigInt, 422 `REPORT_AGGREGATE_LIMIT`, serialisasi eksak) · mock `services/mock/operationsReport.js` · AD-08 tab
+  Operasional (`?tab=operasional`) + ekspor Excel/PDF dari respons yang sama (pola & library AD-08, tanpa library baru).
+  Tab Penjualan & `/reports/sales` tidak berubah (markup dipindah apa adanya ke `SalesReportBody`). Tanpa migrasi.
+- Catatan CP (16 Nov 2026, kode akhir di working tree): server `npm test` 785/785 (+ `tests/operationsReportRoute.test.js`
+  2/2); `db:check-spec` 44 tabel (tanpa migrasi); harness MySQL penuh **181/182** (01 – 27; 1 gagal = 14 P1b, kegagalan
+  lama bergantung jam uji — gagal identik pada `main` tanpa perubahan pada jam yang sama; 0 deadlock; 11 lock timeout =
+  baseline); suite baru `27-cr04c-operations-report` **7/7** (AC-47.1; rencana vs hasil: WO Dibatalkan masuk rencana, tidak masuk hasil; IT-28 & IT-23 per periode + rekonsiliasi SQL + AC-42.1
+  nilai = detail PO; laporan hanya membaca; IT-27 15 laporan × 30 penulisan bersamaan, setiap respons konsisten; IT-29 omzet
+  = `/reports/sales` 4 periode; IT-32 standar maks. eksak, Σ 10 WO 200 eksak, 11 WO → 422), dapat diulang pada database
+  harness yang dipakai ulang. Client `test:unit` 324/324 (+ `operationsReportMock` 4/4, termasuk ekspor = layar), Vitest 34/34 (+
+  `operationsReport.test.mjs` 6/6: client = server, data kosong, IT-23, IT-32 batas ± kuantitas & rupiah, fail-safe
+  `MILLI_PRECISION_LOST`); lint 0 error (2 peringatan lama `Toast.jsx`); build lulus. Paritas mode mock = API
+  `tests/step-6.10/parity.diff.mjs` **29/29 langkah identik** (juga pada database uji yang sudah berisi data). Browser: `step-6.10/operations.e2e.mjs` 20/20 di 390/768/1440
+  px mode mock & API (akses, tab Penjualan tetap, isi, rupiah 2 desimal, ekspor Excel/PDF = layar); `step-6.10/visual.e2e.mjs` 50 pemeriksaan
+  360 – 1920 px, 0 masalah. Regresi: step 5.1 – 5.8 (termasuk 5.8 AD-08 func 67/67 & visual 0 masalah), 6.7 (11/11 mock &
+  API), 6.8 (27/27 mock & API), 6.9 (27/27 API) lulus. Final verification: rencana vs hasil kini termasuk WO Dibatalkan
+  (keputusan Pemilik Project); rupiah tab Operasional tampil & diekspor 2 desimal (AC-47.4); harness 01 – 27 penuh tidak
+  diulang (perubahan hanya pada pemuatan rencana laporan; suite 27 dijalankan ulang).
 
 Dampak ke step lain: Step 7 (`docs/TEST_CASES.md`) mencakup BR-13 – BR-16 dan validation rules CR-03; Step 8 mencakup
 modal Komposisi AD-06 dan tab Kebutuhan Bahan AD-07 di viewport uji. Backlog yang sudah ada (6.4.10 L1 – L6, snapshot AD-02/08/09/10 di MySQL, tunggakan 6.6,

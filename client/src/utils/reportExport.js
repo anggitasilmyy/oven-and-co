@@ -4,7 +4,7 @@
 // Keduanya dimuat dinamis (import()) hanya saat tombol ekspor diklik agar bundle halaman lain tidak membesar.
 // buildReportExportTables adalah fungsi murni: isi file sama dengan data laporan di layar.
 
-import { formatRupiah, formatDateFull, formatNumber, formatDateShort, formatTime } from './format';
+import { formatRupiah, formatRupiahExact, formatDateFull, formatNumber, formatDateShort, formatTime } from './format';
 import { parseDateKey } from './date';
 import { FULFILLMENT_LABEL } from '../constants/orderStatus';
 import { REPORT_FILE_PREFIX } from '../constants/report';
@@ -75,40 +75,46 @@ function download(blob, fileName) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Excel: satu sheet per tabel; sheet Ringkasan diawali judul & periode */
-export async function exportReportExcel(report, storeName) {
+/**
+ * Excel: satu sheet per tabel; sheet pertama diawali judul & keterangan (dipakai tab Penjualan & Operasional AD-08)
+ * @param {Array<{title, head, rows}>} tables
+ * @param {{title: string, subtitle: string, fileName: string, rupiahDecimals?: 0|2}} meta — rupiahDecimals 2: tab Operasional (AC-47.4)
+ */
+export async function exportTablesExcel(tables, { title, subtitle, fileName, rupiahDecimals = 0 }) {
   const { default: writeXlsxFile } = await import('write-excel-file/universal');
   const bold = (value) => ({ value, fontWeight: 'bold' });
-  const cell = (v) => (v && typeof v === 'object' ? { value: v.rupiah, type: Number, format: '"Rp "#,##0' } : { value: v });
-  const sheets = buildReportExportTables(report).map((table, i) => ({
+  const rupiahFormat = rupiahDecimals === 2 ? '"Rp "#,##0.00' : '"Rp "#,##0';
+  const cell = (v) => (v && typeof v === 'object' ? { value: v.rupiah, type: Number, format: rupiahFormat } : { value: v });
+  const sheets = tables.map((table, i) => ({
     sheet: table.title,
     columns: table.head.map((h, c) => ({ width: c === 0 ? 24 : Math.max(14, h.length + 4) })),
     data: [
-      ...(i === 0 ? [[bold(`Laporan Penjualan ${storeName}`)], [{ value: `Periode: ${formatReportPeriod(report.from, report.to)}` }], []] : []),
+      ...(i === 0 ? [[bold(title)], [{ value: subtitle }], []] : []),
       table.head.map(bold),
       ...table.rows.map((row) => row.map(cell)),
     ],
   }));
-  download(await writeXlsxFile(sheets).toBlob(), `${reportFileName(report)}.xlsx`);
+  download(await writeXlsxFile(sheets).toBlob(), `${fileName}.xlsx`);
 }
 
-/** PDF A4: judul & periode, lalu setiap tabel diberi judul (pindah halaman bila sisa ruang tidak cukup) */
-export async function exportReportPdf(report, storeName) {
+/** PDF A4: judul & keterangan, lalu setiap tabel diberi judul (pindah halaman bila sisa ruang tidak cukup) */
+export async function exportTablesPdf(tables, { title, subtitle, fileName, rupiahDecimals = 0 }) {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const cocoa = [92, 61, 46];
   const left = 40;
   const pageBottom = doc.internal.pageSize.getHeight() - 40;
-  const text = (v) => (v && typeof v === 'object' ? formatRupiah(v.rupiah) : typeof v === 'number' ? formatNumber(v) : v);
+  const money = rupiahDecimals === 2 ? formatRupiahExact : formatRupiah;
+  const text = (v) => (v && typeof v === 'object' ? money(v.rupiah) : typeof v === 'number' ? formatNumber(v) : v);
 
   doc.setTextColor(...cocoa);
   doc.setFontSize(16);
-  doc.text(`Laporan Penjualan ${storeName}`, left, 48);
+  doc.text(title, left, 48);
   doc.setFontSize(10);
-  doc.text(`Periode: ${formatReportPeriod(report.from, report.to)} · transaksi lunas, tidak dibatalkan`, left, 66);
+  doc.text(subtitle, left, 66);
 
   let y = 96;
-  for (const table of buildReportExportTables(report)) {
+  for (const table of tables) {
     if (y > pageBottom - 80) { doc.addPage(); y = 48; }
     doc.setFontSize(11);
     doc.text(table.title, left, y);
@@ -123,5 +129,21 @@ export async function exportReportPdf(report, storeName) {
     });
     y = doc.lastAutoTable.finalY + 28;
   }
-  download(doc.output('blob'), `${reportFileName(report)}.pdf`);
+  download(doc.output('blob'), `${fileName}.pdf`);
+}
+
+/** Excel laporan penjualan (isi = layar) */
+export function exportReportExcel(report, storeName) {
+  return exportTablesExcel(buildReportExportTables(report), {
+    title: `Laporan Penjualan ${storeName}`, subtitle: `Periode: ${formatReportPeriod(report.from, report.to)}`, fileName: reportFileName(report),
+  });
+}
+
+/** PDF laporan penjualan (isi = layar) */
+export function exportReportPdf(report, storeName) {
+  return exportTablesPdf(buildReportExportTables(report), {
+    title: `Laporan Penjualan ${storeName}`,
+    subtitle: `Periode: ${formatReportPeriod(report.from, report.to)} · transaksi lunas, tidak dibatalkan`,
+    fileName: reportFileName(report),
+  });
 }
