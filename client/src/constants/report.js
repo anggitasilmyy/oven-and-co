@@ -43,3 +43,20 @@ export const PAYMENT_GROUP_CHART_COLOR = {
 /** Format ekspor (FR-33: Excel/PDF) */
 export const REPORT_EXPORT = { EXCEL: 'excel', PDF: 'pdf' };
 export const REPORT_FILE_PREFIX = 'laporan-penjualan-oven-and-co';
+
+// CR-04c · FR-47 · BR-33 · AD-08 tab Operasional (Draft 0.8.3 §3 aturan 6, §9) — nilai sama dengan server
+// utils/businessConstants.js (uji silang tests/vitest/operationsReport.test.mjs)
+export const REPORT_TAB = Object.freeze({ PENJUALAN: 'penjualan', OPERASIONAL: 'operasional' });
+export const REPORT_TABS = Object.freeze([
+  { key: REPORT_TAB.PENJUALAN, label: 'Penjualan' },
+  { key: REPORT_TAB.OPERASIONAL, label: 'Operasional' },
+]);
+export const REPORT_QTY_LIMIT_MILLI = 999999999999999n;
+export const REPORT_RUPIAH_LIMIT_CENTS = 999999999999999n;
+export const REPORT_ERROR_CODE = Object.freeze({ REPORT_AGGREGATE_LIMIT: 'REPORT_AGGREGATE_LIMIT' });
+export const REPORT_AGGREGATE_LIMIT_TEXT = 'Total laporan melebihi batas sistem. Persempit periode laporan.';
+export const REPORT_MOVEMENT_TYPES = Object.freeze(['saldo_awal', 'stok_masuk', 'pembalik_stok_masuk', 'koreksi_stok_masuk', 'stock_opname',
+  'penerimaan', 'pembalik_penerimaan', 'koreksi_penerimaan', 'pengeluaran_produksi', 'pembalik_pengeluaran', 'koreksi_pengeluaran']);
+export const REPORT_ISSUE_MOVEMENT_TYPES = Object.freeze(['pengeluaran_produksi', 'pembalik_pengeluaran', 'koreksi_pengeluaran']);
+export const REPORT_RECEIPT_MOVEMENT_TYPES = Object.freeze(['penerimaan', 'pembalik_penerimaan', 'koreksi_penerimaan']);
+export const OPERATIONS_FILE_PREFIX = 'laporan-operasional-oven-and-co';

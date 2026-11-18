@@ -70,10 +70,11 @@ pembayaran, tracking, loyalty. Admin (Owner & Staf): pesanan, stok, produk, prom
 | FR-44 | Buku mutasi stok bahan: saldo awal, Catat Stok Masuk + pembalik/koreksi, stock opname, riwayat mutasi (CR-04a) | Must | AD-07 |
 | FR-45 | Kelola Work Order: buat & ubah Draft, mulai (snapshot resep), batal; isian awal hanya baca dari AD-07 & AD-05 (CR-04b) | Must | AD-13 |
 | FR-46 | Catat pengeluaran bahan & hasil produksi, pembalik & koreksi; standar/aktual/selisih per WO (CR-04b) | Must | AD-13 detail WO |
+| FR-47 | Laporan operasional: pembelian dipesan, penerimaan, sisa dibatalkan, mutasi stok, pemakaian standar/aktual/selisih, hasil produksi, rencana vs hasil, omzet pembanding AD-08, analisis FR-40; ekspor Excel/PDF (CR-04c) | Should | AD-08 tab Operasional |
 
 FR-41 – FR-44 disetujui Pemilik Project 12 Nov 2026 (CR-04a, bagian 13); implementasi bertahap di Step 6.8 CP2 – CP7.
 FR-45 – FR-46 berlaku sejak tahap CR-04b dimulai (Step 6.9; keputusan desain K09 – K14, K25 disetujui 12 Nov 2026;
-izin mulai tahap oleh Pemilik Project setelah CR-04a selesai, bagian 14). FR-47 dicadangkan untuk CR-04c dan **belum berlaku**.
+izin mulai tahap oleh Pemilik Project setelah CR-04a selesai, bagian 14). FR-47 berlaku sejak tahap CR-04c (Step 6.10; bagian 15).
 
 ## 4. Status Pesanan
 
@@ -133,9 +134,10 @@ dengan label "Bayar saat ambil" + kode pickup. Lalu sedang_disiapkan → siap_di
 | BR-34 | Semua operasi tulis Purchasing, Manufacturing, dan dokumen stok AD-07 tercatat di `audit_logs` dalam transaksi yang sama (CR-04a, diperluas CR-04b) |
 | BR-35 | Stock opname mencatat stok fisik absolut (boleh 0) & stok sistem; mutasi = selisih; dokumen tetap dicatat bila selisih 0; dikendalikan `expected_stock` (CR-04a) |
 | BR-36 | Hasil produksi: satu dokumen `normal` per WO lewat penyelesaian; hasil 0 sah; koreksi 0 → q dengan pengganti langsung, p → q dengan pembalik + pengganti, p → 0 dengan pembalik saja; p → 0 kondisi terminal (koreksi berikutnya 409; produksi baru memakai WO baru) (CR-04b) |
+| BR-33 | Laporan operasional: periode AD-08, dasar tanggal per laporan (bagian 15), satu snapshot, standar/aktual/selisih terpisah; omzet hanya dari aturan AD-08; batas agregat kebijakan (422) & serialisasi eksak (CR-04c) |
 
-BR-25 – BR-29, BR-36 berlaku sejak tahap CR-04b (bagian 14). BR-33 dicadangkan untuk CR-04c
-(`docs/change-requests/CR-04_DRAFT_0.8.3.md` §13) dan **belum berlaku**. Padanan kode BRD BR-17 – BR-36 adalah RB-18 – RB-37.
+BR-25 – BR-29, BR-36 berlaku sejak tahap CR-04b (bagian 14). BR-33 berlaku sejak tahap CR-04c (bagian 15;
+`docs/change-requests/CR-04_DRAFT_0.8.3.md` §13). Padanan kode BRD BR-17 – BR-36 adalah RB-18 – RB-37.
 
 Stok ready berkurang saat pesanan DIBUAT dan kembali saat dibatalkan (TF-12).
 Harga custom cake = harga dasar + Σ extra_price opsi terpilih.
@@ -251,6 +253,7 @@ Rincian normatif: `docs/change-requests/CR-04_DRAFT_0.8.3.md` (§2 – §7, §10
 | Pengeluaran bahan (CR-04b) | WO Diproses; 1 – 30 bahan dari master tanpa duplikat (boleh di luar resep, standar 0); qty string > 0, ≤ 2 desimal, ≤ 99.999.999,99; saldo akhir ≥ 0 | 400 `lines.<i>.*` / 409 |
 | Selesaikan WO (CR-04b) | WO Diproses; hasil bilangan bulat 0 – 10.000; pengeluaran terakhir opsional (aturan pengeluaran) | 400 / 409 |
 | Pembalik & koreksi produksi (CR-04b) | Pengeluaran: aturan pembalik/koreksi CR-04a, WO bukan Draft. Hasil: pembalik hanya dokumen berlaku qty > 0; koreksi ke 0 – 10.000 ≠ qty asal (BR-36); pengganti langsung hanya atas hasil 0; tanpa dokumen berlaku → 409 `DOCUMENT_ALREADY_SUPERSEDED` | 400 / 409 |
+| Laporan operasional (CR-04c) | Periode & rentang = aturan AD-08 (harian/mingguan/bulanan/rentang ≤ 92 hari, tidak melewati hari ini); magnitudo agregat kuantitas > 999.999.999.999,999 atau rupiah > 9.999.999.999.999,99 (termasuk negatif) → 422 `REPORT_AGGREGATE_LIMIT`; kehilangan presisi → 500 `MILLI_PRECISION_LOST`; tanpa data sebagian | 400 / 422 / 500 |
 
 ## 7. Daftar Layar & Rute
 
@@ -302,7 +305,7 @@ Admin (layout desktop, sidebar; < 1024 px sidebar menjadi drawer):
 | AD-05 | Kalender Produksi | /admin/kalender | Staf, Owner |
 | AD-06 | Produk & Opsi Custom Cake (+ modal Komposisi Bahan, CR-03) | /admin/produk | Staf, Owner |
 | AD-07 | Stok (+ tab Kebutuhan Bahan, CR-03; + riwayat mutasi, stock opname, pembalik/koreksi stok masuk, CR-04a) | /admin/stok | Staf, Owner |
-| AD-08 | Laporan Penjualan | /admin/laporan | Owner |
+| AD-08 | Laporan: tab Penjualan (default) & tab Operasional (`?tab=operasional`, CR-04c) | /admin/laporan | Owner |
 | AD-09 | Promo & Loyalty | /admin/promo | Owner |
 | AD-10 | Pelanggan & Ulasan | /admin/pelanggan | Staf, Owner |
 | AD-11 | Pengaturan | /admin/pengaturan | Owner |
@@ -311,7 +314,8 @@ Admin (layout desktop, sidebar; < 1024 px sidebar menjadi drawer):
 
 AD-12 ditambahkan oleh CR-04a (menu sidebar baru; diimplementasikan di Step 6.8 CP6). AD-13 Produksi
 (`/admin/produksi`, Staf & Owner, K09) ditambahkan oleh CR-04b (Step 6.9) dan wajib menampilkan keterangan bahwa hasil
-produksi tidak menambah stok produk siap jual (K13). Tab Operasional AD-08 dicadangkan untuk CR-04c dan **belum berlaku**.
+produksi tidak menambah stok produk siap jual (K13). Tab Operasional AD-08 (`?tab=operasional`, Owner, K15/K18) ditambahkan oleh CR-04c (Step 6.10); tab Penjualan &
+`/reports/sales` tidak berubah.
 
 ## 8. Data Dictionary (44 tabel)
 
@@ -589,9 +593,8 @@ produksi/work order, laporan bahan/pembelian/produksi.
 - Dokumen sumber (`docs/change-requests/`, urutan baca): `CR-04_DRAFT_0.8.3.md` (SHA-256 `daa97c40…3e816`) →
   `CR-04_ERRATA_E1_DRAFT_0.8.3.md` (`b29849d8…c59d2`) → `CR-04_ERRATA_E1.1_DRAFT_0.8.3.md` (`0bfe4546…909da8`);
   ringkasan & register keputusan `CR-04_PAKET_PERSETUJUAN_FINAL.md`; rekaman `CR-04_Persetujuan_Pemilik_Project.md`.
-- Tahap: **CR-04a** (Step 6.8) dan **CR-04b** (Step 6.9, produksi/work order; bagian 14) berlaku di SPEC ini.
-  **CR-04c** (Step 6.10, laporan operasional) direncanakan tetapi **belum diizinkan**; kodenya dicadangkan (FR-47, UC-38,
-  BR-33, AC-47, A-15, BR-027, tab Operasional AD-08).
+- Tahap: **CR-04a** (Step 6.8), **CR-04b** (Step 6.9, produksi/work order; bagian 14), dan **CR-04c** (Step 6.10, laporan
+  operasional; bagian 15) berlaku di SPEC ini.
 - Implementasi: Step 6.8 di `docs/ROADMAP.md` (CP0 – CP7), hanya per CP yang diizinkan.
 
 | Requirement | Lama | Baru (CR-04a) |
@@ -667,7 +670,8 @@ repository: mekanismenya lulus pada gladi manual CP7 di database sekali pakai; v
 target tetap prasyarat deployment (AC-44.1). Bagian CR-04b dalam IT-30/IT-31 (pengeluaran, WO) diuji di Step 6.9 (bagian 14).
 Validasi akhir CR-04a: uji acceptance tambahan `tests-mysql/24` (audit BR-34, PO Dipesan setelah perubahan supplier,
 koreksi BR-21 pada PO Dibatalkan, alur AC-42.1 bagian API); harness MySQL 01 – 24 166/166, paritas mock = API 111/111;
-status **READY WITH NOTES** — bagian laporan AC-42.1 menunggu CR-04c, P-OPS-1 – P-OPS-4 tetap prasyarat deployment.
+status **READY WITH NOTES** — bagian laporan AC-42.1 menunggu CR-04c (kini diuji di Step 6.10, bagian 15), P-OPS-1 – P-OPS-4 tetap
+prasyarat deployment.
 
 ### Ketertelusuran CR-04a
 
@@ -779,6 +783,7 @@ terjadi lewat koreksi hasil 0 → q. Larangan pengganti langsung atas dokumen ha
 Status (Step 6.9 CP6, **READY FOR REVIEW**; bukti uji: `docs/ROADMAP.md` Step 6.9): AC-45.1 – AC-45.3, AC-46.1 – AC-46.4,
 AC-46.6, AC-46.7, AC-NF **PASS**; AC-46.5 dan AC-46.8 **PASS** untuk bagian detail WO, **BLOCKED** untuk bagian laporan &
 agregat per periode (IT-23/IT-32) yang menunggu CR-04c. IT-27 – IT-29 termasuk ruang lingkup CR-04c.
+Pembaruan Step 6.10 (CR-04c): bagian laporan AC-46.5 dan AC-46.8 (IT-23/IT-32 per periode) kini diuji dan **PASS** — bagian 15.
 
 ### Ketertelusuran CR-04b
 
@@ -790,3 +795,69 @@ agregat per periode (IT-23/IT-32) yang menunggu CR-04c. IT-27 – IT-29 termasuk
 Sumber matriks: Errata E1 Lampiran A. Yang TIDAK berubah oleh CR-04b: checkout, pembatalan, auto-cancel, status pesanan,
 `daily_stocks`, Kalender AD-05, Dashboard AD-02, laporan penjualan AD-08, estimasi FR-40 (selain teks keterangan),
 AD-12, web pelanggan, dan dokumen PDF sumber.
+
+## 15. Catatan Perubahan Requirement — CR-04c (Laporan Operasional)
+
+- Dasar: `docs/change-requests/CR-04_DRAFT_0.8.3.md` §3 aturan 6, §6, §9, §13 – §16, §18 dibaca bersama Errata E1/E1.1;
+  keputusan desain K15 (tab AD-08), K16 (periode AD-08, tanpa filter tambahan), K17 (ekspor Excel/PDF dengan library AD-08),
+  K18 (Owner saja; Staf 403), K19 (estimasi FR-40 apa adanya + selisih) disetujui Pemilik Project 12 Nov 2026. Izin mulai
+  tahap: instruksi Pemilik Project setelah CR-04b (PR #35) di-merge ke `main`. Implementasi: Step 6.10 di `docs/ROADMAP.md`.
+- Lingkup: tab Operasional AD-08 (`/admin/laporan?tab=operasional`), `GET /api/admin/reports/operations?period=…&from=&to=`
+  (Owner; `request_id` ditolak seperti GET lain). Hanya membaca — tidak menulis stok, buku mutasi, atau dokumen. Tanpa migrasi.
+- Tetap di luar lingkup: modul keuangan/akuntansi, HPP, peramalan, filter supplier/bahan/produk (K16), laporan omzet kedua.
+
+| Requirement | Lama (CR-04b) | Baru (CR-04c) |
+|---|---|---|
+| Functional requirement | FR-01 – FR-46 | + FR-47 (bagian 3) |
+| Business rule | … BR-36 | + BR-33 (bagian 5) |
+| Business requirement / fitur PRD / use case | BR-026, A-14, UC-36 – UC-37 | + BR-027 (BRD); A-15 (PRD), tanpa nama resmi di dokumen CR; UC-38 Melihat Laporan Operasional (Owner) |
+| Validation rules | CR-04b | + laporan operasional (bagian 6) |
+| Layar | AD-08 Laporan Penjualan | AD-08 Laporan: tab Penjualan (tetap) + tab Operasional (bagian 7) |
+
+Isi laporan (dasar tanggal WIB, Draft §9; pengelompokan = keputusan Pemilik Project 16 Nov 2026 atas butir yang tidak dirinci
+dokumen):
+
+| Bagian | Dasar tanggal | Isi |
+|---|---|---|
+| Pembelian dipesan | `purchase_orders.ordered_at` | per supplier × bahan: jumlah & nilai (Σ nilai per baris, BR-22) + total nilai |
+| Penerimaan | `material_movements.created_at` (penerimaan/pembalik/koreksi) | per supplier × bahan: jumlah & nilai bersih (bertanda) |
+| Sisa dibatalkan | `purchase_orders.cancelled_at` | per supplier × bahan: `qty_cancelled` & nilai historis |
+| Mutasi stok | `material_movements.created_at` | per bahan × jenis (termasuk saldo awal sebagai baris terpisah); opname tanpa selisih tidak membuat mutasi |
+| Pemakaian | aktual: `created_at` mutasi pengeluaran/pembalik/koreksi (−qty_change); standar: `recorded_at` dokumen hasil | per bahan: standar (3 desimal), aktual (2 desimal), selisih = aktual − standar (bertanda) |
+| Hasil produksi | `production_outputs.recorded_at` | per WO: hasil bersih periode; label "dikoreksi" bila ada pembalik/pengganti di periode |
+| Rencana vs hasil | rencana `work_orders.production_date` (seluruh WO, termasuk Dibatalkan); hasil `recorded_at` (WO Dibatalkan tidak punya hasil) | per produk, berdampingan |
+| Omzet pembanding | aturan AD-08 apa adanya (`orders.created_at`, lunas & tidak dibatalkan) | omzet & jumlah transaksi = tab Penjualan |
+| Analisis | — | estimasi FR-40 tanggal target hari ini apa adanya (tabel & teks keterangan AD-07) + selisih pada bagian Pemakaian |
+
+Keputusan final Pemilik Project untuk Rencana vs hasil (16 November 2026): **per produk, termasuk WO Dibatalkan** — total rencana
+= Σ `qty_planned` seluruh WO dengan `production_date` di periode (termasuk Dibatalkan); hasil = hasil produksi bersih menurut
+`recorded_at`; WO Dibatalkan tidak masuk hasil. Keputusan ini menggantikan keputusan sebelumnya "per produk, tanpa batal".
+
+Seluruh bagian satu respons dibaca dalam satu `runInReadSnapshot` (termasuk `getSalesOrders` AD-08 dan FR-40). Agregasi
+BigInt (kuantitas milli, rupiah sen); urutan: validasi periode (400) → snapshot → agregasi → batas kebijakan (422
+`REPORT_AGGREGATE_LIMIT`, pesan "Total laporan melebihi batas sistem. Persempit periode laporan.") → serialisasi eksak
+(`milliToNumber`; 500 `MILLI_PRECISION_LOST`) → respons lengkap. Pembalik/koreksi masuk periode tanggal pencatatannya;
+periode lampau tidak berubah. Ekspor Excel/PDF dibuat dari respons yang sama (isi file = layar); nilai rupiah tab Operasional
+ditampilkan & diekspor dengan tepat 2 desimal (`Rp 15.005,50`, Excel `"Rp "#,##0.00`) — tidak dibulatkan ke rupiah penuh, nilai
+sumber tidak berubah (tab Penjualan tetap memakai format AD-08). Mode mock memakai aturan murni & urutan yang sama.
+
+### Acceptance criteria CR-04c
+
+- AC-47.1 Tab Operasional AD-08 (Owner); Staf 403.
+- AC-47.2 Agregat = sumber dalam satu snapshot; pembalik/koreksi pada tanggal pencatatan; periode lampau tidak berubah.
+- AC-47.3 Omzet pembanding identik AD-08; tab Penjualan & `/reports/sales` tidak berubah.
+- AC-47.4 Ekspor = isi layar.
+- AC-47.5 IT-27 – IT-29 lulus.
+
+Status (Step 6.10, **READY FOR REVIEW**; bukti uji: `docs/ROADMAP.md` Step 6.10): AC-47.1 – AC-47.5 **PASS**; bagian laporan
+AC-42.1 (nilai PO/penerimaan di laporan = detail PO AD-12), AC-46.5 (standar/aktual/selisih laporan eksak) dan AC-46.8
+(IT-23/IT-32 per periode) **PASS**.
+
+### Ketertelusuran CR-04c
+
+| FR | UC | BR | AC | Layar | IT | PRD / BRD |
+|---|---|---|---|---|---|---|
+| FR-47 | UC-38 | BR-22, BR-33 | AC-47.1 – AC-47.5 (+ bagian laporan AC-42.1, AC-46.5, AC-46.8) | AD-08 tab Operasional | IT-23, IT-27 – IT-29, IT-32 | A-15 / BR-027 |
+
+Yang TIDAK berubah oleh CR-04c: tab Penjualan AD-08 & `/reports/sales`, Dashboard AD-02, aturan & API FR-40, CR-04a/CR-04b
+(dokumen, buku mutasi, aturan bisnis), skema database, dan dokumen PDF sumber.

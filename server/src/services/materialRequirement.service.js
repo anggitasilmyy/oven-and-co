@@ -47,6 +47,16 @@ async function getMaterialRequirements(query = {}, now = new Date()) {
   if (resolved.error) throw httpError(400, resolved.error);
   const { date } = resolved;
   const data = await runInReadSnapshot((tx) => loadInputs(tx, todayKey, date));
+  return computeFromInputs(data, todayKey, date);
+}
+
+/** CR-04c (K19): estimasi FR-40 apa adanya di dalam snapshot pemanggil (tab Operasional AD-08) */
+async function getMaterialRequirementsInSnapshot(tx, todayKey) {
+  return computeFromInputs(await loadInputs(tx, todayKey, todayKey), todayKey, todayKey);
+}
+
+/** Satu-satunya pemetaan data → aturan murni CP3 (dipakai endpoint FR-40 & laporan operasional) */
+function computeFromInputs(data, todayKey, date) {
   return computeMaterialRequirements({
     todayKey,
     date,
@@ -68,4 +78,5 @@ async function getMaterialRequirements(query = {}, now = new Date()) {
 
 module.exports = {
   getMaterialRequirements,
+  getMaterialRequirementsInSnapshot,
 };

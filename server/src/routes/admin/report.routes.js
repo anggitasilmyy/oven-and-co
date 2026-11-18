@@ -7,6 +7,7 @@ const express = require('express');
 const auth = require('../../middlewares/auth');
 const requireRole = require('../../middlewares/requireRole');
 const salesReportService = require('../../services/salesReport.service');
+const operationsReportService = require('../../services/operationsReport.service');
 const { validateReportQuery } = require('../../validators/adminReport.validator');
 
 const router = express.Router();
@@ -25,6 +26,16 @@ router.get(
   asyncHandler(async (req, res) => {
     const filter = validateReportQuery(req.query);
     res.status(200).json({ status: 'success', data: await salesReportService.getSalesReport(filter) });
+  })
+);
+
+// CR-04c · FR-47 · AD-08 tab Operasional (Owner, K18) — periode sama dengan /sales (K16); hanya membaca
+// GET /api/admin/reports/operations?period=harian|mingguan|bulanan|rentang&from=YYYY-MM-DD&to=YYYY-MM-DD
+router.get(
+  '/operations',
+  asyncHandler(async (req, res) => {
+    const filter = validateReportQuery(req.query);
+    res.status(200).json({ status: 'success', data: await operationsReportService.getOperationsReport(filter) });
   })
 );
 

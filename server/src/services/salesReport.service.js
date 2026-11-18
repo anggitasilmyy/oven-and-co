@@ -97,4 +97,5 @@ async function getSalesReport(filter, now = new Date()) {
 
 module.exports = {
   getSalesReport,
+  getSalesOrders, // CR-04c: omzet pembanding tab Operasional dalam snapshot yang sama (§9)
 };

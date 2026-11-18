@@ -11,13 +11,14 @@ import { REPORT_EXPORT } from '../../constants/report';
  * @param {object|null} report — data laporan aktif (null = belum dimuat)
  * @param {string} storeName
  * @param {Function} onToast — (type, message) → void
+ * @param {{excel: Function, pdf: Function}} [exporters] — CR-04c: tab Operasional memakai ekspornya sendiri (default Penjualan)
  */
-export default function ReportExportButtons({ report, storeName, onToast }) {
+export default function ReportExportButtons({ report, storeName, onToast, exporters = { excel: exportReportExcel, pdf: exportReportPdf } }) {
   const [busy, setBusy] = useState(null);
   const run = async (kind) => {
     setBusy(kind);
     try {
-      await (kind === REPORT_EXPORT.EXCEL ? exportReportExcel : exportReportPdf)(report, storeName);
+      await (kind === REPORT_EXPORT.EXCEL ? exporters.excel : exporters.pdf)(report, storeName);
       onToast('success', `Laporan ${kind === REPORT_EXPORT.EXCEL ? 'Excel' : 'PDF'} diunduh`);
     } catch {
       onToast('error', 'Ekspor gagal. Coba lagi.');
