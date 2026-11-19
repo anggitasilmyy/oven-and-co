@@ -53,9 +53,13 @@ const FK_TYPES = { category_id: 'INT', option_id: 'INT', method_code: 'VARCHAR(2
 
 const TYPE_RE = /^(BIGINT|INT|TINYINT|SMALLINT|TEXT|DATETIME\(\d\)|DATETIME|DATE|TIME|BOOLEAN|JSON|CHAR\(\d+\)|VARCHAR\(\d+\)|DECIMAL\(\d+,\d+\)|ENUM\([^)]*\))/;
 
+// Checkout Windows (core.autocrlf=true) menghasilkan CRLF; '\r' sisa split('\n') membuat regex komentar `--.*$`
+// gagal sehingga isi komentar ikut terbaca sebagai kolom. Samakan akhir baris ke LF sebelum parsing.
+const toLf = (text) => text.replace(/\r\n?/g, '\n');
+
 /** Data Dictionary SPEC §8 → { tabel: { kolom: {type, nullable, pk, unique, fk} } } */
-function parseSpec() {
-  const md = fs.readFileSync(SPEC_PATH, 'utf8');
+function parseSpec(markdown = fs.readFileSync(SPEC_PATH, 'utf8')) {
+  const md = toLf(markdown);
   const section = md.split('## 8. Data Dictionary')[1].split('## 9.')[0];
   const block = section.split('```')[1];
   const lines = block.split('\n').map((l) => l.replace(/--.*$/, '')).filter((l) => l.trim());
@@ -112,7 +116,7 @@ function parseSpec() {
 /** SQL migrasi → { tabel: { cols: {nama: {type, nullable}}, pk: [], uniques: [[...]], fks: {kolom: tabel} } } */
 function parseSql() {
   const dirs = fs.readdirSync(MIGRATIONS).filter((d) => fs.statSync(path.join(MIGRATIONS, d)).isDirectory()).sort();
-  const sql = dirs.map((d) => fs.readFileSync(path.join(MIGRATIONS, d, 'migration.sql'), 'utf8')).join('\n');
+  const sql = dirs.map((d) => toLf(fs.readFileSync(path.join(MIGRATIONS, d, 'migration.sql'), 'utf8'))).join('\n');
   const tables = {};
   for (const m of sql.matchAll(/CREATE TABLE `(\w+)` \(([\s\S]*?)\n\) DEFAULT/g)) {
     const t = { cols: {}, pk: [], uniques: [], fks: {} };
@@ -222,4 +226,6 @@ function main() {
   console.log('✓ Migrasi sesuai SPEC §8 (nama, tipe & panjang, nullable, PK/composite, UNIQUE, FK, ENUM; CR-04a/b: FK RESTRICT/RESTRICT, CHECK, saldo awal, dokumen normal)');
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = { parseSpec, parseSql };
