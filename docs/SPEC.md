@@ -670,7 +670,7 @@ repository: mekanismenya lulus pada gladi manual CP7 di database sekali pakai; v
 target tetap prasyarat deployment (AC-44.1). Bagian CR-04b dalam IT-30/IT-31 (pengeluaran, WO) diuji di Step 6.9 (bagian 14).
 Validasi akhir CR-04a: uji acceptance tambahan `tests-mysql/24` (audit BR-34, PO Dipesan setelah perubahan supplier,
 koreksi BR-21 pada PO Dibatalkan, alur AC-42.1 bagian API); harness MySQL 01 – 24 166/166, paritas mock = API 111/111;
-status **READY WITH NOTES** — bagian laporan AC-42.1 menunggu CR-04c (kini diuji di Step 6.10, bagian 15), P-OPS-1 – P-OPS-4 tetap
+status **READY WITH NOTES** (di-merge ke `main`, PR #26 – #34) — bagian laporan AC-42.1 **PASS di Step 6.10** (PR #36, bagian 15), P-OPS-1 – P-OPS-4 tetap
 prasyarat deployment.
 
 ### Ketertelusuran CR-04a
@@ -780,9 +780,10 @@ terjadi lewat koreksi hasil 0 → q. Larangan pengganti langsung atas dokumen ha
 - AC-46.8 Migrasi CR-04b (CHECK pengganti aktif); IT-16 – IT-26, IT-32 lulus (bagian laporan IT-23/IT-32: CR-04c).
 - AC-NF Mode mock = API; 390/768/1440 px tanpa overflow; skeleton, empty state, toast, label, area sentuh 44 px.
 
-Status (Step 6.9 CP6, **READY FOR REVIEW**; bukti uji: `docs/ROADMAP.md` Step 6.9): AC-45.1 – AC-45.3, AC-46.1 – AC-46.4,
-AC-46.6, AC-46.7, AC-NF **PASS**; AC-46.5 dan AC-46.8 **PASS** untuk bagian detail WO, **BLOCKED** untuk bagian laporan &
-agregat per periode (IT-23/IT-32) yang menunggu CR-04c. IT-27 – IT-29 termasuk ruang lingkup CR-04c.
+Status (Step 6.9 CP6, **di-merge ke `main`** PR #35, `c366f37`; bukti uji: `docs/ROADMAP.md` Step 6.9): AC-45.1 – AC-45.3,
+AC-46.1 – AC-46.4, AC-46.6, AC-46.7, AC-NF **PASS**; AC-46.5 dan AC-46.8 **PASS** untuk bagian detail WO; bagian laporan &
+agregat per periode (IT-23/IT-32) yang dulu BLOCKED menunggu CR-04c kini **PASS di Step 6.10** (PR #36, bagian 15). IT-27 –
+IT-29 termasuk ruang lingkup CR-04c.
 Pembaruan Step 6.10 (CR-04c): bagian laporan AC-46.5 dan AC-46.8 (IT-23/IT-32 per periode) kini diuji dan **PASS** — bagian 15.
 
 ### Ketertelusuran CR-04b
@@ -849,7 +850,7 @@ sumber tidak berubah (tab Penjualan tetap memakai format AD-08). Mode mock memak
 - AC-47.4 Ekspor = isi layar.
 - AC-47.5 IT-27 – IT-29 lulus.
 
-Status (Step 6.10, **READY FOR REVIEW**; bukti uji: `docs/ROADMAP.md` Step 6.10): AC-47.1 – AC-47.5 **PASS**; bagian laporan
+Status (Step 6.10, **di-merge ke `main`** PR #36, `8010438`; bukti uji: `docs/ROADMAP.md` Step 6.10): AC-47.1 – AC-47.5 **PASS**; bagian laporan
 AC-42.1 (nilai PO/penerimaan di laporan = detail PO AD-12), AC-46.5 (standar/aktual/selisih laporan eksak) dan AC-46.8
 (IT-23/IT-32 per periode) **PASS**.
 

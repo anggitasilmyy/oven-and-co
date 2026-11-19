@@ -182,9 +182,9 @@ Catatan khusus:
 | 6.5 | Payment simulasi + webhook, job `autoCancelOrders` (BR-06, BR-07), notifikasi, riwayat status, audit log | `services/paymentService.js`, `jobs/` |
 | 6.6 | Ganti `VITE_USE_MOCK=false`, sesuaikan service frontend, uji semua layar | `client/src/services/*` |
 | 6.7 | Komposisi bahan (resep ringan) & estimasi kebutuhan bahan — CR-03: FR-39 (AD-06), FR-40 (AD-07), tabel `product_materials` | lihat "Step 6.7 – 6.10" di bawah (CP0 – CP8 selesai) |
-| 6.8 | Supplier & Purchasing Management — **CR-04a** (disetujui 12 Nov 2026): FR-41 – FR-44, AD-12, buku mutasi AD-07, 9 tabel | lihat "Step 6.8" di bawah (CP0 selesai, CP1 dokumen; CP2 – CP7 belum diizinkan) |
-| 6.9 | Manufacturing Management — **CR-04b** (izin mulai setelah CR-04a di-merge): FR-45, FR-46, AD-13, 5 tabel (39 → 44) | lihat "Step 6.9" di bawah (CP1 – CP6 selesai; **READY FOR REVIEW** — PR CR-04b) |
-| 6.10 | Advanced Reporting — **CR-04c** (izin mulai setelah CR-04b di-merge): FR-47, AD-08 tab Operasional (Owner), tanpa migrasi; laporan penjualan AD-08 & KPI AD-02 tetap | lihat "Step 6.10" di bawah (**READY FOR REVIEW** — PR CR-04c) |
+| 6.8 | Supplier & Purchasing Management — **CR-04a** (disetujui 12 Nov 2026): FR-41 – FR-44, AD-12, buku mutasi AD-07, 9 tabel | lihat "Step 6.8" di bawah (CP0 – CP7 + validasi akhir selesai; **di-merge** PR #26 – #34, terakhir `6bbb0e0` 16 Nov 2026; READY WITH NOTES: P-OPS-1 – P-OPS-4) |
+| 6.9 | Manufacturing Management — **CR-04b** (izin mulai setelah CR-04a di-merge): FR-45, FR-46, AD-13, 5 tabel (39 → 44) | lihat "Step 6.9" di bawah (CP1 – CP6 selesai; **di-merge** PR #35, `c366f37` 16 Nov 2026) |
+| 6.10 | Advanced Reporting — **CR-04c** (izin mulai setelah CR-04b di-merge): FR-47, AD-08 tab Operasional (Owner), tanpa migrasi; laporan penjualan AD-08 & KPI AD-02 tetap | lihat "Step 6.10" di bawah (**di-merge** PR #36, `8010438` 18 Nov 2026) |
 
 **Hasil (target akhir Step 6):** aplikasi berjalan penuh dengan MySQL; data tersimpan setelah server restart; Prisma Studio
 bisa dipakai saat presentasi. Setelah 6.7 (CR-03): komposisi bahan per produk dan estimasi kebutuhan bahan tersedia di
@@ -910,7 +910,7 @@ Catatan khusus:
       Catatan: lock wait > 2 s (F-2) tetap 500 — checkout yang menunggu kunci store_settings lebih lama dari itu tidak
       menjadi 409.
 - 6.5 (C1–C5 selesai, di-commit & di-push; branch `feat/step-6.5-payment-notification-jobs` dari `origin/main`
-  `54d5532`, belum di-merge ke `main`):
+  `54d5532`; **di-merge ke `main` lewat PR #23, commit `cbab4cf`, 6 Nov 2026**):
   C1 Notification System → C2 Auto-cancel Online Payment (BR-06) → C3 Auto-cancel Bayar di Toko (BR-07) → C4 Payment
   Webhook (fungsi internal, bukan endpoint HTTP) → C5 Audit Log (FR-37). Pengujian & dokumentasi lintas checkpoint.
   **C1 — Notification System (FR-18 · BR-007 · SPEC §4 · C-24) + perbaikan F-C1-1: selesai, di-commit & di-push
@@ -1605,8 +1605,9 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   CP3 (aturan murni server = client) selesai (PR #29); CP4 (middleware request_id, buku mutasi AD-07) selesai (PR #30);
   CP5 (API supplier, PO, penerimaan) selesai (PR #31); CP6 (frontend AD-12 & AD-07, mock, aktivasi E-6) selesai (PR #32);
   CP7 (regresi penuh, paritas mock = API, gladi migrasi) selesai (PR #33); validasi akhir implementasi & cakupan uji
-  acceptance CR-04a selesai di PR validasi CR-04a — **status CR-04a: READY WITH NOTES** (lihat catatan validasi akhir:
-  prasyarat deployment P-OPS-1 – P-OPS-4; bagian laporan AC-42.1 menunggu CR-04c).
+  acceptance CR-04a selesai di PR #34 (`6bbb0e0`, 16 Nov 2026; seluruh CR-04a sudah di `main`) — **status CR-04a: READY
+  WITH NOTES** (lihat catatan validasi akhir: prasyarat deployment P-OPS-1 – P-OPS-4; bagian laporan AC-42.1 dulu menunggu
+  CR-04c → **PASS di Step 6.10**, PR #36).
 - Ruang lingkup: FR-41 – FR-44, UC-33 – UC-35, BR-17 – BR-24, BR-30 – BR-32, BR-34, BR-35, AC-41.1 – AC-44.8, AD-12
   Pembelian & perluasan AD-07, 9 tabel (30 → 39) — `docs/SPEC.md` bagian 2, 3, 5, 6, 7, 8, 10, 13; rincian normatif
   `docs/change-requests/CR-04_DRAFT_0.8.3.md` + Errata E1 + E1.1.
@@ -1759,7 +1760,8 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   oleh suite 16 – 18 (batas fixture sejak CP2; fixture tidak diubah); 0 pada bahan yang dibuat lewat aplikasi.
   **Kesiapan CR-04a: READY WITH NOTES.** Catatan: (1) prasyarat deployment P-OPS-1 – P-OPS-4 (akun aplikasi, migrasi, dan
   administratif terpisah + inventaris jalur penulis) wajib diverifikasi di lingkungan target sebelum migrasi M-0 – M-9
-  (AC-44.1); (2) AC-42.1 bagian "nilai identik di laporan" menunggu CR-04c (belum diizinkan); (3) fixture suite 16 – 18
+  (AC-44.1); (2) AC-42.1 bagian "nilai identik di laporan" menunggu CR-04c (belum diizinkan saat CP7; kini **PASS di Step
+  6.10**, PR #36); (3) fixture suite 16 – 18
   tetap memerlukan mode `--legacy-fixtures`; (4) mock di luar CR-04a (stok harian, produk, notifikasi) masih memakai
   pesan error lama khusus mock.
 - Catatan validasi akhir CR-04a (14 – 16 Nov 2026): audit per requirement terhadap SPEC bagian 3/5/6/13 dan Draft
@@ -1777,7 +1779,7 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
   **111/111** langkah identik (59 penolakan tanpa efek di kedua mode); visual AD-12 **210 pemeriksaan, 0 masalah**; lint
   0 error, build & `db:check-spec` lulus; e2e step-5.x/6.7/6.8 baseline CP7 berlaku (kode aplikasi tidak berubah).
   **Status CR-04a: READY WITH NOTES** — AC-41.1, AC-41.2, AC-42.1 (API & mock), AC-42.2, AC-43.1 – AC-43.5,
-  AC-44.2 – AC-44.8, AC-NF lulus; AC-42.1 bagian laporan **menunggu CR-04c**; AC-44.1 di lingkungan target menunggu
+  AC-44.2 – AC-44.8, AC-NF lulus; AC-42.1 bagian laporan **menunggu CR-04c** (kini **PASS di Step 6.10**, PR #36); AC-44.1 di lingkungan target menunggu
   **P-OPS-1 – P-OPS-4** (prasyarat deployment; mekanisme lulus gladi IT-33 CP7). Fixture suite 16 – 18 tetap memerlukan
   `db:check-ledger --legacy-fixtures` (bahan lewat aplikasi 0 pelanggaran).
 - Rencana awal di bawah dipertahankan sebagai catatan historis; yang berlaku adalah CR-04a di atas.
@@ -1802,8 +1804,9 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 **Step 6.9 — Manufacturing Management (CR-04b)**
 - Status: **Diizinkan** — instruksi Pemilik Project untuk melanjutkan ke CR-04b setelah PR #34 (CR-04a) di-merge ke
   `main`; keputusan desain K09 – K14, K25 disetujui 12 Nov 2026. Implementasi CP1 – CP6 selesai di branch
-  `cr04b/manufacturing` (dari `origin/main` `6bbb0e0`); finalisasi disetujui Pemilik Project — **status CR-04b: READY FOR
-  REVIEW** (PR CR-04b ke `main`; bagian yang bergantung CR-04c tetap BLOCKED, lihat catatan CP6).
+  `cr04b/manufacturing` (dari `origin/main` `6bbb0e0`); finalisasi disetujui Pemilik Project — **status CR-04b: di-merge ke
+  `main`** (PR #35, `c366f37`, 16 Nov 2026); bagian yang dulu BLOCKED (laporan/agregat per periode) **PASS di Step 6.10**
+  (PR #36), lihat catatan CP6.
 - Ruang lingkup: FR-45, FR-46, UC-36, UC-37, BR-25 – BR-29, BR-36 (+ BR-23, BR-24, BR-30, BR-31, BR-34 diperluas),
   AC-45.1 – AC-46.8, AD-13 Produksi `/admin/produksi` (Staf & Owner, K09), 5 tabel (39 → 44), E-6 versi CR-04b + E-11 —
   `docs/SPEC.md` bagian 3, 5, 6, 7, 8, 10, 14; rincian normatif `docs/change-requests/CR-04_DRAFT_0.8.3.md` §8, §10,
@@ -1839,7 +1842,8 @@ bukan prasyarat CR-04 (keputusan C-14). Catatan [Menunggu CR] 6.8 dijawab oleh K
 **Step 6.10 — Advanced Reporting (CR-04c)**
 - Status: **Diizinkan** — instruksi Pemilik Project untuk melanjutkan ke CR-04c setelah PR #35 (CR-04b) di-merge ke `main`;
   keputusan desain K15 – K19 disetujui 12 Nov 2026. Implementasi selesai di branch `cr04c/operational-reports` (dari
-  `origin/main` `c366f37`); finalisasi disetujui Pemilik Project — **status CR-04c: READY FOR REVIEW** (PR CR-04c ke `main`).
+  `origin/main` `c366f37`); finalisasi disetujui Pemilik Project — **status CR-04c: di-merge ke `main`** (PR #36, `8010438`,
+  18 Nov 2026).
 - Ruang lingkup: FR-47, UC-38, BR-33 (+ BR-22), AC-47.1 – AC-47.5 dan bagian laporan AC-42.1, AC-46.5, AC-46.8; IT-23,
   IT-27 – IT-29, IT-32 — `docs/SPEC.md` bagian 3, 5, 6, 7, 15; rincian normatif Draft 0.8.3 §3 aturan 6, §6, §9, §16, §18.
 - Keputusan Pemilik Project atas butir yang tidak dirinci dokumen (16 Nov 2026): rencana vs hasil per produk **termasuk
