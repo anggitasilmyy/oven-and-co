@@ -7,10 +7,14 @@ const prisma = require('./lib/prisma');
 const { startAutoCancelJob, stopAutoCancelJob } = require('./jobs/autoCancelOrders');
 
 const PORT = process.env.PORT || 4000;
+// Step 7 (pengamanan uji): server yang dijalankan harness MySQL / server API uji (C4_MYSQL_IT=1) hanya listen di
+// loopback. Di luar itu HOST = undefined → listen(PORT, undefined, …) sama persis dengan listen(PORT, …) seperti
+// sebelumnya; variabel lingkungan HOST global sengaja TIDAK dibaca agar tidak mengubah binding server development.
+const HOST = process.env.C4_MYSQL_IT === '1' ? '127.0.0.1' : undefined;
 
-const server = app.listen(PORT, () => {
-  console.log(`✅  Oven & Co. API berjalan di http://localhost:${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/api/health`);
+const server = app.listen(PORT, HOST, () => {
+  console.log(`✅  Oven & Co. API berjalan di http://${HOST || 'localhost'}:${PORT}`);
+  console.log(`   Health: http://${HOST || 'localhost'}:${PORT}/api/health`);
   // Step 6.5 C2 · FR-38: pembatalan otomatis (BR-06) — tidak berjalan bila NODE_ENV=test / AUTO_CANCEL_ENABLED=false
   startAutoCancelJob();
 });

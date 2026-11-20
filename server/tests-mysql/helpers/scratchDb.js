@@ -57,24 +57,41 @@ function migrationsFolder(migrations) {
   return path.join(dir, 'schema.prisma');
 }
 
-function run(command, args, name, env = {}) {
-  const res = spawnSync(command, args, {
+// Step 7d: semua perintah dijalankan sebagai skrip JS lewat Node yang sama (process.execPath), tanpa shell. Shim
+// `node_modules/.bin/prisma` tidak dapat di-spawn langsung di Windows (prisma.cmd) → status null tanpa pesan.
+function run(scriptArgs, name, env = {}) {
+  const res = spawnSync(process.execPath, scriptArgs, {
     cwd: SERVER_DIR, encoding: 'utf8', env: { ...process.env, DATABASE_URL: urlFor(name), ...env },
   });
-  const output = `${res.stdout}\n${res.stderr}`;
-  fs.appendFileSync(path.join(ARTIFACT_DIR, 'cp2-commands.log'), `\n$ ${command} ${args.join(' ')} [${name}] → ${res.status}\n${output}`);
+  const spawnError = res.error ? `[spawn gagal] ${res.error.message}\n` : '';
+  const output = `${spawnError}${res.stdout ?? ''}\n${res.stderr ?? ''}`;
+  fs.appendFileSync(path.join(ARTIFACT_DIR, 'cp2-commands.log'),
+    `\n$ node ${scriptArgs.join(' ')} [${name}] → ${res.status}\n${output}`);
   return { status: res.status, output };
 }
 
-const prismaBin = path.join(SERVER_DIR, 'node_modules', '.bin', 'prisma');
+/** Entry point JS Prisma CLI dari paket terpasang; versi wajib sama dengan devDependencies (bukan CLI lain di PATH) */
+function resolvePrismaCli() {
+  const pkgPath = require.resolve('prisma/package.json', { paths: [SERVER_DIR] });
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  const expected = JSON.parse(fs.readFileSync(path.join(SERVER_DIR, 'package.json'), 'utf8')).devDependencies?.prisma;
+  if (pkg.version !== expected) throw new Error(`Versi Prisma CLI ${pkg.version} ≠ package.json ${expected}`);
+  const entry = typeof pkg.bin === 'string' ? pkg.bin : pkg.bin?.prisma;
+  if (!entry) throw new Error('Entry point bin prisma tidak ditemukan di package.json paket prisma.');
+  const cli = path.join(path.dirname(pkgPath), entry);
+  if (!fs.existsSync(cli)) throw new Error(`Entry point Prisma CLI tidak ada: ${cli}`);
+  return { cli, version: pkg.version };
+}
+
+const PRISMA = resolvePrismaCli();
 /** prisma migrate deploy; `preCr04a` = hanya migrasi sebelum CR-04a; `upToCr04a` = sampai CR-04a (tanpa CR-04b) */
 const deploy = (name, { preCr04a = false, upToCr04a = false } = {}) => {
   const subset = preCr04a ? PRE_CR04A : upToCr04a ? UP_TO_CR04A : null;
-  return run(prismaBin, ['migrate', 'deploy', ...(subset ? ['--schema', migrationsFolder(subset)] : [])], name);
+  return run([PRISMA.cli, 'migrate', 'deploy', ...(subset ? ['--schema', migrationsFolder(subset)] : [])], name);
 };
-const seed = (name, env = {}) => run('node', ['prisma/seed.js'], name, env);
-const checkLedger = (name, args = [], env = {}) => run('node', ['prisma/checkLedger.js', ...args], name, env);
-const snapshot = (name, args) => run('node', ['prisma/stockSnapshot.js', ...args], name);
+const seed = (name, env = {}) => run(['prisma/seed.js'], name, env);
+const checkLedger = (name, args = [], env = {}) => run(['prisma/checkLedger.js', ...args], name, env);
+const snapshot = (name, args) => run(['prisma/stockSnapshot.js', ...args], name);
 
 function dump(name, file) {
   assertScratchName(name);
@@ -101,5 +118,5 @@ function tableFingerprint(name) {
 
 module.exports = {
   urlFor, mysql, recreateDatabase, dropDatabase, deploy, seed, checkLedger, snapshot, dump, restore, clientFor, query,
-  tableFingerprint,
+  tableFingerprint, PRISMA,
 };
