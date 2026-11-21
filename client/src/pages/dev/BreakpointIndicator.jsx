@@ -17,7 +17,7 @@ export default function BreakpointIndicator() {
       <span className={`${PILL} hidden lg:inline-flex xl:hidden`}>Desktop lg ≥ 1024</span>
       <span className={`${PILL} hidden xl:inline-flex 2xl:hidden`}>Desktop xl ≥ 1280</span>
       <span className={`${PILL} hidden 2xl:inline-flex`}>Desktop 2xl ≥ 1536</span>
-      <span className="text-cocoa/70">
+      <span className="text-cocoa-muted">
         useMediaQuery → md: <b>{String(isMdUp)}</b> · lg: <b>{String(isLgUp)}</b>
       </span>
     </div>

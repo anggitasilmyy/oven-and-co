@@ -9,7 +9,7 @@ export default function CatalogToolbar({ resultCount, loading, activeFilterCount
   const sortLabel = CATALOG_SORT_OPTIONS.find((o) => o.value === sort)?.label;
   return (
     <div className="flex items-center justify-between gap-3">
-      <p className="text-sm text-cocoa/70" aria-live="polite">
+      <p className="text-sm text-cocoa-muted" aria-live="polite">
         {loading && resultCount == null ? 'Memuat produk…' : (
           <>
             <span className="font-semibold text-cocoa">{resultCount} produk</span>

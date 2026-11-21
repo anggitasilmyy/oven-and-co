@@ -108,7 +108,7 @@ export default function ProductForm({ product, categories, products, onClose, on
 
         <div className="rounded-btn border border-beige bg-white p-4">
           <Switch checked={values.is_active} onChange={(v) => { set('is_active', v); blur('is_active'); }} label="Tampilkan di katalog (aktif)" showLabel />
-          <p className="mt-1 text-xs text-cocoa/65">Produk nonaktif disembunyikan dari web pelanggan dan tidak bisa dipesan.</p>
+          <p className="mt-1 text-xs text-cocoa-muted">Produk nonaktif disembunyikan dari web pelanggan dan tidak bisa dipesan.</p>
           <FormError message={errorOf('is_active')} className="mt-2 text-xs" />
         </div>
 

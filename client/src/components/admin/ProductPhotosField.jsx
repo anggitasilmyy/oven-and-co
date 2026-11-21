@@ -64,9 +64,9 @@ export default function ProductPhotosField({ photos, onChange, newKey, productNa
   return (
     <fieldset>
       <legend className="mb-1.5 text-sm font-semibold text-cocoa">
-        Foto produk <span className="font-normal text-cocoa/60">({photos.length}/{PRODUCT_PHOTO_MAX})</span>
+        Foto produk <span className="font-normal text-cocoa-muted">({photos.length}/{PRODUCT_PHOTO_MAX})</span>
       </legend>
-      <p className="mb-3 text-xs text-cocoa/65">Foto pertama menjadi foto utama di katalog. JPG, PNG, atau WebP · maks. {MAX_MB} MB.</p>
+      <p className="mb-3 text-xs text-cocoa-muted">Foto pertama menjadi foto utama di katalog. JPG, PNG, atau WebP · maks. {MAX_MB} MB.</p>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {photos.map((photo, i) => (
           <li key={photo.key} className="relative overflow-hidden rounded-btn border border-beige bg-beige/30">
@@ -83,7 +83,7 @@ export default function ProductPhotosField({ photos, onChange, newKey, productNa
                   <Star size={16} aria-hidden="true" />
                 </button>
               )}
-              <button type="button" className={`${iconButton} text-error`} onClick={() => remove(photo.key)} aria-label={`Hapus foto ${i + 1}`}>
+              <button type="button" className={`${iconButton} text-error-strong`} onClick={() => remove(photo.key)} aria-label={`Hapus foto ${i + 1}`}>
                 <Trash2 size={16} aria-hidden="true" />
               </button>
             </div>
@@ -98,7 +98,7 @@ export default function ProductPhotosField({ photos, onChange, newKey, productNa
             >
               <ImagePlus size={22} className="text-primary" aria-hidden="true" />
               <span className="text-sm font-semibold text-cocoa">{loading ? 'Memproses…' : 'Tambah foto'}</span>
-              <span className="text-xs text-cocoa/60">sisa {slots} foto</span>
+              <span className="text-xs text-cocoa-muted">sisa {slots} foto</span>
               <input id={inputId} type="file" accept={PRODUCT_PHOTO_ACCEPT} multiple onChange={handleFiles} disabled={loading} className="sr-only" />
             </label>
           </li>

@@ -70,7 +70,7 @@ export default function PaymentPending({ data, onCheck, checking, onExpire, onSi
         <PaymentInstructions methodGroup={method.method_group} />
         {onSimulatePaid && (
           <div className="rounded-card border-2 border-dashed border-beige p-4 space-y-2">
-            <p className="text-xs text-cocoa/65">Mode development: simulasikan webhook payment gateway.</p>
+            <p className="text-xs text-cocoa-muted">Mode development: simulasikan webhook payment gateway.</p>
             <Button variant="secondary" size="sm" onClick={onSimulatePaid}>Simulasikan Lunas</Button>
           </div>
         )}

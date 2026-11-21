@@ -27,7 +27,7 @@ export default function CustomOptionGroups({ groups, onAdd, onEdit, onToggle, pe
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <h2 id={`option-group-${group}`} className="font-display text-lg text-cocoa">{label}</h2>
-                <p className="text-xs text-cocoa/65">{activeCount} dari {options.length} opsi aktif</p>
+                <p className="text-xs text-cocoa-muted">{activeCount} dari {options.length} opsi aktif</p>
               </div>
               <Button variant="secondary" size="sm" onClick={() => onAdd(group)} leftIcon={<Plus size={16} aria-hidden="true" />} aria-label={`Tambah opsi ${label}`}>
                 Tambah
@@ -37,10 +37,10 @@ export default function CustomOptionGroups({ groups, onAdd, onEdit, onToggle, pe
               {options.map((o) => (
                 <li key={o.option_id} className="flex items-center gap-3 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-semibold ${o.is_active ? 'text-cocoa' : 'text-cocoa/55'}`}>
+                    <p className={`text-sm font-semibold ${o.is_active ? 'text-cocoa' : 'text-cocoa-muted'}`}>
                       {o.name} {!o.is_active && <Badge className="ml-1 align-middle">Nonaktif</Badge>}
                     </p>
-                    <p className="text-xs text-cocoa/65 tabular-nums">
+                    <p className="text-xs text-cocoa-muted tabular-nums">
                       {Number(o.extra_price) > 0 ? `+${formatRupiah(o.extra_price)}` : 'Tanpa biaya tambahan'}
                       {o.description ? ` · ${o.description}` : ''}
                     </p>

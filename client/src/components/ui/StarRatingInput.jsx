@@ -27,7 +27,7 @@ export default function StarRatingInput({ value = 0, onChange, labelId }) {
             <Star
               size={32}
               aria-hidden="true"
-              className={n <= value ? 'fill-[#D9A441] text-[#D9A441]' : 'fill-beige text-[#A07D5C]'}
+              className={n <= value ? 'fill-caramel text-caramel' : 'fill-beige text-[#A07D5C]'}
             />
           </button>
         ))}

@@ -46,16 +46,16 @@ export default function PaymentCodeCard({ method, payment, orderNumber, total, n
           <div className="mx-auto w-full max-w-[240px] rounded-btn border border-beige p-3 bg-white">
             <SimulatedQr id="qr-pembayaran" value={payment.payment_code} />
           </div>
-          <p className="text-xs text-cocoa/65">QR simulasi prototype — tidak memproses pembayaran sungguhan.</p>
+          <p className="text-xs text-cocoa-muted">QR simulasi prototype — tidak memproses pembayaran sungguhan.</p>
         </>
       ) : (
         <div className="space-y-1">
-          <p className="text-xs text-cocoa/65">{label}</p>
+          <p className="text-xs text-cocoa-muted">{label}</p>
           <p className="font-mono text-2xl md:text-3xl font-bold tracking-wider text-cocoa break-all">{payment.payment_code}</p>
         </div>
       )}
       <div>
-        <p className="text-xs text-cocoa/65">Total pembayaran</p>
+        <p className="text-xs text-cocoa-muted">Total pembayaran</p>
         <p className="font-bold text-2xl text-primary tabular-nums">{formatRupiah(total)}</p>
       </div>
       {isQris ? (

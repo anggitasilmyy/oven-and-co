@@ -25,7 +25,7 @@ export default function OperationsReportBody({ data, loading }) {
       <DashboardPanel title="Ringkasan" description="Nilai pembelian adalah informasi, bukan pembukuan. Omzet pembanding sama dengan tab Penjualan.">
         <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {summary.map(([label, value]) => (
-            <div key={label} className="rounded-btn bg-beige/40 p-3"><dt className="text-xs text-cocoa/70">{label}</dt><dd className="font-semibold tabular-nums text-cocoa">{value}</dd></div>
+            <div key={label} className="rounded-btn bg-beige/40 p-3"><dt className="text-xs text-cocoa-muted">{label}</dt><dd className="font-semibold tabular-nums text-cocoa">{value}</dd></div>
           ))}
         </dl>
       </DashboardPanel>

@@ -13,7 +13,7 @@ import ConfirmActionModal from './ConfirmActionModal';
 import { setSupplierActive } from '../../services/purchasingService';
 
 const actionClass =
-  'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-lg border border-beige px-3 text-xs font-semibold ' +
+  'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-btn border border-beige px-3 text-xs font-semibold ' +
   'text-primary hover:bg-beige/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50';
 
 /**
@@ -66,8 +66,8 @@ export default function SupplierPanel({ suppliers, materials, onChanged }) {
             {suppliers.map((s) => (
               <li key={s.supplier_id} className="card-admin space-y-2 p-4">
                 <div className="flex items-start justify-between gap-3"><p className="text-sm font-semibold text-cocoa">{s.name}</p>{status(s)}</div>
-                <p className="text-xs text-cocoa/75">{s.contact_person} · {s.phone}</p>
-                <p className="text-xs text-cocoa/75">{materialText(s)}</p>
+                <p className="text-xs text-cocoa-muted">{s.contact_person} · {s.phone}</p>
+                <p className="text-xs text-cocoa-muted">{materialText(s)}</p>
                 <div className="border-t border-beige pt-2">{actions(s)}</div>
               </li>
             ))}

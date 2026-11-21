@@ -31,7 +31,7 @@ const COLUMNS = [
 /** @param {Array} rows — report.transactions */
 export default function ReportTransactionsTable({ rows }) {
   const [page, setPage] = useState(1);
-  if (!rows.length) return <p className="text-sm text-cocoa/70">Belum ada transaksi lunas pada periode ini.</p>;
+  if (!rows.length) return <p className="text-sm text-cocoa-muted">Belum ada transaksi lunas pada periode ini.</p>;
   const totalPages = Math.ceil(rows.length / REPORT_TRANSACTIONS_PAGE_SIZE);
   const current = Math.min(page, totalPages);
   const visible = rows.slice((current - 1) * REPORT_TRANSACTIONS_PAGE_SIZE, current * REPORT_TRANSACTIONS_PAGE_SIZE);
@@ -45,14 +45,14 @@ export default function ReportTransactionsTable({ rows }) {
               {orderLink(r)}
               <span className="font-semibold tabular-nums text-cocoa">{formatRupiah(r.total)}</span>
             </div>
-            <p className="mt-1 text-xs text-cocoa/70">{r.customer_name} · {when(r)}</p>
-            <p className="text-xs text-cocoa/70">{FULFILLMENT_LABEL[r.fulfillment_type]} · {r.method_name} · {r.item_count} item</p>
+            <p className="mt-1 text-xs text-cocoa-muted">{r.customer_name} · {when(r)}</p>
+            <p className="text-xs text-cocoa-muted">{FULFILLMENT_LABEL[r.fulfillment_type]} · {r.method_name} · {r.item_count} item</p>
           </li>
         ))}
       </ul>
       <DataTable className="hidden md:block" label="Transaksi lunas" columns={COLUMNS} rows={visible} rowKey={(r) => r.order_id} minWidth="min-w-[820px]" />
       <Pagination page={current} totalPages={totalPages} onChange={setPage} label="Halaman transaksi" />
-      <p className="text-xs text-cocoa/65 tabular-nums">{formatNumber(rows.length)} transaksi lunas</p>
+      <p className="text-xs text-cocoa-muted tabular-nums">{formatNumber(rows.length)} transaksi lunas</p>
     </div>
   );
 }

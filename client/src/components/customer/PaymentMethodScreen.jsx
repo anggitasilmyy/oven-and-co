@@ -35,7 +35,7 @@ export default function PaymentMethodScreen({ methods, total, payAtStoreAllowed,
       label="Total & aksi"
       summary={
         <div>
-          <p className="text-xs text-cocoa/65">Total</p>
+          <p className="text-xs text-cocoa-muted">Total</p>
           <p className="font-bold text-lg lg:text-2xl text-cocoa tabular-nums">{formatRupiah(total)}</p>
         </div>
       }
@@ -45,7 +45,7 @@ export default function PaymentMethodScreen({ methods, total, payAtStoreAllowed,
           <span className="lg:hidden">Bayar Sekarang</span>
           <span className="hidden lg:inline">Bayar Sekarang · {formatRupiah(total)}</span>
         </Button>
-        {!selected && <p className="text-xs text-cocoa/65 text-center lg:text-left" role="status">Pilih metode pembayaran</p>}
+        {!selected && <p className="text-xs text-cocoa-muted text-center lg:text-left" role="status">Pilih metode pembayaran</p>}
       </div>
     </ActionBar>
   );

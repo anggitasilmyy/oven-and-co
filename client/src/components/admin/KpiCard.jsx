@@ -18,12 +18,12 @@ export default function KpiCard({ icon: Icon, label, value, hint, to, tone = 'bg
         <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${tone}`}>
           <Icon size={18} aria-hidden="true" />
         </span>
-        <p className="text-xs md:text-sm font-semibold text-cocoa/75 leading-tight">{label}</p>
+        <p className="text-xs md:text-sm font-semibold text-cocoa-muted leading-tight">{label}</p>
       </div>
       <p className="mt-3 font-sans font-bold text-cocoa text-lg sm:text-2xl lg:text-[28px] leading-none tabular-nums break-words">
         {value}
       </p>
-      {hint && <div className="mt-2 text-xs text-cocoa/70">{hint}</div>}
+      {hint && <div className="mt-2 text-xs text-cocoa-muted">{hint}</div>}
     </>
   );
   const base = 'card-admin p-4 md:p-5 block min-w-0';

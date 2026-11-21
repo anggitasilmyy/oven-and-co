@@ -151,7 +151,7 @@ export default function DaftarPage() {
         canSubmit={canSubmit}
       />
 
-      <p className="text-center text-sm text-cocoa/60 mt-6">
+      <p className="text-center text-sm text-cocoa-muted mt-6">
         Sudah punya akun?{' '}
         <Link
           to={CUSTOMER_ROUTES.MASUK}

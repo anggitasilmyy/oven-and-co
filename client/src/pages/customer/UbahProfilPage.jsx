@@ -5,6 +5,8 @@
 
 import AccountLayout from '../../layouts/AccountLayout';
 import PageHeader from '../../components/layout/PageHeader';
+import { CUSTOMER_ROUTES } from '../../constants/routes';
+
 import ErrorState from '../../components/ui/ErrorState';
 import Skeleton from '../../components/ui/Skeleton';
 import Toast, { useToast } from '../../components/ui/Toast';
@@ -14,6 +16,9 @@ import useAuthStore from '../../stores/useAuthStore';
 import useServiceQuery from '../../hooks/useServiceQuery';
 import { getMyProfile, updateMyProfile, changeMyPassword } from '../../services/accountService';
 import { SESSION_CHANGED_MESSAGE } from '../../constants/apiErrors';
+
+/** Step 8 · F-05: tautan kembali ke Akun (< lg); ≥ lg sidebar Akun sudah tersedia */
+const ACCOUNT_BACK = { to: CUSTOMER_ROUTES.AKUN, label: 'Akun', hideOnDesktop: true };
 
 export default function UbahProfilPage() {
   const updateCurrentUser = useAuthStore((s) => s.updateCurrentUser);
@@ -56,7 +61,7 @@ export default function UbahProfilPage() {
   return (
     <AccountLayout>
       <div className="space-y-5 lg:space-y-6">
-        <PageHeader title="Ubah Profil" description="Perbarui data diri dan kata sandi akunmu." />
+        <PageHeader title="Ubah Profil" back={ACCOUNT_BACK} description="Perbarui data diri dan kata sandi akunmu." />
         {body}
       </div>
       <Toast {...toast} onClose={hideToast} />

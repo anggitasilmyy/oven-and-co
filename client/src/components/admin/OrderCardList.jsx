@@ -27,14 +27,14 @@ export default function OrderCardList({ rows, showPayment = true }) {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-semibold text-cocoa text-sm">{r.order_number}</p>
-                  <p className="text-xs text-cocoa/70">{formatDate(r.created_at)} · {formatTime(r.created_at)}</p>
+                  <p className="text-xs text-cocoa-muted">{formatDate(r.created_at)} · {formatTime(r.created_at)}</p>
                 </div>
                 <StatusBadge status={r.order_status} />
               </div>
               <div className="text-sm text-cocoa space-y-1">
                 <p className="font-medium truncate">{r.customer_name}</p>
-                <p className="text-xs text-cocoa/70 truncate">{r.items_summary}</p>
-                <p className="flex items-center gap-1.5 text-xs text-cocoa/70">
+                <p className="text-xs text-cocoa-muted truncate">{r.items_summary}</p>
+                <p className="flex items-center gap-1.5 text-xs text-cocoa-muted">
                   <FulfillmentIcon size={14} aria-hidden="true" />
                   {FULFILLMENT_LABEL[r.fulfillment_type]} · siap {formatDate(parseDateKey(r.ready_date))}, {r.time_slot}
                 </p>

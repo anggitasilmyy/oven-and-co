@@ -14,14 +14,14 @@ export default function OperationsMovementTable({ rows }) {
     { key: 'type', header: 'Jenis', render: (r) => MOVEMENT_TYPE_LABEL[r.type] },
     {
       key: 'qty_change', header: 'Perubahan', align: 'right',
-      render: (r) => <span className={`whitespace-nowrap tabular-nums ${r.qty_change < 0 ? 'text-error' : ''}`}>{r.qty_change > 0 ? '+' : ''}{formatNumber(r.qty_change)} {r.unit}</span>,
+      render: (r) => <span className={`whitespace-nowrap tabular-nums ${r.qty_change < 0 ? 'text-error-strong' : ''}`}>{r.qty_change > 0 ? '+' : ''}{formatNumber(r.qty_change)} {r.unit}</span>,
     },
     { key: 'count', header: 'Jumlah mutasi', align: 'right', render: (r) => <span className="tabular-nums">{r.count}</span> },
   ];
   return (
     <DashboardPanel title="Mutasi stok" description="Perubahan stok bahan per jenis mutasi yang dicatat pada periode ini">
       {rows.length === 0
-        ? <p className="text-sm text-cocoa/70">Belum ada mutasi stok pada periode ini.</p>
+        ? <p className="text-sm text-cocoa-muted">Belum ada mutasi stok pada periode ini.</p>
         : <DataTable label="Mutasi stok per bahan dan jenis" columns={columns} rows={rows} rowKey={(r) => `${r.material_id}-${r.type}`} minWidth="min-w-[560px]" />}
     </DashboardPanel>
   );

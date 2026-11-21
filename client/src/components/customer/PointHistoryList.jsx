@@ -14,12 +14,12 @@ export default function PointHistoryList({ items }) {
           <li key={tx.point_tx_id} className="flex items-center gap-4 px-4 py-3 md:px-5">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-cocoa">{POINT_TX_LABEL[tx.type] ?? tx.type}</p>
-              <p className="text-xs text-cocoa/70">
+              <p className="text-xs text-cocoa-muted">
                 {formatDateShort(tx.created_at)} · {formatTime(tx.created_at)}
                 {tx.order_number && <> · Pesanan <span className="font-mono font-semibold text-cocoa">{tx.order_number}</span></>}
               </p>
             </div>
-            <p className={`shrink-0 text-sm font-bold tabular-nums ${plus ? 'text-[#3F6B3A]' : 'text-error'}`}>
+            <p className={`shrink-0 text-sm font-bold tabular-nums ${plus ? 'text-[#3F6B3A]' : 'text-error-strong'}`}>
               {plus ? '+' : '−'}{formatNumber(Math.abs(tx.points))} poin
             </p>
           </li>

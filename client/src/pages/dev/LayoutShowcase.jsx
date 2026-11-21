@@ -64,11 +64,11 @@ export default function LayoutShowcase() {
       </Section>
 
       <Section title="🧾 FocusPageGrid + ActionBar">
-        <p className="text-xs text-cocoa/60 mb-3">&lt; 1024 px: bar di bawah kotak · ≥ 1024 px: kartu sticky di kolom kanan.</p>
+        <p className="text-xs text-cocoa-muted mb-3">&lt; 1024 px: bar di bawah kotak · ≥ 1024 px: kartu sticky di kolom kanan.</p>
         <DemoFrame className="min-h-[420px]">
           <FocusPageGrid
             aside={
-              <ActionBar summary={<><p className="text-xs text-cocoa/60">Total</p><p className="font-semibold text-lg">{formatRupiah(84000)}</p></>}>
+              <ActionBar summary={<><p className="text-xs text-cocoa-muted">Total</p><p className="font-semibold text-lg">{formatRupiah(84000)}</p></>}>
                 <Button leftIcon={<ShoppingBag size={18} />}>Tambah ke Keranjang</Button>
               </ActionBar>
             }
@@ -76,7 +76,7 @@ export default function LayoutShowcase() {
             <div className="space-y-4">
               <div className="aspect-[4/3] max-h-[320px] w-full rounded-card bg-beige" />
               <p className="font-display text-2xl">Classic Butter Croissant</p>
-              <p className="text-sm text-cocoa/70">Konten utama halaman fokus berada di kolom kiri.</p>
+              <p className="text-sm text-cocoa-muted">Konten utama halaman fokus berada di kolom kiri.</p>
             </div>
           </FocusPageGrid>
         </DemoFrame>
@@ -86,7 +86,7 @@ export default function LayoutShowcase() {
         <div className="card-admin p-4">
           <TableScroll label="Contoh tabel pesanan">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs text-cocoa/60 border-b border-beige">
+              <thead className="text-xs text-cocoa-muted border-b border-beige">
                 <tr>{TABLE_COLUMNS.map((c) => <th key={c} className="py-2 px-3 font-semibold">{c}</th>)}</tr>
               </thead>
               <tbody>
@@ -110,7 +110,7 @@ export default function LayoutShowcase() {
         <DemoFrame>
           <AuthSplitLayout subtitle="Admin Panel" className="min-h-[420px]">
             <p className="font-display text-2xl mb-2">Masuk Admin</p>
-            <p className="text-sm text-cocoa/60">≥ 1024 px: panel brand kiri + form kanan · &lt; 1024 px: form saja.</p>
+            <p className="text-sm text-cocoa-muted">≥ 1024 px: panel brand kiri + form kanan · &lt; 1024 px: form saja.</p>
           </AuthSplitLayout>
         </DemoFrame>
       </Section>

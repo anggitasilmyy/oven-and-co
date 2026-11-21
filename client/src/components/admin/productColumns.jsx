@@ -32,8 +32,8 @@ export function buildProductColumns({ onToggle, onEdit, onRecipe, pendingId }) {
       key: 'name', header: 'Produk', className: 'min-w-[180px]',
       render: (r) => (
         <>
-          <span className={`font-semibold ${r.is_active ? '' : 'text-cocoa/60'}`}>{r.name}</span>
-          <span className="block text-xs text-cocoa/60">{r.photo_count} foto{r.is_active ? '' : ' · Nonaktif'}</span>
+          <span className={`font-semibold ${r.is_active ? '' : 'text-cocoa-muted'}`}>{r.name}</span>
+          <span className="block text-xs text-cocoa-muted">{r.photo_count} foto{r.is_active ? '' : ' · Nonaktif'}</span>
         </>
       ),
     },

@@ -69,7 +69,7 @@ export default function CatalogFilterPanel({ value, onChange, idPrefix = 'filter
               key={r}
               selected={value.minRating === r}
               onClick={() => onChange({ minRating: value.minRating === r ? null : r })}
-              leftIcon={<Star size={15} aria-hidden="true" className={value.minRating === r ? 'fill-white' : 'fill-[#D9A441] text-[#D9A441]'} />}
+              leftIcon={<Star size={15} aria-hidden="true" className={value.minRating === r ? 'fill-white' : 'fill-caramel text-caramel'} />}
             >
               {`${String(r).replace('.', ',')}+`}
             </Chip>

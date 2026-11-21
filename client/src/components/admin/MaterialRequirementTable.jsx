@@ -15,7 +15,7 @@ function TotalCell({ row }) {
   return (
     <>
       {qty(row.cumulative_need, row.unit)}
-      {row.backlog_need > 0 && <span className="block text-xs text-cocoa/65">Termasuk tertunggak: {formatNumber(row.backlog_need)} {row.unit}</span>}
+      {row.backlog_need > 0 && <span className="block text-xs text-cocoa-muted">Termasuk tertunggak: {formatNumber(row.backlog_need)} {row.unit}</span>}
     </>
   );
 }
@@ -23,8 +23,8 @@ function TotalCell({ row }) {
 function RemainingCell({ row }) {
   return (
     <>
-      <span className={row.remaining < 0 ? 'font-semibold text-error' : ''}>{qty(row.remaining, row.unit)}</span>
-      {row.shortage > 0 && <span className="block text-xs font-semibold text-error">Kurang {formatNumber(row.shortage)} {row.unit}</span>}
+      <span className={row.remaining < 0 ? 'font-semibold text-error-strong' : ''}>{qty(row.remaining, row.unit)}</span>
+      {row.shortage > 0 && <span className="block text-xs font-semibold text-error-strong">Kurang {formatNumber(row.shortage)} {row.unit}</span>}
     </>
   );
 }
@@ -52,10 +52,10 @@ export default function MaterialRequirementTable({ rows, dateLabel }) {
               {statusBadge(r)}
             </div>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
-              <div><dt className="text-cocoa/60">Stok saat ini</dt><dd className="font-semibold text-cocoa">{qty(r.stock, r.unit)}</dd></div>
-              <div><dt className="text-cocoa/60">Kebutuhan {dateLabel}</dt><dd className="font-semibold text-cocoa">{qty(r.daily_need, r.unit)}</dd></div>
-              <div><dt className="text-cocoa/60">Total s.d. {dateLabel} (termasuk tertunggak)</dt><dd className="font-semibold text-cocoa"><TotalCell row={r} /></dd></div>
-              <div><dt className="text-cocoa/60">Sisa setelah dialokasikan</dt><dd className="font-semibold text-cocoa"><RemainingCell row={r} /></dd></div>
+              <div><dt className="text-cocoa-muted">Stok saat ini</dt><dd className="font-semibold text-cocoa">{qty(r.stock, r.unit)}</dd></div>
+              <div><dt className="text-cocoa-muted">Kebutuhan {dateLabel}</dt><dd className="font-semibold text-cocoa">{qty(r.daily_need, r.unit)}</dd></div>
+              <div><dt className="text-cocoa-muted">Total s.d. {dateLabel} (termasuk tertunggak)</dt><dd className="font-semibold text-cocoa"><TotalCell row={r} /></dd></div>
+              <div><dt className="text-cocoa-muted">Sisa setelah dialokasikan</dt><dd className="font-semibold text-cocoa"><RemainingCell row={r} /></dd></div>
             </dl>
           </li>
         ))}

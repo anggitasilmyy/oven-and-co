@@ -29,12 +29,12 @@ export default function OrderStatusTabs({ active, counts, onChange }) {
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ` +
               (selected
                 ? 'bg-primary border-primary text-white'
-                : 'bg-white border-beige text-cocoa/75 hover:text-cocoa hover:border-primary/40')}
+                : 'bg-white border-beige text-cocoa-muted hover:text-cocoa hover:border-primary/40')}
           >
             {tab.label}
             <span
               className={`min-w-[24px] h-6 px-1.5 rounded-pill text-xs leading-6 text-center tabular-nums ` +
-                (selected ? 'bg-white/20 text-white' : 'bg-beige text-cocoa')}
+                (selected ? 'bg-primary-dark text-white' : 'bg-beige text-cocoa')}
             >
               {counts ? counts[tab.key] : '·'}
             </span>

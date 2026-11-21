@@ -87,13 +87,13 @@ export default function PurchaseOrderFormModal({ order, suppliers, onClose, onSa
               <FormField id={`po-item-${r.key}-price`} label="Harga satuan (Rp)" error={errorOf(`items.${i}.unit_price`)}>
                 <input inputMode="decimal" className={`${fieldClass(errorOf(`items.${i}.unit_price`))} tabular-nums`} value={r.unit_price} onChange={(e) => update(r.key, { unit_price: e.target.value })} />
               </FormField>
-              <button type="button" className="mt-0 inline-flex h-11 w-11 items-center justify-center self-end rounded-lg text-error hover:bg-red-50 disabled:opacity-40 sm:mt-7"
+              <button type="button" className="mt-0 inline-flex h-11 w-11 items-center justify-center self-end rounded-btn text-error-strong hover:bg-red-50 disabled:opacity-40 sm:mt-7"
                 onClick={() => { setRows((list) => list.filter((x) => x.key !== r.key)); touch(); }} disabled={rows.length === 1} aria-label={`Hapus item ${i + 1}`}>
                 <Trash2 size={16} aria-hidden="true" />
               </button>
             </div>
           ))}
-          {errorOf('items') && <p className="text-xs text-error">{errorOf('items')}</p>}
+          {errorOf('items') && <p className="text-xs text-error-strong">{errorOf('items')}</p>}
           <Button type="button" size="sm" variant="ghost" onClick={() => { setRows((list) => [...list, row()]); touch(); }} disabled={rows.length >= PO_MAX_ITEMS} leftIcon={<Plus size={16} aria-hidden="true" />}>Tambah item</Button>
         </fieldset>
         <FormField id="po-note" label="Catatan" optional error={errorOf('note')}>

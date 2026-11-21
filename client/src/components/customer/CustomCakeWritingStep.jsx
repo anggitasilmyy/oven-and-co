@@ -12,7 +12,7 @@ export default function CustomCakeWritingStep({ design, onChange }) {
     <div className="space-y-6">
       <div>
         <label htmlFor="tulisan-kue" className="block text-sm font-bold text-cocoa mb-1.5">
-          Tulisan di kue <span className="font-normal text-cocoa/60">(opsional)</span>
+          Tulisan di kue <span className="font-normal text-cocoa-muted">(opsional)</span>
         </label>
         <input
           id="tulisan-kue"
@@ -24,7 +24,7 @@ export default function CustomCakeWritingStep({ design, onChange }) {
           aria-describedby="tulisan-kue-hint"
           className="input w-full"
         />
-        <p id="tulisan-kue-hint" className="mt-1.5 flex justify-between gap-3 text-xs text-cocoa/65">
+        <p id="tulisan-kue-hint" className="mt-1.5 flex justify-between gap-3 text-xs text-cocoa-muted">
           <span>Kosongkan bila kue tanpa tulisan.</span>
           <span className="tabular-nums" aria-live="polite">{length}/{WRITING_TEXT_MAX_LENGTH}</span>
         </p>

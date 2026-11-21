@@ -2,7 +2,8 @@
 // Step 2 · Layout & Komponen Dasar — Step 2.5 (PR A): responsive (CR-01)
 // Dipakai untuk: C-09 Detail Produk, C-11 Custom Cake, C-12 Keranjang,
 //               C-13 Checkout, C-14 Metode Bayar, C-15 Halaman Bayar,
-//               layar auth, dan layar sub-akun
+//               dan layar auth. Step 8 · F-05: sub-akun, detail/ulasan pesanan, notifikasi, ulasan produk, dan
+//               Pesanan Berhasil pindah ke CustomerLayout (SPEC §7: bottom nav di luar alur fokus).
 //
 // Header kembali selalu ada; tanpa bottom nav / top nav.
 // Halaman merangkai kontennya dengan <FocusPageGrid aside={<ActionBar/>}>:

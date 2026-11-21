@@ -1,0 +1,331 @@
+# Step 7c (REST Client) · docs/TEST_CASES.md · FR-01 – FR-03 · FR-10 · SPEC §6 (Registrasi, Login, Reset sandi, Custom cake)
+# TC-VR-01-02 · TC-VR-02-02 · TC-VR-03-02 (Gap G-01) · TC-VR-05-03 (Gap G-02) + smoke endpoint utama (tanpa TC).
+#
+# Cara pakai: VS Code + ekstensi REST Client (humao.rest-client) → klik "Send Request" di atas tiap blok, BERURUTAN dari atas.
+# Urutan wajib (dependensi antarrequest):
+#   1.1 registrasi akun uji → 1.6 & 1.7 memakai email/HP dari respons 1.1 (registerOk; kirim tepat setelah 1.1 di
+#       sesi REST Client yang sama). §2 – §3 memakai @testEmail: isi dengan email akun dari respons 1.1, agar request
+#       tetap sah walau sesi REST Client dimulai ulang (variabel registerOk hilang → email terkirim sebagai teks mentah
+#       dan server menjawab "Format email tidak valid." sebelum memeriksa OTP — temuan 3.1, 20 Nov 2026).
+#   2.2 login memakai @testPassword; SETELAH 3.4 berhasil (200), sandi akun uji menjadi @newTestPassword —
+#       login ulang harus memakai @newTestPassword.
+#   3.2 → salin OTP ke @otp → 3.4 (wajib 200) → baru 3.5 (memakai @otp yang sama, JANGAN diubah di antara 3.4 & 3.5)
+#       → 3.7 – 3.9 (verifikasi pasca-reset: sandi lama 401, sandi baru 200, /auth/me 200).
+#   3.6 (opsional) sengaja diletakkan PALING AKHIR di §3: memakai OTP BARU di @expiredOtp (jalankan 3.2 lagi setelah
+#       3.9), bukan @otp.
+#   4.1 dijalankan tepat sebelum 4.2 & 4.3 agar earliest_ready_date & option_id terbaru.
+# Endpoint & payload diambil dari kode server: routes/customer/auth.routes.js + services/auth.service.js,
+# routes/customer/customCakeDesign.routes.js + validators/customCakeDesign.validator.js, routes/customer/customOptions.routes.js.
+#
+# ── KEAMANAN ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# - HANYA untuk server API uji di 127.0.0.1:4100 (C4_MYSQL_IT=1 → src/server.js listen hanya di 127.0.0.1; PORT=4100;
+#   NODE_ENV=test; variabel HOST tidak dipakai) yang terhubung ke database
+#   uji terisolasi harness MySQL (127.0.0.1:33306/ovenco_c4_test, container C4_KEEP_CONTAINER=1). Server dijalankan
+#   HANYA lewat `bash tests/run-api-test-server.sh` (memvalidasi DATABASE_URL dan JWT_SECRET khusus uji sebelum start;
+#   lihat header skrip tersebut). JANGAN dijalankan terhadap database pengembangan (127.0.0.1:3308/oven_and_co): jangan memakai
+#   `npm run dev` dengan server/.env apa adanya (port 4000). JANGAN arahkan @baseUrl ke server produksi.
+# - Request bertanda [TULIS] mengubah database lokal: membuat akun uji, membuat OTP, mengganti sandi akun uji,
+#   menyimpan desain custom cake tamu. Akun uji dibuat sendiri oleh file ini (domain example.test, tidak bisa menerima
+#   email); tidak memakai akun demo/seed atau data pengguna sungguhan.
+# - Tidak ada email yang dikirim: server pengembangan menampilkan OTP di console server; di production endpoint
+#   forgot-password menolak dengan 503.
+# - Nilai @testPassword / @newTestPassword / @wrongPassword di bawah adalah PLACEHOLDER untuk akun uji sekali pakai,
+#   bukan kredensial sungguhan. Boleh diganti secara lokal; jangan menyimpan sandi sungguhan di file ini.
+# - Status Step 7c: dijalankan 20 Nov 2026 21.07 WIB lewat runner (payload sama) — 22 request file + 3 verifikasi
+#   pasca-reset yang sesudahnya dicatat di sini sebagai 3.7 – 3.9; 25/25 sesuai harapan; 4 TC PASS [R3] di
+#   docs/TEST_CASES.md. 3.6 (OTP kedaluwarsa, opsional) belum dijalankan.
+
+@baseUrl = http://127.0.0.1:4100/api
+@testPassword = placeholder-sandi-uji-1
+@newTestPassword = placeholder-sandi-uji-2
+@wrongPassword = placeholder-sandi-salah
+# Email akun uji dari respons 1.1 (domain example.test). Dipakai seluruh request §2 – §3.
+# SETIAP RUN BARU: kirim 1.1 (email dibuat unik oleh {{$timestamp}}) → salin data.user.email dari respons 1.1 ke sini.
+# Jangan memakai email run sebelumnya: sandinya sudah direset ke @newTestPassword, jadi 2.2 akan 401 dan 3.4 mereset
+# akun lama. {{$timestamp}} tidak dipakai langsung di sini karena REST Client menghitungnya ulang di setiap request
+# (email akan berbeda antar-request). Nilai awal sengaja TIDAK SAH: bila lupa diganti, server menjawab
+# 400 "Format email tidak valid." (2.1/2.2 → 400 juga), jadi tidak bisa keliru dianggap lulus.
+@testEmail = EMAIL_DARI_RESPONS_1.1_BELUM_DIISI
+# OTP diisi manual dari console server setelah request 3.2 (6 digit, berlaku 10 menit). Nilai awal sengaja placeholder
+# TIDAK SAH: bila lupa diganti, server menjawab 400 "OTP harus terdiri dari 6 digit." — pesan berbeda dari harapan
+# 3.3/3.5/3.6 ("OTP tidak valid, kedaluwarsa, atau sudah digunakan."), jadi tidak bisa keliru dianggap lulus.
+@otp = OTP_BELUM_DIISI
+# OTP BARU khusus 3.6 (kedaluwarsa): dari 3.2 yang dijalankan ulang setelah 3.9. Placeholder tidak sah (alasan sama).
+@expiredOtp = OTP_KEDALUWARSA_BELUM_DIISI
+
+
+###############################################################################################################################
+# 0. SMOKE — endpoint utama (baca saja, tanpa TC)
+###############################################################################################################################
+
+### 0.1 Health — harapan 200 {status: "ok"}
+GET {{baseUrl}}/health
+
+### 0.2 Kategori produk — harapan 200
+GET {{baseUrl}}/categories
+
+### 0.3 Katalog produk — harapan 200
+GET {{baseUrl}}/products
+
+### 0.4 Profil sesi tanpa token — harapan 401 (BR-04: fitur akun wajib login)
+GET {{baseUrl}}/auth/me
+
+
+###############################################################################################################################
+# 1. TC-VR-01-02 · VR-01 Registrasi · POST /api/auth/register
+#    Urutan validasi server: nama → email → HP (+62, 8–13 digit) → sandi (≥ 8) → termsAccepted === true → unik (409).
+#    Tiap request tidak sah hanya melanggar SATU aturan; field lain sah.
+###############################################################################################################################
+
+### 1.1 [TULIS] Setup: registrasi akun uji sah — harapan 201, data.user + data.token
+# @name registerOk
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Pelanggan Uji Step 7c",
+  "email": "step7c.{{$timestamp}}@example.test",
+  "phone": "+62812{{$randomInt 10000000 99999999}}",
+  "password": "{{testPassword}}",
+  "termsAccepted": true
+}
+
+### 1.2 Email tidak valid — harapan 400 "Format email tidak valid."
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Pelanggan Uji Step 7c",
+  "email": "bukan-email",
+  "phone": "+62813{{$randomInt 10000000 99999999}}",
+  "password": "{{testPassword}}",
+  "termsAccepted": true
+}
+
+### 1.3 HP tanpa +62 — harapan 400 "Nomor HP harus menggunakan format +62."
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Pelanggan Uji Step 7c",
+  "email": "step7c.hp.{{$timestamp}}@example.test",
+  "phone": "081234567890",
+  "password": "{{testPassword}}",
+  "termsAccepted": true
+}
+
+### 1.4 Sandi 7 karakter — harapan 400 "Kata sandi harus minimal 8 karakter."
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Pelanggan Uji Step 7c",
+  "email": "step7c.pw.{{$timestamp}}@example.test",
+  "phone": "+62814{{$randomInt 10000000 99999999}}",
+  "password": "1234567",
+  "termsAccepted": true
+}
+
+### 1.5 S&K tidak dicentang — harapan 400 "Persetujuan syarat dan ketentuan wajib dicentang."
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Pelanggan Uji Step 7c",
+  "email": "step7c.tos.{{$timestamp}}@example.test",
+  "phone": "+62815{{$randomInt 10000000 99999999}}",
+  "password": "{{testPassword}}",
+  "termsAccepted": false
+}
+
+### 1.6 Email sudah terdaftar (dari 1.1) — harapan 409 "Email atau nomor HP sudah terdaftar."
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Pelanggan Uji Step 7c",
+  "email": "{{registerOk.response.body.$.data.user.email}}",
+  "phone": "+62816{{$randomInt 10000000 99999999}}",
+  "password": "{{testPassword}}",
+  "termsAccepted": true
+}
+
+### 1.7 HP sudah terdaftar (dari 1.1) — harapan 409 "Email atau nomor HP sudah terdaftar."
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Pelanggan Uji Step 7c",
+  "email": "step7c.dup.{{$timestamp}}@example.test",
+  "phone": "{{registerOk.response.body.$.data.user.phone}}",
+  "password": "{{testPassword}}",
+  "termsAccepted": true
+}
+
+
+###############################################################################################################################
+# 2. TC-VR-02-02 · VR-02 Login · POST /api/auth/login (body: identifier = email/HP, password)
+###############################################################################################################################
+
+### 2.1 Sandi salah untuk akun uji 1.1 — harapan 401 "Email/HP atau kata sandi salah."
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "identifier": "{{testEmail}}",
+  "password": "{{wrongPassword}}"
+}
+
+### 2.2 Setup: login sah akun uji — harapan 200, data.token (dipakai smoke 2.3)
+# Wajib setelah 1.1 dan SEBELUM 3.4 (sandi masih @testPassword). Login setelah reset memakai 3.8 (@newTestPassword).
+# @name loginOk
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "identifier": "{{testEmail}}",
+  "password": "{{testPassword}}"
+}
+
+### 2.3 Smoke (tanpa TC): profil sesi dengan token — harapan 200, data.user.role = "customer"
+
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{loginOk.response.body.$.data.token}}
+
+###############################################################################################################################
+# 3. TC-VR-03-02 · VR-03 Reset sandi · POST /api/auth/forgot-password & /api/auth/reset-password
+#    Body reset: email, otp (6 digit), newPassword. OTP dibuat server 100000–999999, jadi "000000" tidak pernah sah.
+###############################################################################################################################
+
+### 3.1 OTP 5 digit — harapan 400 "OTP harus terdiri dari 6 digit." (ditolak sebelum membaca database)
+POST {{baseUrl}}/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": "{{testEmail}}",
+  "otp": "12345",
+  "newPassword": "{{newTestPassword}}"
+}
+
+### 3.2 [TULIS] Minta OTP untuk akun uji — harapan 200 pesan generik; OTP tampil di console server → salin ke @otp
+POST {{baseUrl}}/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "{{testEmail}}"
+}
+
+### 3.3 OTP salah — harapan 400 "OTP tidak valid, kedaluwarsa, atau sudah digunakan."
+POST {{baseUrl}}/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": "{{testEmail}}",
+  "otp": "000000",
+  "newPassword": "{{newTestPassword}}"
+}
+
+### 3.4 [TULIS] Setup: reset dengan OTP dari console (@otp) — harapan 200 "Kata sandi berhasil diubah."
+# Prasyarat: 3.2 sudah dijalankan dan @otp diisi OTP dari console server (belum lewat 10 menit).
+# Bila hasilnya BUKAN 200, berhenti: 3.5 tidak sah dijalankan (ulangi dari 3.2 dengan OTP baru).
+POST {{baseUrl}}/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": "{{testEmail}}",
+  "otp": "{{otp}}",
+  "newPassword": "{{newTestPassword}}"
+}
+
+### 3.5 OTP yang sudah dipakai di 3.4 dipakai lagi — harapan 400 "OTP tidak valid, kedaluwarsa, atau sudah digunakan."
+# HANYA sah bila 3.4 SEBELUMNYA menghasilkan HTTP 200 dan @otp TIDAK diubah sesudahnya — jadi yang diuji adalah OTP
+# yang tadi berhasil dipakai. Bila 3.4 belum dikirim/gagal, hasil 3.5 TIDAK dihitung sebagai bukti.
+POST {{baseUrl}}/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": "{{testEmail}}",
+  "otp": "{{otp}}",
+  "newPassword": "{{newTestPassword}}"
+}
+
+### 3.7 Verifikasi pasca-reset (setelah 3.4 = 200): login dengan sandi LAMA — harapan 401 "Email/HP atau kata sandi salah."
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "identifier": "{{testEmail}}",
+  "password": "{{testPassword}}"
+}
+
+### 3.8 Verifikasi pasca-reset: login dengan sandi BARU — harapan 200 "Login berhasil."
+# @name loginAfterReset
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "identifier": "{{testEmail}}",
+  "password": "{{newTestPassword}}"
+}
+
+### 3.9 Verifikasi pasca-reset: profil sesi dengan token 3.8 — harapan 200
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{loginAfterReset.response.body.$.data.token}}
+
+### 3.6 OTP kedaluwarsa (opsional, manual) — harapan 400 "OTP tidak valid, kedaluwarsa, atau sudah digunakan."
+# Setelah 3.9: jalankan 3.2 lagi → isi @expiredOtp dengan OTP BARU dari console → tunggu LEBIH DARI 10 menit → kirim.
+# Bila dikirim sebelum 10 menit, OTP masih sah dan hasilnya 200 (bukan bukti kedaluwarsa); sandi tetap @newTestPassword.
+POST {{baseUrl}}/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": "{{testEmail}}",
+  "otp": "{{expiredOtp}}",
+  "newPassword": "{{newTestPassword}}"
+}
+
+
+###############################################################################################################################
+# 4. TC-VR-05-03 · VR-05 Custom cake · POST /api/custom-cake-designs (tamu boleh, tanpa token)
+#    Body JSON: selections {ukuran, bentuk, rasa, krim_topping} = option_id aktif; writingText (di-trim, maks. 30);
+#    writingColor wajib bila ada tulisan: Cokelat | Putih | Pink | Emas; readyDate YYYY-MM-DD (≥ H+3 WIB, ≤ jendela 30 hari).
+#    Semua field lain diambil dari respons server (4.1) agar hasil 4.2/4.3 hanya ditentukan panjang tulisan.
+#    Tulisan tanpa spasi di awal/akhir: 30 = "Selamat Ulang Tahun Oven & Co!", 31 = "Selamat Ulang Tahun Oven & Co!!".
+###############################################################################################################################
+
+### 4.1 Setup: opsi aktif & tanggal siap tercepat — harapan 200
+# Jalankan TEPAT SEBELUM 4.2 & 4.3 (dan ulangi bila tanggal WIB sudah berganti) agar earliest_ready_date terbaru.
+# @name customOptions
+GET {{baseUrl}}/custom-options
+
+### 4.2 [TULIS] Tulisan tepat 30 karakter — harapan 201 "Desain custom cake berhasil disimpan."
+POST {{baseUrl}}/custom-cake-designs
+Content-Type: application/json
+
+{
+  "selections": {
+    "ukuran": {{customOptions.response.body.$.data.options.ukuran[0].option_id}},
+    "bentuk": {{customOptions.response.body.$.data.options.bentuk[0].option_id}},
+    "rasa": {{customOptions.response.body.$.data.options.rasa[0].option_id}},
+    "krim_topping": {{customOptions.response.body.$.data.options.krim_topping[0].option_id}}
+  },
+  "writingText": "Selamat Ulang Tahun Oven & Co!",
+  "writingColor": "Cokelat",
+  "readyDate": "{{customOptions.response.body.$.data.earliest_ready_date}}"
+}
+
+### 4.3 Tulisan 31 karakter — harapan 400 "Tulisan pada kue maksimal 30 karakter."
+POST {{baseUrl}}/custom-cake-designs
+Content-Type: application/json
+
+{
+  "selections": {
+    "ukuran": {{customOptions.response.body.$.data.options.ukuran[0].option_id}},
+    "bentuk": {{customOptions.response.body.$.data.options.bentuk[0].option_id}},
+    "rasa": {{customOptions.response.body.$.data.options.rasa[0].option_id}},
+    "krim_topping": {{customOptions.response.body.$.data.options.krim_topping[0].option_id}}
+  },
+  "writingText": "Selamat Ulang Tahun Oven & Co!!",
+  "writingColor": "Cokelat",
+  "readyDate": "{{customOptions.response.body.$.data.earliest_ready_date}}"
+}

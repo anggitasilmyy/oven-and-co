@@ -40,17 +40,17 @@ export default function ProductSummary({ product, unitPrice }) {
           >
             <StarRating value={average} />
             <span className="font-semibold text-cocoa">{average.toLocaleString('id-ID')}</span>
-            <span className="text-cocoa/65">({count} ulasan)</span>
+            <span className="text-cocoa-muted">({count} ulasan)</span>
           </Link>
         ) : (
-          <span className="text-cocoa/65">Belum ada ulasan</span>
+          <span className="text-cocoa-muted">Belum ada ulasan</span>
         )}
-        <span className="text-cocoa/40" aria-hidden="true">•</span>
-        <span className="text-cocoa/65">{product.category_name}</span>
+        <span className="text-cocoa-muted" aria-hidden="true">•</span>
+        <span className="text-cocoa-muted">{product.category_name}</span>
       </div>
       <p className="font-sans font-bold text-2xl text-primary tabular-nums">{formatRupiah(unitPrice)}</p>
       {isReady && product.remaining_today > 0 && (
-        <p className="text-sm text-cocoa/70">Sisa stok hari ini: <span className="font-semibold text-cocoa tabular-nums">{product.remaining_today}</span></p>
+        <p className="text-sm text-cocoa-muted">Sisa stok hari ini: <span className="font-semibold text-cocoa tabular-nums">{product.remaining_today}</span></p>
       )}
     </div>
   );

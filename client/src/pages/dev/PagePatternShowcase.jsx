@@ -22,7 +22,7 @@ export default function PagePatternShowcase() {
         <div className="card p-0">
           <TableScroll label="Pola halaman responsif" minWidth="min-w-[640px]">
           <table className="w-full text-sm text-left">
-            <thead className="text-xs text-cocoa/70 border-b border-beige">
+            <thead className="text-xs text-cocoa-muted border-b border-beige">
               <tr>
                 <th className="py-3 px-4 font-semibold">Pola</th>
                 <th className="py-3 px-4 font-semibold">&lt; 1024 px</th>

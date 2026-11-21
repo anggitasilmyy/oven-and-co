@@ -5,7 +5,7 @@ export default function TermsCheckbox({ checked, onChange }) {
   return (
     <label
       htmlFor="daftar-agree-terms"
-      className="flex items-start gap-3 cursor-pointer select-none"
+      className="flex items-start gap-3 min-h-touch-min cursor-pointer select-none"
     >
       <input
         id="daftar-agree-terms"
@@ -15,7 +15,7 @@ export default function TermsCheckbox({ checked, onChange }) {
         className="mt-0.5 w-[18px] h-[18px] accent-primary rounded shrink-0"
         aria-required="true"
       />
-      <span className="text-sm text-cocoa/70 leading-snug">
+      <span className="text-sm text-cocoa-muted leading-snug">
         Saya menyetujui{' '}
         <span className="text-primary font-semibold">Syarat &amp; Ketentuan</span> dan{' '}
         <span className="text-primary font-semibold">Kebijakan Privasi</span> Oven &amp; Co.

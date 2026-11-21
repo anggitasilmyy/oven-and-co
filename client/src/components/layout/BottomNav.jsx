@@ -22,7 +22,7 @@ export default function BottomNav() {
               `flex-1 flex flex-col items-center justify-center gap-0.5 min-h-touch-min
                transition-colors duration-150 active:bg-beige/60
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50 ` +
-              (isActive ? 'text-primary' : 'text-cocoa/60 hover:text-cocoa')
+              (isActive ? 'text-primary' : 'text-cocoa-muted hover:text-cocoa')
             }
           >
             {({ isActive }) => (

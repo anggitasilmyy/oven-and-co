@@ -40,7 +40,7 @@ export default function Toast({ type = 'info', message, show, onClose, duration 
     },
     error: {
       bg: 'bg-red-50 border-error/30',
-      text: 'text-error',
+      text: 'text-error-strong',
       Icon: AlertCircle,
     },
     info: {

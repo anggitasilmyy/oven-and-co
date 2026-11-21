@@ -32,7 +32,7 @@ export default function AdminTopbar({ user, isSidebarOpen, onOpenSidebar }) {
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
             <p className="text-sm font-semibold text-cocoa leading-tight">{user.name}</p>
-            <p className="text-xs text-cocoa/50 capitalize">{ROLE_LABEL[user.role]}</p>
+            <p className="text-xs text-cocoa-muted capitalize">{ROLE_LABEL[user.role]}</p>
           </div>
           <AdminAvatar name={user.name} variant="light" />
         </div>

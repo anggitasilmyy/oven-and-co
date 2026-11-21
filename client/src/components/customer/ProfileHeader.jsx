@@ -20,11 +20,11 @@ export default function ProfileHeader({ user }) {
       </div>
       <div className="min-w-0 space-y-1">
         <h2 className="font-display text-xl lg:text-2xl text-cocoa leading-tight break-words">{user?.name}</h2>
-        <p className="flex items-center gap-1.5 text-sm text-cocoa/75 min-w-0">
+        <p className="flex items-center gap-1.5 text-sm text-cocoa-muted min-w-0">
           <Mail size={14} className="shrink-0" aria-hidden="true" />
           <span className="truncate">{user?.email}</span>
         </p>
-        <p className="flex items-center gap-1.5 text-sm text-cocoa/75">
+        <p className="flex items-center gap-1.5 text-sm text-cocoa-muted">
           <Phone size={14} className="shrink-0" aria-hidden="true" />
           <span className="tabular-nums">{user?.phone}</span>
         </p>

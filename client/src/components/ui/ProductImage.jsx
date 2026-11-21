@@ -24,7 +24,7 @@ export default function ProductImage({ src, alt = '', sizes, className = '', ...
         role={alt ? 'img' : undefined}
         aria-label={alt || undefined}
         aria-hidden={alt ? undefined : true}
-        className={`flex items-center justify-center bg-beige text-cocoa/35 ${className}`}
+        className={`flex items-center justify-center bg-beige text-cocoa-muted ${className}`}
       >
         <ImageOff size={24} aria-hidden="true" />
       </span>

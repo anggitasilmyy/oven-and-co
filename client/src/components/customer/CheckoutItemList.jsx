@@ -33,7 +33,7 @@ export default function CheckoutItemList({ lines }) {
               <ProductImage src={l.image_url} sizes="48px" className="w-12 h-12 shrink-0 rounded-btn object-cover" />
               <div className="min-w-0 flex-1 text-sm">
                 <p className="font-semibold text-cocoa truncate">{l.name}</p>
-                <p className="text-xs text-cocoa/65 truncate">
+                <p className="text-xs text-cocoa-muted truncate">
                   {[l.variant_name, l.design?.options].filter(Boolean).join(' · ') || ' '}
                 </p>
               </div>

@@ -36,13 +36,13 @@ export default function Drawer({ isOpen, onClose, title, description, children, 
         <div className="flex items-start justify-between gap-3 border-b border-beige px-5 py-4 md:px-6">
           <div className="min-w-0">
             <h2 id="drawer-title" className="font-display text-xl text-cocoa">{title}</h2>
-            {description && <p className="mt-0.5 text-sm text-cocoa/70">{description}</p>}
+            {description && <p className="mt-0.5 text-sm text-cocoa-muted">{description}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={!onClose}
-            className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-cocoa/70 transition
+            className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-cocoa-muted transition
                        hover:bg-beige hover:text-cocoa disabled:opacity-40
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             aria-label="Tutup panel"

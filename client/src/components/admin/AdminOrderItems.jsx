@@ -12,11 +12,11 @@ function CustomCakeSpec({ spec }) {
       <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1">
         {spec.options.map((o) => (
           <div key={o.label} className="contents">
-            <dt className="text-cocoa/70">{o.label}</dt>
+            <dt className="text-cocoa-muted">{o.label}</dt>
             <dd className="font-medium break-words">{o.value}</dd>
           </div>
         ))}
-        <dt className="text-cocoa/70">Tulisan</dt>
+        <dt className="text-cocoa-muted">Tulisan</dt>
         <dd className="font-medium break-words">{spec.writing_text ? `"${spec.writing_text}" · ${spec.writing_color}` : '-'}</dd>
       </dl>
       {spec.reference_photo_url && (
@@ -42,9 +42,9 @@ export default function AdminOrderItems({ items }) {
               <ProductImage src={item.image_url} sizes="56px" className="w-14 h-14 shrink-0 rounded-xl object-cover" />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-cocoa leading-snug">{item.name}</p>
-                {item.variant_name && <p className="text-xs text-cocoa/65">Varian: {item.variant_name}</p>}
-                {item.note && <p className="text-xs text-cocoa/65 break-words">Catatan: {item.note}</p>}
-                <p className="text-xs text-cocoa/70 tabular-nums">{item.quantity} × {formatRupiah(item.unit_price)}</p>
+                {item.variant_name && <p className="text-xs text-cocoa-muted">Varian: {item.variant_name}</p>}
+                {item.note && <p className="text-xs text-cocoa-muted break-words">Catatan: {item.note}</p>}
+                <p className="text-xs text-cocoa-muted tabular-nums">{item.quantity} × {formatRupiah(item.unit_price)}</p>
               </div>
               <p className="font-semibold text-cocoa tabular-nums shrink-0">{formatRupiah(item.line_total)}</p>
             </div>

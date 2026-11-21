@@ -9,7 +9,7 @@ export default function ProductEditButton({ row, onEdit }) {
     <button
       type="button"
       onClick={() => onEdit(row.product_id)}
-      className="inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-lg border border-beige px-3 text-xs font-semibold
+      className="inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-btn border border-beige px-3 text-xs font-semibold
                  text-primary hover:bg-beige/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
       aria-label={`Ubah ${row.name}`}
     >

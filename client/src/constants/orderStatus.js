@@ -32,7 +32,7 @@ export const ORDER_STATUS_COLOR = {
   [ORDER_STATUS.SIAP_DIAMBIL]: 'bg-sage text-cocoa',
   [ORDER_STATUS.DALAM_PENGIRIMAN]: 'bg-blue-100 text-blue-700',
   [ORDER_STATUS.SELESAI]: 'bg-sage text-cocoa',
-  [ORDER_STATUS.DIBATALKAN]: 'bg-red-100 text-error',
+  [ORDER_STATUS.DIBATALKAN]: 'bg-red-100 text-error-strong',
 };
 
 /** Status pesanan yang masih bisa dibatalkan pelanggan (sebelum sedang_disiapkan) — BR-08 */

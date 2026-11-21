@@ -59,7 +59,7 @@ export default function OtpInput({ value, onChange, error }) {
             onKeyDown={(e) => handleKeyDown(idx, e)}
             aria-label={`Digit ${idx + 1}`}
             className={[
-              'w-12 h-14 text-center text-xl font-bold text-cocoa rounded-xl border',
+              'w-12 h-14 text-center text-xl font-bold text-cocoa rounded-btn border',
               'transition-all duration-150 focus:outline-none focus:ring-2',
               error
                 ? 'border-error focus:ring-error/30'
@@ -71,7 +71,7 @@ export default function OtpInput({ value, onChange, error }) {
         ))}
       </div>
       {error && (
-        <p role="alert" className="mt-2 text-xs text-error flex items-center gap-1">
+        <p role="alert" className="mt-2 text-xs text-error-strong flex items-center gap-1">
           <span aria-hidden="true">⚠</span> {error}
         </p>
       )}

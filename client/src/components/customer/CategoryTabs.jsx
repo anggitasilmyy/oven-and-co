@@ -21,7 +21,7 @@ export default function CategoryTabs({ categories = [], value, onChange }) {
                 onClick={() => onChange(cat.category_id)}
                 className={`relative h-12 px-3 md:px-4 text-sm font-semibold whitespace-nowrap rounded-t-btn transition-colors
                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50
-                            ${active ? 'text-primary' : 'text-cocoa/65 hover:text-cocoa hover:bg-beige/40'}`}
+                            ${active ? 'text-primary' : 'text-cocoa-muted hover:text-cocoa hover:bg-beige/40'}`}
               >
                 {cat.name}
                 <span

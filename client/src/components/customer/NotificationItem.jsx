@@ -42,8 +42,8 @@ export default function NotificationItem({ notification: n, todayKey, onOpen }) 
               </span>
             )}
           </span>
-          <span className="block text-sm text-cocoa/75 leading-relaxed break-words">{n.body}</span>
-          <span className="block text-xs text-cocoa/70 tabular-nums">{when}</span>
+          <span className="block text-sm text-cocoa-muted leading-relaxed break-words">{n.body}</span>
+          <span className="block text-xs text-cocoa-muted tabular-nums">{when}</span>
         </span>
         <ChevronRight size={18} className="mt-2.5 text-cocoa/40 shrink-0" aria-hidden="true" />
       </button>

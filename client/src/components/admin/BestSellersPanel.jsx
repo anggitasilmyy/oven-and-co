@@ -9,13 +9,13 @@ import ProductImage from '../ui/ProductImage';
  * @param {string} [emptyText] — Step 5.8: dipakai ulang di Laporan AD-08 dengan periode lain
  */
 export default function BestSellersPanel({ products, emptyText = 'Belum ada penjualan 7 hari terakhir.' }) {
-  if (!products.length) return <p className="text-sm text-cocoa/70">{emptyText}</p>;
+  if (!products.length) return <p className="text-sm text-cocoa-muted">{emptyText}</p>;
   const max = products[0].quantity_sold;
   return (
     <ol className="space-y-3">
       {products.map((p, i) => (
         <li key={p.product_id} className="flex items-center gap-3">
-          <span className="w-5 text-xs font-bold text-cocoa/60 tabular-nums">{i + 1}</span>
+          <span className="w-5 text-xs font-bold text-cocoa-muted tabular-nums">{i + 1}</span>
           {p.image_url && <ProductImage src={p.image_url} sizes="40px" loading="lazy" className="w-10 h-10 rounded-lg object-cover shrink-0" />}
           <div className="flex-1 min-w-0 space-y-1">
             <div className="flex items-baseline justify-between gap-2">

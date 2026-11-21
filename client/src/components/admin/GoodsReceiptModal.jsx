@@ -66,7 +66,7 @@ export default function GoodsReceiptModal({ order, receipt, onClose, onSaved }) 
     <Modal isOpen size="lg" onClose={saving ? undefined : onClose} title={correcting ? 'Koreksi penerimaan' : `Terima barang · ${order.po_number}`}
       footer={(<><Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>Batal</Button><Button type="submit" form="receipt-form" size="sm" loading={saving}>{correcting ? 'Simpan koreksi' : 'Simpan penerimaan'}</Button></>)}>
       <form id="receipt-form" noValidate className="space-y-4" onSubmit={submit}>
-        <p className="text-sm text-cocoa/75">{correcting
+        <p className="text-sm text-cocoa-muted">{correcting
           ? 'Isi jumlah yang benar untuk setiap item. Kosongkan item yang seharusnya tidak diterima. Dokumen asal tetap tersimpan sebagai riwayat.'
           : 'Isi jumlah yang datang. Penerimaan boleh sebagian; jumlah tidak boleh melebihi sisa.'}</p>
         <ul className="space-y-3">
@@ -74,7 +74,7 @@ export default function GoodsReceiptModal({ order, receipt, onClose, onSaved }) 
             <li key={i.po_item_id} className="grid gap-2 rounded-btn border border-beige p-3 sm:grid-cols-[1fr_160px] sm:items-end">
               <div className="text-sm">
                 <p className="font-semibold text-cocoa">{i.name}</p>
-                <p className="text-xs text-cocoa/70">Dipesan {formatNumber(i.qty_ordered)} · diterima {formatNumber(i.net_received)} · sisa <span className="font-semibold">{formatNumber(i.remaining)}</span> {i.unit}</p>
+                <p className="text-xs text-cocoa-muted">Dipesan {formatNumber(i.qty_ordered)} · diterima {formatNumber(i.net_received)} · sisa <span className="font-semibold">{formatNumber(i.remaining)}</span> {i.unit}</p>
               </div>
               <FormField id={`receipt-qty-${i.po_item_id}`} label={`Jumlah (${i.unit})`} error={qtyError(i) || serverErrors[`lines.${k}.qty`]}>
                 <input inputMode="decimal" className={`${fieldClass(qtyError(i))} tabular-nums`} value={qty[i.po_item_id]} onChange={(e) => { setQty((q) => ({ ...q, [i.po_item_id]: e.target.value })); touch(); }} />
@@ -82,7 +82,7 @@ export default function GoodsReceiptModal({ order, receipt, onClose, onSaved }) 
             </li>
           ))}
         </ul>
-        {submitted && !correcting && lines.length === 0 && <p className="text-xs text-error">Isi minimal satu jumlah yang diterima.</p>}
+        {submitted && !correcting && lines.length === 0 && <p className="text-xs text-error-strong">Isi minimal satu jumlah yang diterima.</p>}
         {correcting && (
           <FormField id="receipt-reason" label="Alasan koreksi" error={submitted ? reasonInvalid : undefined}>
             <textarea className={fieldClass(submitted ? reasonInvalid : undefined, 'textarea')} value={reason} onChange={(e) => { setReason(e.target.value); touch(); }} />

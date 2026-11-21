@@ -15,12 +15,12 @@ export default function OperationsUsageTable({ rows }) {
     { key: 'name', header: 'Bahan', className: 'font-semibold min-w-[160px]' },
     { key: 'standard', header: 'Standar', align: 'right', render: (u) => cell(u.standard, u) },
     { key: 'actual', header: 'Aktual', align: 'right', render: (u) => cell(u.actual, u) },
-    { key: 'variance', header: 'Selisih', align: 'right', render: (u) => cell(u.variance, u, u.variance > 0 ? 'text-error' : '') },
+    { key: 'variance', header: 'Selisih', align: 'right', render: (u) => cell(u.variance, u, u.variance > 0 ? 'text-error-strong' : '') },
   ];
   return (
     <DashboardPanel title="Pemakaian bahan" description="Standar dari hasil produksi yang dicatat, aktual dari pengeluaran bahan yang dicatat pada periode ini">
       {rows.length === 0
-        ? <p className="text-sm text-cocoa/70">Belum ada pemakaian bahan pada periode ini.</p>
+        ? <p className="text-sm text-cocoa-muted">Belum ada pemakaian bahan pada periode ini.</p>
         : <DataTable label="Pemakaian bahan standar, aktual, dan selisih" columns={columns} rows={rows} rowKey={(r) => r.material_id} minWidth="min-w-[560px]" />}
     </DashboardPanel>
   );

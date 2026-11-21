@@ -15,7 +15,7 @@ import { parseDateKey } from '../../utils/date';
 
 const STATUS = Object.fromEntries(Object.values(ADMIN_VOUCHER_STATUS).map((s) => [s.key, s]));
 const editClass =
-  'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-lg border border-beige px-3 text-xs font-semibold ' +
+  'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-btn border border-beige px-3 text-xs font-semibold ' +
   'text-primary hover:bg-beige/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50';
 
 const value = (v) => (v.discount_type === DISCOUNT_TYPE.PERCENT ? `${v.discount_value}%` : formatRupiah(v.discount_value));
@@ -50,7 +50,7 @@ export default function VoucherListPanel({ rows, onEdit, onChanged }) {
     </button>
   );
   const columns = [
-    { key: 'code', header: 'Kode', render: (v) => <><span className="font-semibold">{v.code}</span><span className="block max-w-[260px] truncate text-xs text-cocoa/65">{v.title}</span></> },
+    { key: 'code', header: 'Kode', render: (v) => <><span className="font-semibold">{v.code}</span><span className="block max-w-[260px] truncate text-xs text-cocoa-muted">{v.title}</span></> },
     { key: 'discount_type', header: 'Jenis', render: (v) => DISCOUNT_TYPE_LABEL[v.discount_type] },
     { key: 'discount_value', header: 'Nilai', align: 'right', className: 'tabular-nums font-semibold', render: value },
     { key: 'product', header: 'Berlaku', render: (v) => v.product_name ?? 'Semua produk' },
@@ -70,11 +70,11 @@ export default function VoucherListPanel({ rows, onEdit, onChanged }) {
         {rows.map((v) => (
           <li key={v.voucher_id} className="card-admin space-y-2 p-4">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0"><p className="font-semibold text-cocoa">{v.code} · {value(v)}</p><p className="text-xs text-cocoa/70">{v.title}</p></div>
+              <div className="min-w-0"><p className="font-semibold text-cocoa">{v.code} · {value(v)}</p><p className="text-xs text-cocoa-muted">{v.title}</p></div>
               {status(v)}
             </div>
-            <p className="text-xs text-cocoa/70">{v.product_name ?? 'Semua produk'} · {period(v)}</p>
-            <p className="text-xs tabular-nums text-cocoa/70">{quota(v)}</p>
+            <p className="text-xs text-cocoa-muted">{v.product_name ?? 'Semua produk'} · {period(v)}</p>
+            <p className="text-xs tabular-nums text-cocoa-muted">{quota(v)}</p>
             <div className="flex items-center justify-between border-t border-beige pt-2">{activeSwitch(v)}{edit(v)}</div>
           </li>
         ))}

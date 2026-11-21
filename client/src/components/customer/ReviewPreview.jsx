@@ -23,7 +23,7 @@ export default function ReviewPreview({ productId, summary, reviews }) {
         )}
       </div>
       {reviews.length === 0 ? (
-        <p className="card p-5 text-sm text-cocoa/70">Belum ada ulasan untuk produk ini.</p>
+        <p className="card p-5 text-sm text-cocoa-muted">Belum ada ulasan untuk produk ini.</p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {reviews.map((r) => <ReviewCard key={r.review_id} review={r} compact />)}

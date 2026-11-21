@@ -11,8 +11,8 @@ function DocItem({ title, detail, reason, actions }) {
     <li className="flex flex-col gap-2 rounded-btn border border-beige p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="font-semibold text-cocoa">{title}</p>
-        {detail && <p className="text-xs text-cocoa/75">{detail}</p>}
-        {reason && <p className="text-xs text-cocoa/75">Alasan: {reason}</p>}
+        {detail && <p className="text-xs text-cocoa-muted">{detail}</p>}
+        {reason && <p className="text-xs text-cocoa-muted">Alasan: {reason}</p>}
       </div>
       {actions && <div className="flex gap-2">{actions}</div>}
     </li>
@@ -36,10 +36,10 @@ export default function WorkOrderDocuments({ order, onAction }) {
     <div className="grid gap-4 xl:grid-cols-2">
       <section className="card-admin space-y-3 p-4 md:p-6" aria-label="Riwayat pengeluaran bahan">
         <h3 className="text-base font-semibold text-cocoa">Pengeluaran bahan</h3>
-        {order.issues.length === 0 ? <p className="text-sm text-cocoa/70">Belum ada pengeluaran.</p> : (
+        {order.issues.length === 0 ? <p className="text-sm text-cocoa-muted">Belum ada pengeluaran.</p> : (
           <ul className="space-y-2">
             {order.issues.map((d) => (
-              <DocItem key={d.issue_id} title={<>{ISSUE_KIND_LABEL[d.kind]} #{d.issue_id}<span className="font-normal text-cocoa/65">{meta(d.created_at, d.effective, d.kind)}</span></>}
+              <DocItem key={d.issue_id} title={<>{ISSUE_KIND_LABEL[d.kind]} #{d.issue_id}<span className="font-normal text-cocoa-muted">{meta(d.created_at, d.effective, d.kind)}</span></>}
                 detail={d.lines.map((l) => `${l.name} ${formatNumber(l.qty)} ${l.unit}`).join(' · ')} reason={d.reason} actions={actions(d, 'issue', true)} />
             ))}
           </ul>
@@ -47,10 +47,10 @@ export default function WorkOrderDocuments({ order, onAction }) {
       </section>
       <section className="card-admin space-y-3 p-4 md:p-6" aria-label="Riwayat hasil produksi">
         <h3 className="text-base font-semibold text-cocoa">Hasil produksi</h3>
-        {order.outputs.length === 0 ? <p className="text-sm text-cocoa/70">Hasil dicatat saat WO diselesaikan.</p> : (
+        {order.outputs.length === 0 ? <p className="text-sm text-cocoa-muted">Hasil dicatat saat WO diselesaikan.</p> : (
           <ul className="space-y-2">
             {order.outputs.map((d) => (
-              <DocItem key={d.output_id} title={<>{OUTPUT_KIND_LABEL[d.kind]} #{d.output_id}: <span className="tabular-nums">{formatNumber(d.qty_output)}</span><span className="font-normal text-cocoa/65">{meta(d.recorded_at, d.effective, d.kind)}</span></>}
+              <DocItem key={d.output_id} title={<>{OUTPUT_KIND_LABEL[d.kind]} #{d.output_id}: <span className="tabular-nums">{formatNumber(d.qty_output)}</span><span className="font-normal text-cocoa-muted">{meta(d.recorded_at, d.effective, d.kind)}</span></>}
                 reason={d.reason} actions={actions(d, 'output', d.qty_output > 0)} />
             ))}
           </ul>

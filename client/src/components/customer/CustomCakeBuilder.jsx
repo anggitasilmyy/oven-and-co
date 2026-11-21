@@ -32,7 +32,7 @@ export default function CustomCakeBuilder({ builder, notify }) {
       label="Total & aksi"
       summary={
         <div>
-          <p className="text-xs text-cocoa/65">Total</p>
+          <p className="text-xs text-cocoa-muted">Total</p>
           <p className="font-bold text-lg lg:text-2xl text-cocoa tabular-nums" aria-live="polite">{formatRupiah(b.total)}</p>
         </div>
       }
@@ -45,7 +45,7 @@ export default function CustomCakeBuilder({ builder, notify }) {
         ) : (
           <Button fullWidth onClick={b.goNext} disabled={!b.canContinue}>Lanjut</Button>
         )}
-        {blockedReason && <p className="text-xs text-cocoa/65 text-center lg:text-left" role="status">{blockedReason}</p>}
+        {blockedReason && <p className="text-xs text-cocoa-muted text-center lg:text-left" role="status">{blockedReason}</p>}
       </div>
     </ActionBar>
   );
@@ -56,7 +56,7 @@ export default function CustomCakeBuilder({ builder, notify }) {
         <div className="space-y-2">
           <Badge variant="custom">{AVAILABILITY_BADGE[AVAILABILITY_TYPE.CUSTOM].longLabel}</Badge>
           <h1 className="font-display text-3xl lg:text-4xl text-cocoa leading-tight">Design Your Celebration Cake</h1>
-          <p className="text-sm md:text-base text-cocoa/70 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-sm md:text-base text-cocoa-muted flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{builder.product.name} · mulai <strong className="tabular-nums">{formatRupiah(builder.product.price)}</strong></span>
             <span className="inline-flex items-center gap-1.5">
               <CalendarClock size={16} aria-hidden="true" />

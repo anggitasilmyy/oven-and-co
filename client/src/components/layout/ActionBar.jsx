@@ -8,15 +8,19 @@
  * @param {React.ReactNode} children — tombol aksi utama
  * @param {string} label — aria-label wilayah aksi
  */
-export default function ActionBar({ summary, children, label = 'Aksi halaman', className = '' }) {
+// Step 8 · F-05: `aboveBottomNav` untuk halaman di CustomerLayout (C-19) — < md bar berada tepat di atas BottomNav
+// (72 px + safe area, sama dengan CustomerLayout) agar tidak saling menutupi; ≥ md BottomNav tidak ada → bawah layar.
+export default function ActionBar({ summary, children, label = 'Aksi halaman', aboveBottomNav = false, className = '' }) {
   return (
     <aside
       aria-label={label}
       data-layout="action-bar"
       className={[
-        // Mobile & tablet: fixed di bawah
-        'fixed inset-x-0 bottom-0 z-30 bg-surface/95 backdrop-blur-sm border-t border-beige',
-        'pb-[env(safe-area-inset-bottom)]',
+        // Mobile & tablet: fixed di bawah (atau di atas BottomNav)
+        'fixed inset-x-0 z-30 bg-surface/95 backdrop-blur-sm border-t border-beige',
+        aboveBottomNav
+          ? 'bottom-[calc(72px+env(safe-area-inset-bottom))] md:bottom-0 md:pb-[env(safe-area-inset-bottom)]'
+          : 'bottom-0 pb-[env(safe-area-inset-bottom)]',
         // Desktop: kartu sticky
         'lg:sticky lg:top-24 lg:inset-auto lg:z-auto lg:bg-surface lg:backdrop-blur-none',
         'lg:border lg:rounded-card lg:shadow-sm lg:pb-0',

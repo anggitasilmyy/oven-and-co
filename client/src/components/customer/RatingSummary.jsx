@@ -11,16 +11,16 @@ export default function RatingSummary({ summary }) {
           {summary.average != null ? summary.average.toLocaleString('id-ID', { minimumFractionDigits: 1 }) : '–'}
         </p>
         <StarRating value={summary.average ?? 0} size={16} className="mt-2" />
-        <p className="mt-1 text-xs text-cocoa/65">{summary.count} ulasan</p>
+        <p className="mt-1 text-xs text-cocoa-muted">{summary.count} ulasan</p>
       </div>
       <ul className="flex-1 min-w-0 space-y-1.5" aria-label="Distribusi bintang">
         {summary.distribution.map(({ stars, count, percent }) => (
           <li key={stars} className="flex items-center gap-2 text-xs">
-            <span className="w-3 text-cocoa/70 tabular-nums">{stars}</span>
+            <span className="w-3 text-cocoa-muted tabular-nums">{stars}</span>
             <span className="flex-1 h-2 rounded-pill bg-beige overflow-hidden" aria-hidden="true">
-              <span className="block h-full rounded-pill bg-[#D9A441]" style={{ width: `${percent}%` }} />
+              <span className="block h-full rounded-pill bg-caramel" style={{ width: `${percent}%` }} />
             </span>
-            <span className="w-6 text-right text-cocoa/70 tabular-nums">{count}</span>
+            <span className="w-6 text-right text-cocoa-muted tabular-nums">{count}</span>
             <span className="sr-only">ulasan bintang {stars}</span>
           </li>
         ))}

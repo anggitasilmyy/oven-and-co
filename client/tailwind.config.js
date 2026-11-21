@@ -27,6 +27,18 @@ export default {
         'primary-dark': '#6f4a2f',
         'primary-light': '#a8754f',
         'cocoa-light': '#7a5240',
+
+        // Step 8 · F-02 (NFR-02, kontras ≥ 4.5:1) — token teks semantik. Palet utama tidak berubah.
+        // cocoa-muted : teks sekunder/keterangan/placeholder (≈ cocoa 82% di atas cream). Kontras minimum 4.82 di
+        //               cream, surface, putih, beige, primary/10 — pengganti kelas teks beropasitas text-cocoa/35 – /75.
+        // error-strong: teks error & latar tombol danger. #C0564B digelapkan 14% (hue sama): teks 5.34 di cream,
+        //               4.70 di red-100; teks putih di atasnya 5.74. `error` tetap dipakai untuk latar tipis, border, ring.
+        'cocoa-muted': '#795E51',
+        'error-strong': '#A54A41',
+
+        // Step 8 · F-09 — "Caramel" (PRD Batch 6): bintang rating & area grafik omzet. Sebelumnya ditulis sebagai kelas
+        // arbitrer fill-[#D9A441] di banyak file; nilai sama dengan CHART_COLOR.caramel (constants/chartColors.js).
+        caramel: '#D9A441',
       },
 
       // ── Font ─────────────────────────────────────────────────────────────

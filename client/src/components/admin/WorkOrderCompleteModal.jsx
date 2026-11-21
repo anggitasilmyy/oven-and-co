@@ -58,12 +58,12 @@ export default function WorkOrderCompleteModal({ order, materials, onClose, onSa
     <Modal isOpen size="lg" onClose={saving ? undefined : onClose} title={`Selesaikan ${order.wo_number}`}
       footer={(<><Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>Batal</Button><Button type="submit" form="complete-form" size="sm" loading={saving}>Selesaikan WO</Button></>)}>
       <form id="complete-form" noValidate className="space-y-4" onSubmit={submit}>
-        <p className="text-sm text-cocoa/75">{PRODUCTION_OUTPUT_NOTE} Setelah selesai, WO tidak dapat diubah; kesalahan dibetulkan lewat pembalik atau koreksi.</p>
+        <p className="text-sm text-cocoa-muted">{PRODUCTION_OUTPUT_NOTE} Setelah selesai, WO tidak dapat diubah; kesalahan dibetulkan lewat pembalik atau koreksi.</p>
         <FormField id="complete-qty" label={`Jumlah hasil (rencana ${order.qty_planned})`} hint={`Bilangan bulat 0 – ${WO_QTY_MAX.toLocaleString('id-ID')}`} error={errorOf('qty_output')}>
           <input inputMode="numeric" className={`${fieldClass(errorOf('qty_output'))} tabular-nums`} value={qty} onChange={(e) => { setQty(e.target.value); touch(); }} />
         </FormField>
         <div className="space-y-2">
-          <p className="text-sm text-cocoa/75">Pengeluaran bahan terakhir (opsional) dicatat bersamaan dengan penyelesaian.</p>
+          <p className="text-sm text-cocoa-muted">Pengeluaran bahan terakhir (opsional) dicatat bersamaan dengan penyelesaian.</p>
           <IssueLinesEditor idPrefix="complete" rows={rows} setRows={setRows} materials={materials} recipeIds={new Set(order.recipe.map((r) => r.material_id))} errorOf={errorOf} onTouch={touch} minRows={0} />
         </div>
         <FormError message={error} />

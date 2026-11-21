@@ -55,7 +55,7 @@ export default function KeranjangPage() {
       label="Total & aksi"
       summary={
         <div>
-          <p className="text-xs text-cocoa/65">Total · {cart.itemCount} item</p>
+          <p className="text-xs text-cocoa-muted">Total · {cart.itemCount} item</p>
           <p className="font-bold text-lg lg:text-2xl text-cocoa tabular-nums" aria-live="polite">{formatRupiah(subtotal)}</p>
         </div>
       }
@@ -64,7 +64,7 @@ export default function KeranjangPage() {
         <Button fullWidth onClick={() => navigate(CUSTOMER_ROUTES.CHECKOUT)} disabled={cart.loading || cart.blocked}>
           Checkout
         </Button>
-        {cart.blocked && <p className="text-xs text-error text-center lg:text-left" role="status">Periksa item yang ditandai</p>}
+        {cart.blocked && <p className="text-xs text-error-strong text-center lg:text-left" role="status">Periksa item yang ditandai</p>}
       </div>
     </ActionBar>
   );
@@ -78,7 +78,7 @@ export default function KeranjangPage() {
         )}
         {/* Step 6.3: keranjang hasil gabung bisa melebihi batas baris; tidak dipotong otomatis */}
         {cart.overLineLimit && (
-          <p role="alert" className="rounded-btn bg-red-50 border border-error/30 px-4 py-3 text-sm font-medium text-error">
+          <p role="alert" className="rounded-btn bg-red-50 border border-error/30 px-4 py-3 text-sm font-medium text-error-strong">
             Keranjang berisi {cart.items.length} item berbeda, maksimal {CART_MAX_LINES}. Hapus beberapa item sebelum checkout.
           </p>
         )}

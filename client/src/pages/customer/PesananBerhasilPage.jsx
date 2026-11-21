@@ -21,7 +21,7 @@ import { PAY_AT_STORE_LABEL } from '../../constants/checkout';
 function Row({ label, children }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2.5 text-sm">
-      <dt className="text-cocoa/70">{label}</dt>
+      <dt className="text-cocoa-muted">{label}</dt>
       <dd className="font-semibold text-cocoa text-right break-words min-w-0">{children}</dd>
     </div>
   );
@@ -52,10 +52,10 @@ export default function PesananBerhasilPage() {
         </div>
         <div className="space-y-2">
           <h1 className="font-display text-2xl md:text-3xl text-cocoa leading-tight">Terima kasih, pesananmu sudah kami terima!</h1>
-          <p className="text-sm md:text-base text-cocoa/70">Kami akan menyiapkannya with care.</p>
+          <p className="text-sm md:text-base text-cocoa-muted">Kami akan menyiapkannya with care.</p>
         </div>
         <div>
-          <p className="text-xs text-cocoa/65">Nomor pesanan</p>
+          <p className="text-xs text-cocoa-muted">Nomor pesanan</p>
           <p className="font-mono text-xl font-bold text-cocoa tracking-wide">{order.order_number}</p>
         </div>
         <p className="inline-flex items-center gap-1.5 rounded-pill bg-peach/70 px-4 py-2 text-sm font-semibold text-cocoa">
@@ -70,7 +70,7 @@ export default function PesananBerhasilPage() {
           <Row label="Pembayaran">{payAtStore ? PAY_AT_STORE_LABEL : `Lunas · ${data.method?.name ?? '-'}`}</Row>
           <Row label="Total">{formatRupiah(order.total)}</Row>
         </dl>
-        {payAtStore && <p className="text-xs text-cocoa/70">Tunjukkan kode pickup dan bayar di kasir saat mengambil pesanan.</p>}
+        {payAtStore && <p className="text-xs text-cocoa-muted">Tunjukkan kode pickup dan bayar di kasir saat mengambil pesanan.</p>}
 
         <div className="flex flex-col sm:flex-row gap-3 pt-1">
           <Button fullWidth onClick={() => navigate(buildPath(CUSTOMER_ROUTES.DETAIL_PESANAN, { orderNumber }))}>Lacak Pesanan</Button>

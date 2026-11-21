@@ -23,7 +23,7 @@ export default function MemberLevelInfo({ currentKey, settings = STORE_SETTINGS_
     <section className="card p-5 lg:p-6 space-y-4" aria-labelledby="level-title">
       <div>
         <h2 id="level-title" className="font-display text-xl text-cocoa">Level Member</h2>
-        <p className="mt-1 text-xs text-cocoa/70">
+        <p className="mt-1 text-xs text-cocoa-muted">
           Dihitung dari poin yang diperoleh tahun ini. 1 poin per {formatRupiah(settings.earn_amount_per_point)} setelah
           pesanan Selesai; {formatNumber(settings.redeem_points_unit)} poin = {formatRupiah(settings.redeem_value)} saat checkout.
         </p>

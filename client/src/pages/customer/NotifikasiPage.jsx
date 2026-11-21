@@ -70,7 +70,7 @@ export default function NotifikasiPage() {
   } else {
     body = groupNotificationsByDay(query.data.items, query.data.today_key).map((group) => (
       <section key={group.key} aria-labelledby={`notif-${group.key}`} className="space-y-2">
-        <h2 id={`notif-${group.key}`} className="text-xs font-bold uppercase tracking-widest text-cocoa/70">{group.label}</h2>
+        <h2 id={`notif-${group.key}`} className="text-xs font-bold uppercase tracking-widest text-cocoa-muted">{group.label}</h2>
         <ul className="card overflow-hidden divide-y divide-beige">
           {group.items.map((n) => <NotificationItem key={n.notification_id} notification={n} todayKey={query.data.today_key} onOpen={open} />)}
         </ul>

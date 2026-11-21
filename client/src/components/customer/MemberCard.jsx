@@ -44,9 +44,9 @@ export default function MemberCard({ summary, loading, error, onRetry, showRewar
 
       <div>
         <p className="font-display text-4xl text-cocoa leading-none tabular-nums">
-          {formatNumber(balance)} <span className="font-sans text-base font-semibold text-cocoa/70">poin</span>
+          {formatNumber(balance)} <span className="font-sans text-base font-semibold text-cocoa-muted">poin</span>
         </p>
-        <p className="mt-1 text-xs text-cocoa/70">Setara {formatRupiah(redeemValue)} saat ditukar di checkout</p>
+        <p className="mt-1 text-xs text-cocoa-muted">Setara {formatRupiah(redeemValue)} saat ditukar di checkout</p>
       </div>
 
       <div className="space-y-1.5">
@@ -60,7 +60,7 @@ export default function MemberCard({ summary, loading, error, onRetry, showRewar
         >
           <div className="h-full rounded-pill bg-primary" style={{ width: `${progress}%` }} />
         </div>
-        <p className="text-xs text-cocoa/70">
+        <p className="text-xs text-cocoa-muted">
           {nextLevel
             ? `${formatNumber(pointsToNext)} poin lagi menuju ${nextLevel.label} tahun ini`
             : 'Level tertinggi tahun ini — terima kasih!'}

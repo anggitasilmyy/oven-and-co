@@ -94,7 +94,7 @@ export default function AddressFormModal({ address, context, user, firstAddress,
         <label className={`flex items-center justify-between gap-4 min-h-touch-min ${primaryLocked ? 'opacity-70' : 'cursor-pointer'}`}>
           <span className="text-sm font-semibold text-cocoa">
             Jadikan alamat utama
-            {primaryLocked && <span className="block text-xs font-normal text-cocoa/70">Alamat utama dipilih otomatis bila hanya ada satu alamat atau sudah utama.</span>}
+            {primaryLocked && <span className="block text-xs font-normal text-cocoa-muted">Alamat utama dipilih otomatis bila hanya ada satu alamat atau sudah utama.</span>}
           </span>
           <input
             type="checkbox"

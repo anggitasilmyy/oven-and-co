@@ -7,6 +7,8 @@ import { useState } from 'react';
 import { MapPin, Plus } from 'lucide-react';
 import AccountLayout from '../../layouts/AccountLayout';
 import PageHeader from '../../components/layout/PageHeader';
+import { CUSTOMER_ROUTES } from '../../constants/routes';
+
 import ResponsiveGrid from '../../components/layout/ResponsiveGrid';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
@@ -19,6 +21,9 @@ import AddressFormModal from '../../components/customer/AddressFormModal';
 import useAuthStore from '../../stores/useAuthStore';
 import useServiceQuery from '../../hooks/useServiceQuery';
 import { getMyAddresses, saveAddress, setPrimaryAddress, deleteAddress } from '../../services/addressService';
+
+/** Step 8 · F-05: tautan kembali ke Akun (< lg); ≥ lg sidebar Akun sudah tersedia */
+const ACCOUNT_BACK = { to: CUSTOMER_ROUTES.AKUN, label: 'Akun', hideOnDesktop: true };
 
 export default function AlamatPage() {
   const user = useAuthStore((s) => s.user);
@@ -101,6 +106,7 @@ export default function AlamatPage() {
       <div className="space-y-5 lg:space-y-6">
         <PageHeader
           title="Alamat Tersimpan"
+          back={ACCOUNT_BACK}
           actions={query.data && addresses.length > 0 && (
             <Button leftIcon={<Plus size={18} aria-hidden="true" />} onClick={() => setEditing({ address: null })}>Tambah Alamat</Button>
           )}

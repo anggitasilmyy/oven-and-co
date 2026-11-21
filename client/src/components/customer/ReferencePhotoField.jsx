@@ -45,16 +45,16 @@ export default function ReferencePhotoField({ value, onChange }) {
   return (
     <div>
       <p className="text-sm font-bold text-cocoa mb-1.5">
-        Foto referensi <span className="font-normal text-cocoa/60">(opsional)</span>
+        Foto referensi <span className="font-normal text-cocoa-muted">(opsional)</span>
       </p>
       {value ? (
         <div className="flex items-center gap-4 rounded-card border border-beige bg-surface p-3">
           <img src={value} alt="Foto referensi yang diunggah" className="w-20 h-20 rounded-btn object-cover shrink-0" />
-          <div className="min-w-0 flex-1 text-sm text-cocoa/70">Foto referensi siap dikirim bersama desain.</div>
+          <div className="min-w-0 flex-1 text-sm text-cocoa-muted">Foto referensi siap dikirim bersama desain.</div>
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-error hover:bg-red-50
+            className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-error-strong hover:bg-red-50
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/40"
             aria-label="Hapus foto referensi"
           >
@@ -70,7 +70,7 @@ export default function ReferencePhotoField({ value, onChange }) {
         >
           <ImagePlus size={24} className="text-primary" aria-hidden="true" />
           <span className="text-sm font-semibold text-cocoa">{loading ? 'Memproses foto…' : 'Unggah foto referensi'}</span>
-          <span className="text-xs text-cocoa/60">JPG, PNG, atau WebP · maks. {MAX_MB} MB</span>
+          <span className="text-xs text-cocoa-muted">JPG, PNG, atau WebP · maks. {MAX_MB} MB</span>
           <input
             id={inputId}
             type="file"

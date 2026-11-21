@@ -17,14 +17,14 @@ export default function ReviewCard({ review, compact = false }) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-sm text-cocoa truncate">{review.reviewer_name}</p>
-          <p className="text-xs text-cocoa/60">{formatDate(review.created_at)}</p>
+          <p className="text-xs text-cocoa-muted">{formatDate(review.created_at)}</p>
         </div>
         <StarRating value={review.rating} />
       </header>
 
       {(review.variant_name || review.tags.length > 0) && (
         <p className="flex flex-wrap gap-2 text-xs">
-          {review.variant_name && <span className="text-cocoa/65">Varian: {review.variant_name}</span>}
+          {review.variant_name && <span className="text-cocoa-muted">Varian: {review.variant_name}</span>}
           {review.tags.map((t) => (
             <span key={t} className="badge bg-beige text-cocoa !py-0.5">{t}</span>
           ))}

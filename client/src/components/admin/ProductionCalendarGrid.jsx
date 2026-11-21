@@ -31,7 +31,7 @@ function CountPill({ count, kind }) {
  */
 export default function ProductionCalendarGrid({ calendar, selectedDate, onSelect, onShiftMonth, onToday }) {
   return (
-    <section aria-labelledby="calendar-month-title" className="card-admin p-3 sm:p-4 md:p-6">
+    <section aria-labelledby="calendar-month-title" className="card-admin p-2 sm:p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 id="calendar-month-title" className="font-display text-xl text-cocoa capitalize" aria-live="polite">{monthTitle(calendar.month_key)}</h2>
         <div className="flex items-center gap-2">
@@ -44,10 +44,10 @@ export default function ProductionCalendarGrid({ calendar, selectedDate, onSelec
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-peach" aria-hidden="true" /> Pre-order</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-pink" aria-hidden="true" /> Custom cake</span>
       </div>
-      <div className="grid grid-cols-7 gap-1 md:gap-2">
+      <div className="grid grid-cols-7 gap-0 sm:gap-1 md:gap-2">
         <div aria-hidden="true" className="contents">
           {CALENDAR_WEEKDAYS.map((d) => (
-            <span key={d} className="text-center text-[11px] md:text-xs font-semibold uppercase tracking-wide text-cocoa/60 py-1">{d}</span>
+            <span key={d} className="text-center text-[11px] md:text-xs font-semibold uppercase tracking-wide text-cocoa-muted py-1">{d}</span>
           ))}
         </div>
         {calendar.weeks.map((week) => (
@@ -67,9 +67,9 @@ export default function ProductionCalendarGrid({ calendar, selectedDate, onSelec
                     data-date={date}
                     className={`w-full min-h-[56px] md:min-h-[84px] rounded-xl p-1 md:p-2 flex flex-col items-stretch gap-1 text-left border transition
                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
-                      ${selected ? 'border-primary bg-beige/70' : 'border-transparent hover:bg-cream'} ${inMonth ? '' : 'opacity-45'}`}
+                      ${selected ? 'border-primary bg-beige/70' : 'border-transparent hover:bg-cream'} ${inMonth ? '' : 'bg-cream/60'}`}
                   >
-                    <span className={`self-start text-xs md:text-sm font-semibold tabular-nums w-6 h-6 flex items-center justify-center rounded-full ${today ? 'bg-primary text-white' : 'text-cocoa'}`}>
+                    <span className={`self-start text-xs md:text-sm font-semibold tabular-nums w-6 h-6 flex items-center justify-center rounded-full ${today ? 'bg-primary text-white' : inMonth ? 'text-cocoa' : 'text-cocoa-muted'}`}>
                       {Number(date.slice(8))}
                     </span>
                     <CountPill count={c.preorder} kind="preorder" />

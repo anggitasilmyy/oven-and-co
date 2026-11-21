@@ -29,12 +29,12 @@ export default function PaymentMethodSettings({ methods, onChanged }) {
     <section className="card-admin space-y-4 p-4 md:p-6" aria-labelledby="payment-methods-title">
       <div>
         <h2 id="payment-methods-title" className="text-base font-bold text-cocoa">Metode pembayaran</h2>
-        <p className="text-xs text-cocoa/70">Pre-order, custom cake, dan delivery wajib dibayar online, jadi minimal satu metode online harus aktif.</p>
+        <p className="text-xs text-cocoa-muted">Pre-order, custom cake, dan delivery wajib dibayar online, jadi minimal satu metode online harus aktif.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {PAYMENT_GROUPS.map((g) => (
           <fieldset key={g.key} className="rounded-xl border border-beige p-3">
-            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-cocoa/70">{g.label}</legend>
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-cocoa-muted">{g.label}</legend>
             <ul>
               {methods.filter((m) => m.method_group === g.key).map((m) => (
                 <li key={m.method_code} className="flex items-center justify-between gap-2">

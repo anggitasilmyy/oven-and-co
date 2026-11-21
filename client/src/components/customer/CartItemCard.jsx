@@ -40,21 +40,21 @@ export default function CartItemCard({ line, maxQuantity, onQuantityChange, onRe
           <button
             type="button"
             onClick={onRemove}
-            className="w-11 h-11 -mt-2 -mr-2 shrink-0 flex items-center justify-center rounded-full text-cocoa/60 hover:text-error hover:bg-red-50
+            className="w-11 h-11 -mt-2 -mr-2 shrink-0 flex items-center justify-center rounded-full text-cocoa-muted hover:text-error-strong hover:bg-red-50
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/40"
             aria-label={`Hapus ${line.name} dari keranjang`}
           >
             <Trash2 size={18} aria-hidden="true" />
           </button>
         </div>
-        {details.length > 0 && <p className="text-xs text-cocoa/65 break-words">{details.join(' · ')}</p>}
-        {line.design?.has_reference_photo && <p className="text-xs text-cocoa/65">Dengan foto referensi</p>}
-        {line.note && <p className="text-xs text-cocoa/65 break-words">Catatan: {line.note}</p>}
+        {details.length > 0 && <p className="text-xs text-cocoa-muted break-words">{details.join(' · ')}</p>}
+        {line.design?.has_reference_photo && <p className="text-xs text-cocoa-muted">Dengan foto referensi</p>}
+        {line.note && <p className="text-xs text-cocoa-muted break-words">Catatan: {line.note}</p>}
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={badge.variant} className="!px-2.5 text-[11px]">{badge.label}</Badge>
-          {!isReady && <span className="text-xs text-cocoa/70">Siap {formatDate(parseDateKey(line.ready_date))}</span>}
+          {!isReady && <span className="text-xs text-cocoa-muted">Siap {formatDate(parseDateKey(line.ready_date))}</span>}
         </div>
-        {!line.available && <p className="text-xs font-semibold text-error" role="status">{unavailableMessage}</p>}
+        {!line.available && <p className="text-xs font-semibold text-error-strong" role="status">{unavailableMessage}</p>}
         {adjustTo != null && (
           <button
             type="button"
@@ -65,7 +65,7 @@ export default function CartItemCard({ line, maxQuantity, onQuantityChange, onRe
             Ubah jumlah menjadi {adjustTo}
           </button>
         )}
-        {overStock && <p className="text-xs font-semibold text-error" role="status">Stok hari ini tinggal {line.remaining_today}.</p>}
+        {overStock && <p className="text-xs font-semibold text-error-strong" role="status">Stok hari ini tinggal {line.remaining_today}.</p>}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
           <p className="font-bold text-primary tabular-nums">{formatRupiah(line.line_total)}</p>
           <QuantityStepper

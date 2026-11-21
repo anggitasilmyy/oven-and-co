@@ -99,33 +99,10 @@ export default function AppRoutes() {
           path="/akun"
           element={<ProtectedRoute><AkunPage /></ProtectedRoute>}
         />
-      </Route>
 
-      {/* ── Halaman Pelanggan — FocusLayout (tanpa bottom nav) ───────────── */}
-      <Route element={<FocusLayout />}>
-        {/* Produk & Ulasan — publik */}
-        <Route path="/produk/:id" element={<DetailProdukPage />} />
+        {/* Step 8 · F-05 (SPEC §7): layar di luar enam alur fokus memakai navigasi utama (bottom nav < md, top nav ≥ md).
+            Tombol kembali FocusLayout diganti tautan kembali di PageHeader (prop `back`) pada C-18, C-19, C-20b – C-23. */}
         <Route path="/produk/:id/ulasan" element={<UlasanProdukPage />} />
-
-        {/* Custom Cake — publik (login diminta saat checkout) */}
-        <Route path="/custom-cake" element={<CustomCakePage />} />
-
-        {/* Keranjang — publik (tamu boleh) */}
-        <Route path="/keranjang" element={<KeranjangPage />} />
-
-        {/* Alur checkout & setelahnya — wajib login (BR-04) */}
-        <Route
-          path="/checkout"
-          element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>}
-        />
-        <Route
-          path="/checkout/pembayaran"
-          element={<ProtectedRoute><PembayaranPage /></ProtectedRoute>}
-        />
-        <Route
-          path="/bayar/:orderNumber"
-          element={<ProtectedRoute><BayarPage /></ProtectedRoute>}
-        />
         <Route
           path="/pesanan-berhasil/:orderNumber"
           element={<ProtectedRoute><PesananBerhasilPage /></ProtectedRoute>}
@@ -161,6 +138,32 @@ export default function AppRoutes() {
         <Route
           path="/notifikasi"
           element={<ProtectedRoute><NotifikasiPage /></ProtectedRoute>}
+        />
+      </Route>
+
+      {/* ── Halaman Pelanggan — FocusLayout (tanpa bottom nav): alur fokus SPEC §7 ───────────── */}
+      <Route element={<FocusLayout />}>
+        {/* Produk — publik */}
+        <Route path="/produk/:id" element={<DetailProdukPage />} />
+
+        {/* Custom Cake — publik (login diminta saat checkout) */}
+        <Route path="/custom-cake" element={<CustomCakePage />} />
+
+        {/* Keranjang — publik (tamu boleh) */}
+        <Route path="/keranjang" element={<KeranjangPage />} />
+
+        {/* Alur checkout & setelahnya — wajib login (BR-04) */}
+        <Route
+          path="/checkout"
+          element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/checkout/pembayaran"
+          element={<ProtectedRoute><PembayaranPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/bayar/:orderNumber"
+          element={<ProtectedRoute><BayarPage /></ProtectedRoute>}
         />
       </Route>
 

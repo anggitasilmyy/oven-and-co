@@ -1883,8 +1883,10 @@ CR-02) tidak berubah.
 
 **Tujuan:** membuktikan aturan bisnis dan validasi berjalan.
 
-**File:** `client/src/utils/businessRules.test.js` (Vitest), `server/tests/api.http` (REST Client),
-`docs/TEST_CASES.md` (tabel skenario uji).
+**File:** `client/tests/vitest/businessRules.test.mjs` (Vitest; mengimpor barrel `client/src/utils/businessRules.js`),
+`server/tests/api.http` (REST Client), `docs/TEST_CASES.md` (tabel skenario uji). Lokasi uji Vitest disesuaikan pada Final
+Review Step 7a (19 Nov 2026) agar cocok dengan pola `include: ['tests/vitest/**/*.test.{js,mjs}']` di
+`client/vitest.config.mjs`; tanpa perubahan konfigurasi test runner.
 
 **Hasil:** unit test lulus; setiap BR-01 – BR-12 dan setiap baris validation rules punya minimal satu skenario uji dengan hasil.
 

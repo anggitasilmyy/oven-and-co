@@ -58,13 +58,13 @@ export default function MaterialMovementsModal({ material, onClose, onChanged })
                     <div className="space-y-0.5">
                       <p className="font-semibold text-cocoa">
                         {MOVEMENT_TYPE_LABEL[m.type]}{' '}
-                        <span className={`tabular-nums ${m.qty_change < 0 ? 'text-error' : 'text-cocoa'}`}>{m.qty_change > 0 ? '+' : ''}{formatNumber(m.qty_change)} {unit}</span>
+                        <span className={`tabular-nums ${m.qty_change < 0 ? 'text-error-strong' : 'text-cocoa'}`}>{m.qty_change > 0 ? '+' : ''}{formatNumber(m.qty_change)} {unit}</span>
                       </p>
-                      <p className="text-xs text-cocoa/75">
+                      <p className="text-xs text-cocoa-muted">
                         Stok {formatNumber(m.stock_before)} → <span className="font-semibold tabular-nums">{formatNumber(m.stock_after)}</span> {unit} · {formatDateShort(m.created_at)} {time(m.created_at)}
                         {m.created_by ? ` · ${m.created_by}` : ''}
                       </p>
-                      <p className="text-xs text-cocoa/65">
+                      <p className="text-xs text-cocoa-muted">
                         {d.source === 'goods_receipt' ? `${RECEIPT_KIND_LABEL[d.kind]} #${d.id} (Pembelian)`
                           : d.source === 'material_issue' ? `${ISSUE_KIND_LABEL[d.kind]} #${d.id} (Produksi)` : `Dokumen #${d.id}`}
                         {d.source === 'stock_adjustment' && !d.effective ? ' · sudah dibalik/dikoreksi' : ''}

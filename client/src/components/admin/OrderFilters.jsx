@@ -8,7 +8,7 @@ import Button from '../ui/Button';
 import { FULFILLMENT_LABEL, FULFILLMENT_TYPE } from '../../constants/orderStatus';
 
 const fieldClass =
-  'h-input w-full rounded-btn border border-beige bg-white px-3 text-sm text-cocoa ' +
+  'h-input w-full rounded-btn border border-beige bg-white px-3 text-sm text-cocoa placeholder-cocoa-muted ' +
   'focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary';
 
 /**
@@ -44,22 +44,22 @@ export default function OrderFilters({ values, onChange, onReset, paymentMethods
       </div>
 
       <div id="order-filter-fields" className={`${open ? 'grid' : 'hidden'} lg:grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] lg:items-end`}>
-        <label className="space-y-1 text-xs font-semibold text-cocoa/75">
+        <label className="space-y-1 text-xs font-semibold text-cocoa-muted">
           <span>Tanggal pesan dari</span>
           <input type="date" className={fieldClass} max={values.dateTo || undefined} {...field('dateFrom')} />
         </label>
-        <label className="space-y-1 text-xs font-semibold text-cocoa/75">
+        <label className="space-y-1 text-xs font-semibold text-cocoa-muted">
           <span>Sampai</span>
           <input type="date" className={fieldClass} min={values.dateFrom || undefined} {...field('dateTo')} />
         </label>
-        <label className="space-y-1 text-xs font-semibold text-cocoa/75">
+        <label className="space-y-1 text-xs font-semibold text-cocoa-muted">
           <span>Pengambilan</span>
           <select className={fieldClass} {...field('fulfillment')}>
             <option value="">Pickup & Delivery</option>
             {Object.values(FULFILLMENT_TYPE).map((f) => <option key={f} value={f}>{FULFILLMENT_LABEL[f]}</option>)}
           </select>
         </label>
-        <label className="space-y-1 text-xs font-semibold text-cocoa/75">
+        <label className="space-y-1 text-xs font-semibold text-cocoa-muted">
           <span>Metode pembayaran</span>
           <select className={fieldClass} {...field('methodCode')}>
             <option value="">Semua metode</option>

@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import PageContainer from '../../components/layout/PageContainer';
 import PageHeader from '../../components/layout/PageHeader';
+import { CUSTOMER_ROUTES } from '../../constants/routes';
 import ErrorState from '../../components/ui/ErrorState';
 import Skeleton from '../../components/ui/Skeleton';
 import Toast, { useToast } from '../../components/ui/Toast';
@@ -83,6 +84,7 @@ export default function DetailPesananPage() {
       <div className="min-w-0 space-y-5 lg:space-y-6">
         <PageHeader
           title="Detail Pesanan"
+          back={{ to: CUSTOMER_ROUTES.RIWAYAT_PESANAN, label: 'Riwayat Pesanan' }}
           description={<><span className="font-mono font-semibold text-cocoa">{order.order_number}</span> · Dipesan {formatDate(order.created_at)}, {formatTime(order.created_at)}</>}
         />
         <OrderStatusHero order={order} />

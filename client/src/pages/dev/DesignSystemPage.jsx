@@ -58,7 +58,7 @@ export default function DesignSystemPage() {
           Design System · Step 1 → /dev/design
         </p>
         <h1 className="font-display text-4xl md:text-5xl text-cocoa mb-3">Oven &amp; Co.</h1>
-        <p className="text-cocoa/60 font-sans text-base italic font-medium">
+        <p className="text-cocoa-muted font-sans text-base italic font-medium">
           Freshly Baked, Made With Care
         </p>
         <div className="mt-4 inline-flex items-center gap-2 bg-sage/60 text-cocoa px-4 py-2 rounded-pill text-sm font-semibold">
@@ -80,7 +80,7 @@ export default function DesignSystemPage() {
                 />
                 <div className="text-center">
                   <p className="text-xs font-semibold text-cocoa">{c.label}</p>
-                  <p className="text-xs text-cocoa/50 font-mono">{c.hex}</p>
+                  <p className="text-xs text-cocoa-muted font-mono">{c.hex}</p>
                 </div>
               </div>
             ))}
@@ -92,7 +92,7 @@ export default function DesignSystemPage() {
           <Card>
             <div className="space-y-4">
               <div>
-                <p className="text-xs text-cocoa/40 uppercase tracking-widest mb-1 font-sans">
+                <p className="text-xs text-cocoa-muted uppercase tracking-widest mb-1 font-sans">
                   Playfair Display — Display / Heading
                 </p>
                 <p className="font-display text-4xl text-cocoa leading-tight">Premium Birthday Cake</p>
@@ -101,7 +101,7 @@ export default function DesignSystemPage() {
               </div>
               <hr className="border-beige" />
               <div>
-                <p className="text-xs text-cocoa/40 uppercase tracking-widest mb-2 font-sans">
+                <p className="text-xs text-cocoa-muted uppercase tracking-widest mb-2 font-sans">
                   Plus Jakarta Sans — Body / UI
                 </p>
                 <p className="font-sans font-semibold text-lg text-cocoa">
@@ -110,7 +110,7 @@ export default function DesignSystemPage() {
                 <p className="font-sans text-base text-cocoa/80 mt-1">
                   Classic Butter Croissant — tersedia hari ini.
                 </p>
-                <p className="font-sans text-xs text-cocoa/40 mt-1">OVC-261012-018</p>
+                <p className="font-sans text-xs text-cocoa-muted mt-1">OVC-261012-018</p>
               </div>
             </div>
           </Card>
@@ -168,7 +168,7 @@ export default function DesignSystemPage() {
         {/* Stepper */}
         <Section title="📶 Stepper (Custom Cake Builder)">
           <Card className="space-y-4">
-            <p className="text-xs text-cocoa/40">Langkah 3 dari 6</p>
+            <p className="text-xs text-cocoa-muted">Langkah 3 dari 6</p>
             <Stepper steps={CAKE_STEPS} currentStep={2} />
           </Card>
         </Section>
@@ -239,7 +239,7 @@ export default function DesignSystemPage() {
                     <ShoppingBag size={14} className="text-primary" />
                   </div>
                   <div>
-                    <p className="text-xs text-cocoa/50">OVC-261012-{String(i + 1).padStart(3, '0')}</p>
+                    <p className="text-xs text-cocoa-muted">OVC-261012-{String(i + 1).padStart(3, '0')}</p>
                     <p className="text-sm font-semibold text-cocoa">Classic Butter Croissant</p>
                   </div>
                 </div>
@@ -262,7 +262,7 @@ export default function DesignSystemPage() {
         {/* Pola halaman yang diterapkan (PR B) */}
         <PagePatternShowcase />
 
-        <div className="text-center text-xs text-cocoa/60 pb-4">
+        <div className="text-center text-xs text-cocoa-muted pb-4">
           <p>Oven &amp; Co. Design System · Step 2.5 (PR A + PR B)</p>
         </div>
       </PageContainer>

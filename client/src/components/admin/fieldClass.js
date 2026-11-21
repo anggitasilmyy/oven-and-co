@@ -2,7 +2,7 @@
 // Step 5.7 · AD-06 · AD-07 — kelas kontrol form admin (tinggi input 48 px sesuai token AGENTS.md §5)
 
 const BASE =
-  'w-full rounded-btn border bg-white px-3 text-sm text-cocoa placeholder-cocoa/40 transition ' +
+  'w-full rounded-btn border bg-white px-3 text-sm text-cocoa placeholder-cocoa-muted transition ' +
   'focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:bg-beige/40 disabled:text-cocoa/60';
 
 /**

@@ -23,7 +23,7 @@ export default function FulfillmentToggle({ value, onChange }) {
             onClick={() => onChange(v)}
             className={`min-h-[48px] rounded-[11px] inline-flex items-center justify-center gap-2 text-sm font-semibold transition
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
-                        ${selected ? 'bg-surface text-cocoa shadow-sm' : 'text-cocoa/70 hover:text-cocoa'}`}
+                        ${selected ? 'bg-surface text-cocoa shadow-sm' : 'text-cocoa-muted hover:text-cocoa'}`}
           >
             <Icon size={18} aria-hidden="true" /> {label}
           </button>

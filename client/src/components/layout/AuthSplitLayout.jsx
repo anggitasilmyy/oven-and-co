@@ -46,7 +46,7 @@ export default function AuthSplitLayout({
               </div>
               <div>
                 <p className="font-display text-xl text-cocoa leading-tight">Oven &amp; Co.</p>
-                {subtitle && <p className="text-xs text-cocoa/60">{subtitle}</p>}
+                {subtitle && <p className="text-xs text-cocoa-muted">{subtitle}</p>}
               </div>
             </div>
           )}

@@ -13,14 +13,14 @@ import { Construction } from 'lucide-react';
 export default function PlaceholderPanel({ step, refs, compact = false, className = '', children }) {
   return (
     <div
-      className={`rounded-card border-2 border-dashed border-primary/25 bg-surface/60 text-cocoa/75
+      className={`rounded-card border-2 border-dashed border-primary/25 bg-surface/60 text-cocoa-muted
                   ${compact ? 'px-4 py-3 text-xs' : 'p-5 md:p-6 text-sm'} ${className}`}
     >
       <p className="flex items-center gap-2 font-semibold text-cocoa">
         <Construction size={compact ? 14 : 16} className="text-primary shrink-0" aria-hidden="true" />
         <span>
           Belum diimplementasi{step ? ` · ${step}` : ''}
-          {refs && <span className="font-normal text-cocoa/70"> ({refs})</span>}
+          {refs && <span className="font-normal text-cocoa-muted"> ({refs})</span>}
         </span>
       </p>
       {children && <div className={`${compact ? 'mt-1' : 'mt-2'} leading-relaxed`}>{children}</div>}

@@ -20,7 +20,7 @@ export default function StarRating({ value = 0, size = 14, className = '' }) {
           key={n}
           size={size}
           aria-hidden="true"
-          className={n <= filled ? 'fill-[#D9A441] text-[#D9A441]' : 'fill-beige text-beige'}
+          className={n <= filled ? 'fill-caramel text-caramel' : 'fill-beige text-beige'}
         />
       ))}
     </span>

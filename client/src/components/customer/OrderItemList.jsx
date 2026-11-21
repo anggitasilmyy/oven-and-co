@@ -21,9 +21,9 @@ export default function OrderItemList({ items, showReviewed = false }) {
               <ProductImage src={item.image_url} sizes="64px" className="w-16 h-16 shrink-0 rounded-btn object-cover" />
               <div className="min-w-0 flex-1 space-y-0.5">
                 <p className="font-semibold text-cocoa leading-snug">{item.name}</p>
-                {details.length > 0 && <p className="text-xs text-cocoa/65 break-words">{details.join(' · ')}</p>}
-                {item.note && <p className="text-xs text-cocoa/65 break-words">Catatan: {item.note}</p>}
-                <p className="text-xs text-cocoa/70 tabular-nums">{item.quantity} × {formatRupiah(item.unit_price)}</p>
+                {details.length > 0 && <p className="text-xs text-cocoa-muted break-words">{details.join(' · ')}</p>}
+                {item.note && <p className="text-xs text-cocoa-muted break-words">Catatan: {item.note}</p>}
+                <p className="text-xs text-cocoa-muted tabular-nums">{item.quantity} × {formatRupiah(item.unit_price)}</p>
                 {showReviewed && item.reviewed && <Badge variant="ready" className="!px-2.5 text-[11px]">Sudah diulas</Badge>}
               </div>
               <p className="font-semibold text-cocoa tabular-nums shrink-0">{formatRupiah(item.line_total)}</p>

@@ -14,7 +14,7 @@ export default function VariantChips({ variants, value, onChange }) {
           <Chip key={v.variant_id} selected={value === v.variant_id} onClick={() => onChange(v.variant_id)}>
             {v.name}
             {v.extra_price > 0 && (
-              <span className={`font-medium ${value === v.variant_id ? 'text-white/85' : 'text-cocoa/60'}`}>
+              <span className={`font-medium ${value === v.variant_id ? 'text-white/85' : 'text-cocoa-muted'}`}>
                 (+{formatRupiah(v.extra_price)})
               </span>
             )}

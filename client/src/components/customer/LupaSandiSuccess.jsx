@@ -8,7 +8,7 @@ export default function LupaSandiSuccess({ onLogin }) {
     <div className="flex flex-col items-center text-center">
       <div className="text-6xl mb-6" aria-hidden="true">✅</div>
       <h1 className="font-display text-2xl text-cocoa mb-2">Kata Sandi Diperbarui!</h1>
-      <p className="text-sm text-cocoa/60 mb-8">
+      <p className="text-sm text-cocoa-muted mb-8">
         Silakan masuk dengan kata sandi baru kamu.
       </p>
       <Button id="lupa-sandi-ke-masuk-btn" fullWidth onClick={onLogin}>

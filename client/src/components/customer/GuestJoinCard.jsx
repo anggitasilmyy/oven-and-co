@@ -17,7 +17,7 @@ export default function GuestJoinCard() {
       </div>
       <div>
         <h2 className="font-display text-lg lg:text-xl text-cocoa">Kumpulkan poin di setiap pembelian.</h2>
-        <p className="mt-1 text-sm text-cocoa/70">Masuk untuk melihat poin, voucher, dan riwayat pesananmu.</p>
+        <p className="mt-1 text-sm text-cocoa-muted">Masuk untuk melihat poin, voucher, dan riwayat pesananmu.</p>
       </div>
       <div className="mt-auto flex gap-3">
         <Link to={CUSTOMER_ROUTES.MASUK} className={`${linkBase} bg-primary text-white hover:bg-cocoa`}>

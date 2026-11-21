@@ -50,7 +50,7 @@ export default function OperatingHoursForm({ hours, onSaved }) {
     <form noValidate onSubmit={submit} className="card-admin space-y-4 p-4 md:p-6" aria-labelledby="hours-title">
       <div>
         <h2 id="hours-title" className="text-base font-bold text-cocoa">Jam operasional</h2>
-        <p className="text-xs text-cocoa/70">Slot pickup/delivery hanya tersedia di dalam jam buka.</p>
+        <p className="text-xs text-cocoa-muted">Slot pickup/delivery hanya tersedia di dalam jam buka.</p>
       </div>
       <ul className="divide-y divide-beige">
         {rows.map((r) => {
@@ -65,24 +65,24 @@ export default function OperatingHoursForm({ hours, onSaved }) {
               </span>
               {r.is_open ? (
                 <div className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-1">
-                  <label className="text-xs text-cocoa/70">
+                  <label className="text-xs text-cocoa-muted">
                     Buka <span className="sr-only">{label}</span>
                     <input type="time" className={`${fieldClass(rowError)} mt-1`} value={r.open_time} onChange={(e) => update(r.day_of_week, { open_time: e.target.value })} aria-invalid={Boolean(rowError)} />
                   </label>
-                  <label className="text-xs text-cocoa/70">
+                  <label className="text-xs text-cocoa-muted">
                     Tutup <span className="sr-only">{label}</span>
                     <input type="time" className={`${fieldClass(rowError)} mt-1`} value={r.close_time} onChange={(e) => update(r.day_of_week, { close_time: e.target.value })} aria-invalid={Boolean(rowError)} />
                   </label>
-                  {rowError && <p className="col-span-2 text-xs text-error" role="alert">⚠ {rowError}</p>}
+                  {rowError && <p className="col-span-2 text-xs text-error-strong" role="alert">⚠ {rowError}</p>}
                 </div>
               ) : (
-                <p className="col-span-2 text-xs text-cocoa/65 sm:col-span-1">Toko tutup — tidak ada slot pickup/delivery</p>
+                <p className="col-span-2 text-xs text-cocoa-muted sm:col-span-1">Toko tutup — tidak ada slot pickup/delivery</p>
               )}
             </li>
           );
         })}
       </ul>
-      {errors.all && <p className="text-xs text-error" role="alert">⚠ {errors.all}</p>}
+      {errors.all && <p className="text-xs text-error-strong" role="alert">⚠ {errors.all}</p>}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
         <FormError message={error} />
         <Button type="submit" size="sm" loading={saving} disabled={!dirty || Object.keys(errors).length > 0} leftIcon={<Save size={16} aria-hidden="true" />}>Simpan jam</Button>

@@ -5,6 +5,7 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { formatRupiah, formatDate } from '../../utils/format';
 import { parseDateKey } from '../../utils/date';
+import { CHART_COLOR } from '../../constants/chartColors';
 
 const tickDate = (key) => parseDateKey(key).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
 const compactRupiah = (v) =>
@@ -17,7 +18,7 @@ function ChartTooltip({ active, payload }) {
     <div className="rounded-xl border border-beige bg-white px-3 py-2 text-xs text-cocoa shadow-lg">
       <p className="font-semibold">{formatDate(parseDateKey(point.date))}</p>
       <p className="mt-1 tabular-nums">Omzet: <strong>{formatRupiah(point.revenue)}</strong></p>
-      <p className="tabular-nums text-cocoa/70">{point.orders} transaksi lunas</p>
+      <p className="tabular-nums text-cocoa-muted">{point.orders} transaksi lunas</p>
     </div>
   );
 }
@@ -29,11 +30,11 @@ export default function DailySalesBarChart({ data }) {
       <div className="h-56 w-full min-w-0 md:h-72" aria-hidden="true">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid vertical={false} stroke="#F1E6D6" />
-            <XAxis dataKey="date" tickFormatter={tickDate} tickLine={false} axisLine={false} minTickGap={12} tick={{ fill: '#7a5240', fontSize: 12 }} />
-            <YAxis tickFormatter={compactRupiah} tickLine={false} axisLine={false} width={48} tick={{ fill: '#7a5240', fontSize: 12 }} />
-            <Tooltip content={<ChartTooltip />} cursor={{ fill: '#F1E6D6', opacity: 0.5 }} />
-            <Bar dataKey="revenue" fill="#8B5E3C" radius={[6, 6, 0, 0]} maxBarSize={44} />
+            <CartesianGrid vertical={false} stroke={CHART_COLOR.grid} />
+            <XAxis dataKey="date" tickFormatter={tickDate} tickLine={false} axisLine={false} minTickGap={12} tick={{ fill: CHART_COLOR.axis, fontSize: 12 }} />
+            <YAxis tickFormatter={compactRupiah} tickLine={false} axisLine={false} width={48} tick={{ fill: CHART_COLOR.axis, fontSize: 12 }} />
+            <Tooltip content={<ChartTooltip />} cursor={{ fill: CHART_COLOR.grid, opacity: 0.5 }} />
+            <Bar dataKey="revenue" fill={CHART_COLOR.primary} radius={[6, 6, 0, 0]} maxBarSize={44} />
           </BarChart>
         </ResponsiveContainer>
       </div>

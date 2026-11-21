@@ -24,7 +24,7 @@ export default function WorkOrderPanel({ orders, products, onOpen, onCreated }) 
   const open = (w) => (
     <button type="button" onClick={() => onOpen(w.wo_id)} className="min-h-touch-min font-semibold text-primary underline-offset-2 hover:underline">{w.wo_number}</button>
   );
-  const output = (w) => (w.status === WO_STATUS.SELESAI ? <span className="tabular-nums">{formatNumber(w.net_output)}</span> : <span className="text-cocoa/50">–</span>);
+  const output = (w) => (w.status === WO_STATUS.SELESAI ? <span className="tabular-nums">{formatNumber(w.net_output)}</span> : <span className="text-cocoa-muted">–</span>);
   const columns = [
     { key: 'wo_number', header: 'Nomor WO', render: open },
     { key: 'product_name', header: 'Produk', className: 'min-w-[180px]' },
@@ -38,7 +38,7 @@ export default function WorkOrderPanel({ orders, products, onOpen, onCreated }) 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-cocoa/75">WO baru disimpan sebagai Draft. Resep dibekukan saat WO dimulai.</p>
+        <p className="text-sm text-cocoa-muted">WO baru disimpan sebagai Draft. Resep dibekukan saat WO dimulai.</p>
         <Button size="sm" onClick={() => setCreating(true)} disabled={noActiveProduct} leftIcon={<Plus size={16} aria-hidden="true" />}>Buat WO</Button>
       </div>
       {orders.length === 0 ? (
@@ -52,7 +52,7 @@ export default function WorkOrderPanel({ orders, products, onOpen, onCreated }) 
               <li key={w.wo_id} className="card-admin space-y-2 p-4">
                 <div className="flex items-start justify-between gap-3">{open(w)}{status(w)}</div>
                 <p className="text-sm font-semibold text-cocoa">{w.product_name}</p>
-                <p className="text-xs text-cocoa/75">{formatDateShort(w.production_date)} · rencana {formatNumber(w.qty_planned)}{w.status === WO_STATUS.SELESAI ? ` · hasil ${formatNumber(w.net_output)}` : ''}</p>
+                <p className="text-xs text-cocoa-muted">{formatDateShort(w.production_date)} · rencana {formatNumber(w.qty_planned)}{w.status === WO_STATUS.SELESAI ? ` · hasil ${formatNumber(w.net_output)}` : ''}</p>
               </li>
             ))}
           </ul>

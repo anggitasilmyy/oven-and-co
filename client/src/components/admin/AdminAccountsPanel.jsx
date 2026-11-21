@@ -15,7 +15,7 @@ import { ROLES, ROLE_LABEL } from '../../constants/roles';
 import { isSameUserId } from '../../utils/sessionIdentity';
 
 const actionClass =
-  'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-lg border border-beige px-3 text-xs font-semibold ' +
+  'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-btn border border-beige px-3 text-xs font-semibold ' +
   'text-primary hover:bg-beige/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-50';
 
 /**
@@ -48,7 +48,7 @@ export default function AdminAccountsPanel({ accounts, currentUserId, onChanged 
   const role = (a) => <Badge variant={a.role === ROLES.OWNER ? 'platinum' : 'neutral'}>{ROLE_LABEL[a.role]}</Badge>;
   const status = (a) => <Badge variant={a.is_active ? 'ready' : 'error'}>{a.is_active ? 'Aktif' : 'Nonaktif'}</Badge>;
   const action = (a) => {
-    if (isSameUserId(a.user_id, currentUserId)) return <span className="text-xs text-cocoa/65">Akun Anda</span>;
+    if (isSameUserId(a.user_id, currentUserId)) return <span className="text-xs text-cocoa-muted">Akun Anda</span>;
     return a.is_active ? (
       <button type="button" className={actionClass} disabled={pendingId != null} onClick={() => setDeactivating(a)} aria-label={`Nonaktifkan akun ${a.name}`}>
         <UserX size={14} aria-hidden="true" /> Nonaktifkan
@@ -73,7 +73,7 @@ export default function AdminAccountsPanel({ accounts, currentUserId, onChanged 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 id="accounts-title" className="text-base font-bold text-cocoa">Akun staf</h2>
-          <p className="text-xs text-cocoa/70">Staf mengelola pesanan, kalender, produk, stok, serta pelanggan & ulasan.</p>
+          <p className="text-xs text-cocoa-muted">Staf mengelola pesanan, kalender, produk, stok, serta pelanggan & ulasan.</p>
         </div>
         <Button size="sm" variant="secondary" onClick={() => setAdding(true)} leftIcon={<Plus size={16} aria-hidden="true" />}>Tambah Akun</Button>
       </div>
@@ -81,7 +81,7 @@ export default function AdminAccountsPanel({ accounts, currentUserId, onChanged 
         {accounts.map((a) => (
           <li key={a.user_id} className="rounded-xl border border-beige p-3">
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0"><p className="font-semibold text-cocoa">{a.name}</p><p className="truncate text-xs text-cocoa/70">{a.email} · {a.phone}</p></div>
+              <div className="min-w-0"><p className="font-semibold text-cocoa">{a.name}</p><p className="truncate text-xs text-cocoa-muted">{a.email} · {a.phone}</p></div>
               <div className="flex shrink-0 flex-col items-end gap-1">{role(a)}{status(a)}</div>
             </div>
             <div className="mt-2 flex justify-end border-t border-beige pt-2">{action(a)}</div>

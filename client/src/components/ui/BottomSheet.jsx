@@ -65,7 +65,7 @@ export default function BottomSheet({ isOpen, onClose, title, children, footer }
           <button
             type="button"
             onClick={onClose}
-            className="w-11 h-11 -mr-2 flex items-center justify-center rounded-full text-cocoa/70
+            className="w-11 h-11 -mr-2 flex items-center justify-center rounded-full text-cocoa-muted
                        hover:bg-beige hover:text-cocoa active:scale-95 transition
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             aria-label="Tutup"

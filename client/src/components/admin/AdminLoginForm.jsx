@@ -49,7 +49,7 @@ export default function AdminLoginForm({
       {/* Ingat saya */}
       <label
         htmlFor="admin-remember-me"
-        className="flex items-center gap-2.5 cursor-pointer select-none"
+        className="inline-flex items-center gap-2.5 min-h-touch-min cursor-pointer select-none"
       >
         <input
           id="admin-remember-me"
@@ -58,7 +58,7 @@ export default function AdminLoginForm({
           onChange={(e) => onRememberMeChange(e.target.checked)}
           className="w-[18px] h-[18px] accent-primary rounded"
         />
-        <span className="text-sm text-cocoa/70">Ingat saya</span>
+        <span className="text-sm text-cocoa-muted">Ingat saya</span>
       </label>
 
       <FormError id="admin-login-error" message={error} />

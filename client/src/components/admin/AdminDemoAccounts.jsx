@@ -7,7 +7,7 @@ export default function AdminDemoAccounts() {
       <p className="font-semibold text-cream mb-1">Akun Demo</p>
       <p>👤 Owner: <span className="font-mono">owner@demo.com</span></p>
       <p>👤 Staf: <span className="font-mono">staf@demo.com</span></p>
-      <p className="text-cream/70">Sandi: <span className="font-mono">demo1234</span></p>
+      <p className="text-cream/85">Sandi: <span className="font-mono">demo1234</span></p>
     </div>
   );
 }

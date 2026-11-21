@@ -18,13 +18,13 @@ export default function CustomCakeBanner({ product }) {
     >
       <div className="absolute -right-16 -bottom-20 w-72 h-72 rounded-full bg-surface/30" aria-hidden="true" />
       <div className="relative space-y-3 max-w-xl">
-        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-primary">
+        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-primary-dark">
           <Sparkles size={14} aria-hidden="true" /> Custom Cake
         </p>
         <h2 id="custom-cake-banner" className="font-display text-2xl md:text-4xl text-cocoa leading-tight">
           Design Your Celebration Cake
         </h2>
-        <p className="text-sm md:text-base text-cocoa/80">Rancang kue untuk momen spesialmu.</p>
+        <p className="text-sm md:text-base text-cocoa">Rancang kue untuk momen spesialmu.</p>
         {product && (
           <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-cocoa">
             <span>Mulai <strong className="tabular-nums">{formatRupiah(product.price)}</strong></span>

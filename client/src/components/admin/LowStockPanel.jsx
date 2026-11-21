@@ -20,11 +20,11 @@ export default function LowStockPanel({ materials }) {
           <AlertTriangle size={18} className="text-error shrink-0" aria-hidden="true" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-cocoa truncate">{m.name}</p>
-            <p className="text-xs text-cocoa/70 tabular-nums">
+            <p className="text-xs text-cocoa-muted tabular-nums">
               Sisa {formatNumber(m.stock)} {m.unit} · minimum {formatNumber(m.min_stock)} {m.unit}
             </p>
           </div>
-          <span className="badge bg-red-100 text-error shrink-0">Menipis</span>
+          <span className="badge bg-red-100 text-error-strong shrink-0">Menipis</span>
         </li>
       ))}
     </ul>

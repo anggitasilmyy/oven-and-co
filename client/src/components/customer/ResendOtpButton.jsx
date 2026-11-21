@@ -12,7 +12,7 @@ export default function ResendOtpButton({ countdown, loading, onClick }) {
       disabled={disabled}
       className={[
         'flex items-center gap-2 text-sm font-semibold transition-colors',
-        disabled ? 'text-cocoa/40 cursor-not-allowed' : 'text-primary hover:underline',
+        disabled ? 'text-cocoa-muted cursor-not-allowed' : 'text-primary hover:underline',
       ].join(' ')}
       aria-label="Kirim ulang OTP"
     >

@@ -2,6 +2,8 @@
 // FR-33 · UC-27 · UC-28 · AD-08 Laporan Penjualan — periode laporan & batas tampilan
 // Periode mengikuti A-08 (harian/mingguan/bulanan) + rentang khusus (UI/UX Spec Batch 7).
 
+import { CHART_COLOR } from './chartColors';
+
 /** Kunci periode (disimpan di URL ?periode=) */
 export const REPORT_PERIOD = {
   HARIAN: 'harian',
@@ -34,10 +36,10 @@ export const REPORT_TRANSACTIONS_PAGE_SIZE = 10;
 
 /** Warna donut metode bayar per kelompok (payment_methods.method_group) — palet brand */
 export const PAYMENT_GROUP_CHART_COLOR = {
-  qris: '#8B5E3C',
-  ewallet: '#D9A441',
-  va: '#5C3D2E',
-  store: '#9DB496',
+  qris: CHART_COLOR.primary,
+  ewallet: CHART_COLOR.caramel,
+  va: CHART_COLOR.cocoa,
+  store: CHART_COLOR.sageDark,
 };
 
 /** Format ekspor (FR-33: Excel/PDF) */

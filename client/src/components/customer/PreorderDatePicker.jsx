@@ -18,7 +18,7 @@ export default function PreorderDatePicker({ todayKey, earliestKey, value, onCha
   return (
     <fieldset className="min-w-0">
       <legend className="text-sm font-bold text-cocoa mb-1">Tanggal ambil/antar</legend>
-      <p id="tanggal-hint" className="text-xs text-cocoa/65 mb-3">
+      <p id="tanggal-hint" className="text-xs text-cocoa-muted mb-3">
         Paling cepat {formatDate(parseDateKey(earliestKey))}.
         {cutoffTime && ` Pesanan setelah pukul ${cutoffTime.replace(':', '.')} siap sehari lebih lambat.`}
       </p>

@@ -72,7 +72,7 @@ export default function LoyaltyRulesForm({ rules, onSaved }) {
 
       <section className="card-admin space-y-4 p-4 md:p-6" aria-labelledby="loyalty-level-title">
         <h2 id="loyalty-level-title" className="text-base font-bold text-cocoa">Ambang level member</h2>
-        <p className="text-xs text-cocoa/70">Dihitung dari poin yang diperoleh pada tahun kalender berjalan.</p>
+        <p className="text-xs text-cocoa-muted">Dihitung dari poin yang diperoleh pada tahun kalender berjalan.</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField id="loyalty-gold" label="Gold mulai (poin)" error={errorOf('gold_min_points')}>
             <input type="number" inputMode="numeric" min="1" step="1" className={numberInput(errorOf('gold_min_points'))} {...bind('gold_min_points')} />

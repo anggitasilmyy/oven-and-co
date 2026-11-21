@@ -69,7 +69,7 @@ export default function OnboardingPage() {
         <button
           id="onboarding-skip-btn"
           onClick={finish}
-          className="ml-auto text-sm font-semibold text-cocoa/70 hover:text-cocoa hover:bg-white/40 active:bg-white/60
+          className="ml-auto text-sm font-semibold text-cocoa-muted hover:text-cocoa hover:bg-white/40 active:bg-white/60
                      transition-colors px-3 rounded-btn min-h-touch-min min-w-touch-min flex items-center
                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           aria-label="Lewati onboarding"
@@ -111,7 +111,7 @@ export default function OnboardingPage() {
             >
               {slide.title}
             </h1>
-            <p className="text-sm md:text-base lg:text-lg text-cocoa/70 leading-relaxed max-w-[300px] md:max-w-[380px] lg:max-w-md mx-auto lg:mx-0">
+            <p className="text-sm md:text-base lg:text-lg text-cocoa-muted leading-relaxed max-w-[300px] md:max-w-[380px] lg:max-w-md mx-auto lg:mx-0">
               {slide.description}
             </p>
           </div>

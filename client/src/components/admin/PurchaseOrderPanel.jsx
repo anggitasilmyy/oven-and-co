@@ -37,7 +37,7 @@ export default function PurchaseOrderPanel({ orders, suppliers, onOpen, onCreate
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-cocoa/75">Nilai pembelian adalah informasi, bukan pembukuan atau tagihan supplier.</p>
+        <p className="text-sm text-cocoa-muted">Nilai pembelian adalah informasi, bukan pembukuan atau tagihan supplier.</p>
         <Button size="sm" onClick={() => setCreating(true)} disabled={noActiveSupplier} leftIcon={<Plus size={16} aria-hidden="true" />}>Buat PO</Button>
       </div>
       {noActiveSupplier && <p role="status" className="rounded-btn border border-peach bg-peach/30 px-4 py-3 text-sm text-cocoa">Tambahkan supplier aktif beserta bahannya di tab Supplier sebelum membuat purchase order.</p>}
@@ -51,7 +51,7 @@ export default function PurchaseOrderPanel({ orders, suppliers, onOpen, onCreate
             {orders.map((p) => (
               <li key={p.po_id} className="card-admin space-y-2 p-4">
                 <div className="flex items-start justify-between gap-3">{open(p)}{status(p)}</div>
-                <p className="text-xs text-cocoa/75">{p.supplier_name} · {p.item_count} item · {formatDateShort(p.created_at)}</p>
+                <p className="text-xs text-cocoa-muted">{p.supplier_name} · {p.item_count} item · {formatDateShort(p.created_at)}</p>
                 <p className="text-sm font-semibold tabular-nums text-cocoa">{formatRupiah(p.order_value)}</p>
               </li>
             ))}

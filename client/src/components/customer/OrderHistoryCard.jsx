@@ -35,7 +35,7 @@ export default function OrderHistoryCard({ order, onReorder, reordering }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="font-mono font-bold text-cocoa tracking-wide">{order.order_number}</p>
-            <p className="text-xs text-cocoa/65">{formatDate(order.created_at)} · {formatTime(order.created_at)}</p>
+            <p className="text-xs text-cocoa-muted">{formatDate(order.created_at)} · {formatTime(order.created_at)}</p>
           </div>
           <StatusBadge status={order.order_status} />
         </div>
@@ -47,9 +47,9 @@ export default function OrderHistoryCard({ order, onReorder, reordering }) {
           </div>
           <div className="min-w-0 flex-1 text-sm">
             <p className="font-semibold text-cocoa truncate">
-              {order.items_summary[0]}{extra > 0 && <span className="font-normal text-cocoa/65"> +{extra} lainnya</span>}
+              {order.items_summary[0]}{extra > 0 && <span className="font-normal text-cocoa-muted"> +{extra} lainnya</span>}
             </p>
-            <p className="text-xs text-cocoa/65">{order.item_count} item</p>
+            <p className="text-xs text-cocoa-muted">{order.item_count} item</p>
           </div>
           <ChevronRight size={18} className="text-cocoa/40 shrink-0" aria-hidden="true" />
         </div>
@@ -57,7 +57,7 @@ export default function OrderHistoryCard({ order, onReorder, reordering }) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-beige">
         <div>
-          <p className="text-xs text-cocoa/65">Total</p>
+          <p className="text-xs text-cocoa-muted">Total</p>
           <p className="font-bold text-cocoa tabular-nums">{formatRupiah(order.total)}</p>
         </div>
         <div className="flex flex-wrap gap-2">

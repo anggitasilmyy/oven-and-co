@@ -35,7 +35,7 @@ export default function OverlayShowcase() {
         title="Filter & Urutan"
         footer={<Button size="sm" onClick={() => setSheetOpen(false)}>Terapkan</Button>}
       >
-        <p className="text-sm text-cocoa/70">&lt; 768 px: muncul dari bawah · ≥ 768 px: dialog di tengah.</p>
+        <p className="text-sm text-cocoa-muted">&lt; 768 px: muncul dari bawah · ≥ 768 px: dialog di tengah.</p>
       </BottomSheet>
     </div>
   );

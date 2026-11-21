@@ -34,7 +34,7 @@ export default function Button({
     ghost:
       'bg-transparent text-primary hover:bg-primary/8 disabled:opacity-50 disabled:cursor-not-allowed',
     danger:
-      'bg-error text-white hover:bg-red-700 disabled:bg-error/40 disabled:cursor-not-allowed',
+      'bg-error-strong text-white hover:bg-red-700 disabled:bg-error/40 disabled:cursor-not-allowed',
   };
 
   // Tinggi tombol sesuai spec: 52px (md), 44px (sm), 56px (lg)

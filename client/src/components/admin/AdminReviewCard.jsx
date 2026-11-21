@@ -10,7 +10,7 @@ import { formatDateShort } from '../../utils/format';
 import { toUploadUrl } from '../../services/apiClient';
 
 const actionClass =
-  'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-lg border border-beige px-3 text-xs font-semibold ' +
+  'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-btn border border-beige px-3 text-xs font-semibold ' +
   'text-primary hover:bg-beige/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-50';
 
 /**
@@ -25,7 +25,7 @@ export default function AdminReviewCard({ review, onReply, onToggleHidden, busy 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-semibold text-cocoa">{review.product_name}{review.variant_name ? ` · ${review.variant_name}` : ''}</p>
-          <p className="text-xs text-cocoa/70">
+          <p className="text-xs text-cocoa-muted">
             {review.reviewer_name} · {formatDateShort(review.created_at)}{review.order_number ? ` · ${review.order_number}` : ''}
           </p>
         </div>
@@ -39,7 +39,7 @@ export default function AdminReviewCard({ review, onReply, onToggleHidden, busy 
           {review.tags.map((t) => <li key={t}><Badge variant="neutral">{t}</Badge></li>)}
         </ul>
       )}
-      {review.comment ? <p className="text-sm text-cocoa/85">{review.comment}</p> : <p className="text-sm italic text-cocoa/60">Tanpa komentar</p>}
+      {review.comment ? <p className="text-sm text-cocoa/85">{review.comment}</p> : <p className="text-sm italic text-cocoa-muted">Tanpa komentar</p>}
       {review.photos.length > 0 && (
         <ul className="flex gap-2" aria-label="Foto ulasan">
           {review.photos.map((src, i) => <li key={src}><img src={toUploadUrl(src)} alt={`Foto ulasan ${i + 1}`} className="h-16 w-16 rounded-lg object-cover" loading="lazy" /></li>)}

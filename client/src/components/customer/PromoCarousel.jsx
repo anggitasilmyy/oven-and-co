@@ -47,7 +47,7 @@ export default function PromoCarousel({ promos, loading, error, onRetry }) {
             aria-roledescription="slide"
             aria-label={`Promo ${i + 1} dari ${promos.length}`}
             className={`relative snap-start shrink-0 w-full min-h-[200px] md:min-h-[256px] lg:min-h-[288px] overflow-hidden
-                        flex items-center ${i % 2 === 0 ? 'bg-cocoa' : 'bg-primary'}`}
+                        flex items-center ${i % 2 === 0 ? 'bg-cocoa' : 'bg-primary-dark'}`}
           >
             {promo.image_url && (
               <ProductImage
@@ -87,7 +87,7 @@ export default function PromoCarousel({ promos, loading, error, onRetry }) {
           <button type="button" className={`${arrowClass} right-3`} onClick={() => goTo(active + 1)} disabled={active === promos.length - 1} aria-label="Promo berikutnya">
             <ChevronRight size={20} aria-hidden="true" />
           </button>
-          <div className="flex justify-center gap-1 mt-2">
+          <div className="flex justify-center gap-1">
             {promos.map((promo, i) => (
               <button
                 key={promo.voucher_id}
@@ -95,7 +95,7 @@ export default function PromoCarousel({ promos, loading, error, onRetry }) {
                 onClick={() => goTo(i)}
                 aria-label={`Tampilkan promo ${i + 1}`}
                 aria-current={i === active}
-                className="w-11 h-6 flex items-center justify-center rounded-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                className="w-11 h-11 flex items-center justify-center rounded-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
               >
                 <span className={`h-2 rounded-pill transition-all ${i === active ? 'w-6 bg-primary' : 'w-2 bg-primary/30'}`} />
               </button>
