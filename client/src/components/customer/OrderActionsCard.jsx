@@ -43,7 +43,7 @@ export default function OrderActionsCard({ detail, onCancel, onReorder, reorderi
         </a>
       )}
       {detail.can_cancel && (
-        <Button fullWidth variant="ghost" className="!text-error hover:!bg-red-50" onClick={onCancel}>
+        <Button fullWidth variant="ghost" className="!text-error-strong hover:!bg-red-50" onClick={onCancel}>
           Batalkan Pesanan
         </Button>
       )}

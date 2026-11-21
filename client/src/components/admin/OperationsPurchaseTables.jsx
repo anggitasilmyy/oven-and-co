@@ -29,7 +29,7 @@ export default function OperationsPurchaseTables({ purchases }) {
           <DashboardPanel key={s.key} title={s.title} description={s.description}>
             <p className="mb-3 text-sm text-cocoa">Total nilai <span className="font-semibold tabular-nums">{formatRupiah(section.total_value)}</span></p>
             {section.rows.length === 0
-              ? <p className="text-sm text-cocoa/70">Belum ada data pada periode ini.</p>
+              ? <p className="text-sm text-cocoa-muted">Belum ada data pada periode ini.</p>
               : <DataTable label={s.title} columns={columns} rows={section.rows} rowKey={(r) => `${r.supplier_id}-${r.material_id}`} minWidth="min-w-[440px]" />}
           </DashboardPanel>
         );

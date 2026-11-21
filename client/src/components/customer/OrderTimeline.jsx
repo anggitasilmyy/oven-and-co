@@ -16,12 +16,12 @@ export default function OrderTimeline({ steps }) {
           const cancelled = step.status === ORDER_STATUS.DIBATALKAN;
           const last = i === steps.length - 1;
           const circle = cancelled
-            ? 'bg-error text-white'
+            ? 'bg-error-strong text-white'
             : step.state === 'done'
               ? 'bg-primary text-white'
               : step.state === 'current'
                 ? 'bg-primary text-white ring-4 ring-primary/20'
-                : 'bg-beige text-cocoa/40';
+                : 'bg-beige text-cocoa-muted';
           return (
             <li key={step.status} className="relative flex gap-3 pb-5 last:pb-0" aria-current={step.state === 'current' ? 'step' : undefined}>
               {!last && (
@@ -31,12 +31,12 @@ export default function OrderTimeline({ steps }) {
                 {cancelled ? <X size={14} aria-hidden="true" /> : step.state === 'done' ? <Check size={14} aria-hidden="true" /> : i + 1}
               </span>
               <div className="min-w-0 pt-0.5">
-                <p className={`text-sm font-semibold ${cancelled ? 'text-error' : step.state === 'upcoming' ? 'text-cocoa/50' : 'text-cocoa'}`}>
+                <p className={`text-sm font-semibold ${cancelled ? 'text-error-strong' : step.state === 'upcoming' ? 'text-cocoa-muted' : 'text-cocoa'}`}>
                   {step.label}
                   <span className="sr-only">{step.state === 'done' ? ' (selesai)' : step.state === 'current' ? ' (saat ini)' : ' (berikutnya)'}</span>
                 </p>
                 {step.changed_at && (
-                  <p className="text-xs text-cocoa/65 tabular-nums">{formatDateShort(step.changed_at)} · {formatTime(step.changed_at)}</p>
+                  <p className="text-xs text-cocoa-muted tabular-nums">{formatDateShort(step.changed_at)} · {formatTime(step.changed_at)}</p>
                 )}
               </div>
             </li>

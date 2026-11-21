@@ -51,9 +51,9 @@ export default function PurchaseOrderDetail({ order, suppliers, onBack, onChange
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-display text-2xl text-cocoa">{order.po_number}</h2>
-            <p className="text-sm text-cocoa/75">{order.supplier_name}{order.ordered_at ? ` · dipesan ${formatDateShort(order.ordered_at)}` : ''}{order.cancelled_at ? ` · dibatalkan ${formatDateShort(order.cancelled_at)}` : ''}</p>
-            {order.note && <p className="mt-1 text-sm text-cocoa/75">Catatan: {order.note}</p>}
-            {order.cancel_reason && <p className="mt-1 text-sm text-cocoa/75">Alasan batal: {order.cancel_reason}</p>}
+            <p className="text-sm text-cocoa-muted">{order.supplier_name}{order.ordered_at ? ` · dipesan ${formatDateShort(order.ordered_at)}` : ''}{order.cancelled_at ? ` · dibatalkan ${formatDateShort(order.cancelled_at)}` : ''}</p>
+            {order.note && <p className="mt-1 text-sm text-cocoa-muted">Catatan: {order.note}</p>}
+            {order.cancel_reason && <p className="mt-1 text-sm text-cocoa-muted">Alasan batal: {order.cancel_reason}</p>}
           </div>
           <Badge variant={meta.variant}>{meta.label}</Badge>
         </div>
@@ -65,7 +65,7 @@ export default function PurchaseOrderDetail({ order, suppliers, onBack, onChange
         </div>
         <dl className="grid gap-3 text-sm sm:grid-cols-3" aria-label="Nilai pembelian (informasi, bukan akuntansi)">
           {[['Nilai PO', order.values.order_value], ['Nilai diterima', order.values.received_value], ['Nilai sisa dibatalkan', order.values.cancelled_value]].map(([label, value]) => (
-            <div key={label} className="rounded-btn bg-beige/40 p-3"><dt className="text-xs text-cocoa/70">{label}</dt><dd className="font-semibold tabular-nums text-cocoa">{formatRupiah(value)}</dd></div>
+            <div key={label} className="rounded-btn bg-beige/40 p-3"><dt className="text-xs text-cocoa-muted">{label}</dt><dd className="font-semibold tabular-nums text-cocoa">{formatRupiah(value)}</dd></div>
           ))}
         </dl>
         <DataTable label={`Item ${order.po_number}`} columns={columns} rows={order.items} rowKey={(i) => i.po_item_id} minWidth="min-w-[760px]" />
@@ -73,14 +73,14 @@ export default function PurchaseOrderDetail({ order, suppliers, onBack, onChange
 
       <section className="card-admin space-y-3 p-4 md:p-6" aria-label="Riwayat penerimaan">
         <h3 className="text-base font-semibold text-cocoa">Riwayat penerimaan</h3>
-        {order.receipts.length === 0 ? <p className="text-sm text-cocoa/70">Belum ada penerimaan.</p> : (
+        {order.receipts.length === 0 ? <p className="text-sm text-cocoa-muted">Belum ada penerimaan.</p> : (
           <ul className="space-y-2">
             {order.receipts.map((r) => (
               <li key={r.receipt_id} className="flex flex-col gap-2 rounded-btn border border-beige p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="font-semibold text-cocoa">{RECEIPT_KIND_LABEL[r.kind]} #{r.receipt_id} <span className="font-normal text-cocoa/65">· {formatDateShort(r.created_at)}{r.effective ? '' : ' · tidak berlaku lagi'}</span></p>
-                  <p className="text-xs text-cocoa/75">{r.lines.map((l) => `${itemName.get(l.po_item_id)?.name ?? l.po_item_id} ${formatNumber(l.qty)}`).join(' · ')}</p>
-                  {r.reason && <p className="text-xs text-cocoa/75">Alasan: {r.reason}</p>}
+                  <p className="font-semibold text-cocoa">{RECEIPT_KIND_LABEL[r.kind]} #{r.receipt_id} <span className="font-normal text-cocoa-muted">· {formatDateShort(r.created_at)}{r.effective ? '' : ' · tidak berlaku lagi'}</span></p>
+                  <p className="text-xs text-cocoa-muted">{r.lines.map((l) => `${itemName.get(l.po_item_id)?.name ?? l.po_item_id} ${formatNumber(l.qty)}`).join(' · ')}</p>
+                  {r.reason && <p className="text-xs text-cocoa-muted">Alasan: {r.reason}</p>}
                 </div>
                 {r.effective && (
                   <div className="flex gap-2">

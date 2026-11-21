@@ -18,7 +18,7 @@ import { formatNumber } from '../../utils/format';
 
 const STATUS_BY_KEY = Object.fromEntries(Object.values(MATERIAL_STATUS).map((s) => [s.key, s]));
 const actionClass =
-  'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-lg border border-beige px-3 text-xs font-semibold ' +
+  'inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 rounded-btn border border-beige px-3 text-xs font-semibold ' +
   'text-primary hover:bg-beige/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50';
 
 /**
@@ -96,8 +96,8 @@ export default function RawMaterialPanel({ board, onChanged, onReload }) {
                   {status(m)}
                 </div>
                 <dl className="grid grid-cols-2 gap-2 text-xs">
-                  <div><dt className="text-cocoa/60">Stok</dt><dd className="font-semibold tabular-nums text-cocoa">{qty(m.stock, m)}</dd></div>
-                  <div><dt className="text-cocoa/60">Minimum</dt><dd className="font-semibold tabular-nums text-cocoa">{qty(m.min_stock, m)}</dd></div>
+                  <div><dt className="text-cocoa-muted">Stok</dt><dd className="font-semibold tabular-nums text-cocoa">{qty(m.stock, m)}</dd></div>
+                  <div><dt className="text-cocoa-muted">Minimum</dt><dd className="font-semibold tabular-nums text-cocoa">{qty(m.min_stock, m)}</dd></div>
                 </dl>
                 <div className="border-t border-beige pt-2">{actions(m)}</div>
               </li>

@@ -20,13 +20,13 @@ export default function HomeGreeting({ user }) {
         <h1 id="home-greeting" className="font-display text-3xl md:text-4xl lg:text-5xl text-cocoa leading-tight">
           {firstName ? `${firstName}!` : 'Selamat datang di Oven & Co.'}
         </h1>
-        <p className="mt-2 text-sm md:text-base text-cocoa/70">Temukan freshly baked favorites dari Oven &amp; Co.</p>
+        <p className="mt-2 text-sm md:text-base text-cocoa-muted">Temukan freshly baked favorites dari Oven &amp; Co.</p>
       </div>
 
       {/* Pencarian — membuka halaman Pencarian (C-08) */}
       <Link
         to={CUSTOMER_ROUTES.CARI}
-        className="flex items-center gap-3 h-12 w-full lg:max-w-sm shrink-0 px-4 rounded-btn bg-beige text-sm text-cocoa/60
+        className="flex items-center gap-3 h-12 w-full lg:max-w-sm shrink-0 px-4 rounded-btn bg-beige text-sm text-cocoa-muted
                    border border-transparent transition-colors hover:border-primary/30 hover:bg-beige/70
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 active:scale-[0.99]"
       >

@@ -21,7 +21,7 @@ export default function VoucherCard({ item }) {
   const target = product ? productHref(product) : CUSTOMER_ROUTES.KATALOG;
 
   return (
-    <li className={`card overflow-hidden flex ${usable ? '' : 'opacity-70'}`}>
+    <li className="card overflow-hidden flex">
       {/* Sobekan tiket: bagian kiri berwarna + lubang setengah lingkaran di batasnya */}
       <div className={`relative w-24 md:w-28 shrink-0 flex flex-col items-center justify-center gap-1 px-2 text-center ${usable ? 'bg-peach' : 'bg-beige'}`}>
         <Ticket size={20} className="text-cocoa" aria-hidden="true" />
@@ -34,7 +34,7 @@ export default function VoucherCard({ item }) {
           <Badge variant={usable ? 'ready' : state === VOUCHER_STATE.USED ? 'neutral' : 'error'}>{VOUCHER_STATE_LABEL[state]}</Badge>
         </div>
         <p className="text-sm text-cocoa leading-snug">{voucher.title}</p>
-        <p className="text-xs text-cocoa/70">
+        <p className="text-xs text-cocoa-muted">
           {product ? `Khusus ${product.name}` : 'Berlaku untuk semua produk'} · Berlaku s.d. {formatValidTo(voucher.valid_to)}
         </p>
         {usable && (

@@ -24,7 +24,7 @@ export default function DataTable({ columns, rows, rowKey, label, minWidth = 'mi
               <th
                 key={col.key}
                 scope="col"
-                className={`px-2 py-3 text-xs font-semibold uppercase tracking-wide text-cocoa/70 whitespace-nowrap ${alignClass(col.align)} ${col.visibility ?? ''}`}
+                className={`px-2 py-3 text-xs font-semibold uppercase tracking-wide text-cocoa-muted whitespace-nowrap ${alignClass(col.align)} ${col.visibility ?? ''}`}
               >
                 {col.header}
               </th>

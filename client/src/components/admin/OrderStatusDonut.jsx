@@ -42,7 +42,7 @@ export default function OrderStatusDonut({ counts, total }) {
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <span className="text-2xl font-bold text-cocoa tabular-nums">{formatNumber(total)}</span>
-          <span className="text-[11px] text-cocoa/70">pesanan</span>
+          <span className="text-[11px] text-cocoa-muted">pesanan</span>
         </div>
       </div>
 
@@ -51,7 +51,7 @@ export default function OrderStatusDonut({ counts, total }) {
           <li key={d.status}>
             <Link
               to={`${ADMIN_ROUTES.PESANAN}?tab=${tabFor(d.status)}`}
-              className="flex items-center gap-2.5 min-h-[36px] px-2 -mx-2 rounded-lg text-sm hover:bg-cream
+              className="flex items-center gap-2.5 min-h-touch-min px-2 -mx-2 rounded-lg text-sm hover:bg-cream
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             >
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: ORDER_STATUS_CHART_COLOR[d.status] }} />

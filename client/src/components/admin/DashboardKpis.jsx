@@ -14,7 +14,7 @@ function ChangeHint({ change }) {
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
     <span className="inline-flex items-center gap-1">
-      <span className={`inline-flex items-center font-semibold ${up ? 'text-green-700' : 'text-error'}`}>
+      <span className={`inline-flex items-center font-semibold ${up ? 'text-green-700' : 'text-error-strong'}`}>
         <Icon size={14} aria-hidden="true" />
         {up ? '+' : ''}{change}%
       </span>

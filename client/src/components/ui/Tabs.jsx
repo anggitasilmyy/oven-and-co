@@ -24,7 +24,7 @@ export default function Tabs({ tabs, value, onChange, label, className = '' }) {
             onClick={() => onChange(tab.key)}
             className={`relative flex-1 md:flex-none h-12 px-4 md:px-6 text-sm font-semibold whitespace-nowrap rounded-t-btn transition-colors
                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50
-                        ${active ? 'text-primary' : 'text-cocoa/65 hover:text-cocoa hover:bg-beige/40'}`}
+                        ${active ? 'text-primary' : 'text-cocoa-muted hover:text-cocoa hover:bg-beige/40'}`}
           >
             {tab.label}
             <span

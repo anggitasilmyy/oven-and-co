@@ -71,6 +71,7 @@ export default function FormUlasanPage() {
   const aside = (
     <ActionBar
       label="Kirim ulasan"
+      aboveBottomNav
       summary={<p className="text-sm font-semibold text-cocoa">+{data.bonus_points} poin</p>}
     >
       <Button fullWidth onClick={() => review.submit(selected.order_item_id)} disabled={!review.canSubmit} loading={review.submitting}>
@@ -82,7 +83,7 @@ export default function FormUlasanPage() {
   return (
     <FocusPageGrid aside={aside}>
       <div className="space-y-5 lg:space-y-6">
-        <PageHeader title="Beri Ulasan" description={<>Pesanan <span className="font-mono font-semibold text-cocoa">{orderNumber}</span></>} />
+        <PageHeader title="Beri Ulasan" back={{ to: detailPath, label: 'Detail Pesanan' }} description={<>Pesanan <span className="font-mono font-semibold text-cocoa">{orderNumber}</span></>} />
         {data.items.length > 1 && (
           <ReviewItemPicker
             items={data.items}

@@ -45,14 +45,14 @@ export default function WorkOrderDetail({ order, products, materials, onBack, on
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-display text-2xl text-cocoa">{order.wo_number}</h2>
-            <p className="text-sm text-cocoa/75">{order.product_name} · produksi {formatDateShort(order.production_date)}{dates.map(([l, d]) => ` · ${l} ${formatDateShort(d)}`).join('')}</p>
-            {order.note && <p className="mt-1 text-sm text-cocoa/75">Catatan: {order.note}</p>}
+            <p className="text-sm text-cocoa-muted">{order.product_name} · produksi {formatDateShort(order.production_date)}{dates.map(([l, d]) => ` · ${l} ${formatDateShort(d)}`).join('')}</p>
+            {order.note && <p className="mt-1 text-sm text-cocoa-muted">Catatan: {order.note}</p>}
           </div>
           <Badge variant={meta.variant}>{meta.label}</Badge>
         </div>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <div className="rounded-btn bg-beige/40 p-3"><dt className="text-xs text-cocoa/70">Rencana</dt><dd className="font-semibold tabular-nums text-cocoa">{formatNumber(order.qty_planned)}</dd></div>
-          <div className="rounded-btn bg-beige/40 p-3"><dt className="text-xs text-cocoa/70">Hasil bersih</dt><dd className="font-semibold tabular-nums text-cocoa">{order.status === WO_STATUS.SELESAI ? formatNumber(order.net_output) : '–'}</dd></div>
+          <div className="rounded-btn bg-beige/40 p-3"><dt className="text-xs text-cocoa-muted">Rencana</dt><dd className="font-semibold tabular-nums text-cocoa">{formatNumber(order.qty_planned)}</dd></div>
+          <div className="rounded-btn bg-beige/40 p-3"><dt className="text-xs text-cocoa-muted">Hasil bersih</dt><dd className="font-semibold tabular-nums text-cocoa">{order.status === WO_STATUS.SELESAI ? formatNumber(order.net_output) : '–'}</dd></div>
         </dl>
         <div className="flex flex-wrap gap-2">
           {order.status === WO_STATUS.DRAFT && <Button size="sm" variant="secondary" onClick={() => setModal({ type: 'edit' })} leftIcon={<Pencil size={16} aria-hidden="true" />}>Ubah</Button>}

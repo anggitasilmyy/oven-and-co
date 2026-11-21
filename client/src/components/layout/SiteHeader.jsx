@@ -30,7 +30,7 @@ export default function SiteHeader() {
                 `inline-flex items-center gap-2 h-11 px-3 lg:px-4 rounded-pill text-sm font-semibold
                  transition-colors duration-150 active:scale-[0.97]
                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ` +
-                (isActive ? 'bg-beige text-primary' : 'text-cocoa/70 hover:text-cocoa hover:bg-beige/60')
+                (isActive ? 'bg-beige text-primary' : 'text-cocoa-muted hover:text-cocoa hover:bg-beige/60')
               }
             >
               <Icon size={18} className="hidden lg:block" aria-hidden="true" />

@@ -108,7 +108,7 @@ export default function VoucherFormModal({ voucher, board, onClose, onSaved, onC
         </FormField>
         <div className="sm:col-span-2">
           <Switch checked={values.is_active} onChange={(c) => set('is_active', c)} label="Voucher aktif" showLabel />
-          <p className="text-xs text-cocoa/65">Maks. 1 voucher per transaksi dan boleh digabung tukar poin (BR-10). Voucher berlaku untuk pelanggan yang memilikinya.</p>
+          <p className="text-xs text-cocoa-muted">Maks. 1 voucher per transaksi dan boleh digabung tukar poin (BR-10). Voucher berlaku untuk pelanggan yang memilikinya.</p>
         </div>
         <div className="sm:col-span-2"><FormError message={error} /></div>
       </form>

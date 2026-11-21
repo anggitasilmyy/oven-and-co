@@ -53,7 +53,7 @@ export default function PromoPage() {
         )}
         {tab === PROMO_TAB.VOUCHER && vouchers.data && (
           <div className={`space-y-4 transition-opacity ${vouchers.loading ? 'opacity-60' : ''}`}>
-            <p className="text-sm text-cocoa/70">
+            <p className="text-sm text-cocoa-muted">
               {vouchers.data.rows.length} voucher · {vouchers.data.rows.filter((v) => v.status === ADMIN_VOUCHER_STATUS.AKTIF.key).length} aktif hari ini
             </p>
             <VoucherListPanel

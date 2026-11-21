@@ -29,7 +29,7 @@ export default function RecipeForm({ productId, data, formId, onSavingChange, on
 
   return (
     <form id={formId} noValidate className="space-y-4" onSubmit={save}>
-      <p className="text-sm text-cocoa/75">
+      <p className="text-sm text-cocoa-muted">
         Takaran bahan untuk membuat 1 pcs produk (maks. 3 angka desimal, mis. 0,015). Satuan mengikuti master Bahan Baku.
         {data.recipe.availability_type === AVAILABILITY_TYPE.CUSTOM && ' Custom cake memakai satu komposisi standar untuk semua pilihan builder.'}
       </p>
@@ -54,9 +54,9 @@ export default function RecipeForm({ productId, data, formId, onSavingChange, on
           leftIcon={<Plus size={16} aria-hidden="true" />}>
           Tambah Bahan
         </Button>
-        <span className="text-xs text-cocoa/60 tabular-nums">{rows.length}/{RECIPE_MAX_ITEMS} bahan</span>
+        <span className="text-xs text-cocoa-muted tabular-nums">{rows.length}/{RECIPE_MAX_ITEMS} bahan</span>
       </div>
-      {noMaterials && <p className="text-xs text-cocoa/70">Master Bahan Baku masih kosong. Tambahkan bahan di menu Stok terlebih dahulu.</p>}
+      {noMaterials && <p className="text-xs text-cocoa-muted">Master Bahan Baku masih kosong. Tambahkan bahan di menu Stok terlebih dahulu.</p>}
       <FormError message={form.error} />
     </form>
   );

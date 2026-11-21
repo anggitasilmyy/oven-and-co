@@ -23,11 +23,11 @@ export default function AddressCard({ address, radiusKm, busy, onEdit, onMakePri
       </div>
       <div className="space-y-1 min-w-0">
         <p className="text-sm font-semibold text-cocoa">
-          {address.recipient_name} <span className="font-normal text-cocoa/70 tabular-nums">· {address.recipient_phone}</span>
+          {address.recipient_name} <span className="font-normal text-cocoa-muted tabular-nums">· {address.recipient_phone}</span>
         </p>
         <p className="text-sm text-cocoa/80 leading-relaxed break-words">{address.full_address}</p>
-        {address.courier_note && <p className="text-xs text-cocoa/70 break-words">Catatan kurir: {address.courier_note}</p>}
-        <p className="text-xs text-cocoa/70 tabular-nums">{formatNumber(address.distance)} km dari toko</p>
+        {address.courier_note && <p className="text-xs text-cocoa-muted break-words">Catatan kurir: {address.courier_note}</p>}
+        <p className="text-xs text-cocoa-muted tabular-nums">{formatNumber(address.distance)} km dari toko</p>
       </div>
       <div className="mt-auto flex flex-wrap gap-1 -ml-3">
         <button type="button" onClick={onEdit} disabled={busy} className={`${actionClass} text-primary hover:bg-beige/60`}>
@@ -38,7 +38,7 @@ export default function AddressCard({ address, radiusKm, busy, onEdit, onMakePri
             <Star size={16} aria-hidden="true" /> Jadikan Utama<span className="sr-only"> alamat {address.label}</span>
           </button>
         )}
-        <button type="button" onClick={onDelete} disabled={busy} className={`${actionClass} text-error hover:bg-red-50`}>
+        <button type="button" onClick={onDelete} disabled={busy} className={`${actionClass} text-error-strong hover:bg-red-50`}>
           <Trash2 size={16} aria-hidden="true" /> Hapus<span className="sr-only"> alamat {address.label}</span>
         </button>
       </div>

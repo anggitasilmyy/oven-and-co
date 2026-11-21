@@ -43,7 +43,7 @@ export default function SearchSuggestions({ history, onSelect, onRemove, onClear
           )}
         </div>
         {history.length === 0 ? (
-          <p className="text-sm text-cocoa/60">Belum ada riwayat pencarian di perangkat ini.</p>
+          <p className="text-sm text-cocoa-muted">Belum ada riwayat pencarian di perangkat ini.</p>
         ) : (
           <ul className="divide-y divide-beige card px-2">
             {history.map((term) => (
@@ -61,7 +61,7 @@ export default function SearchSuggestions({ history, onSelect, onRemove, onClear
                   type="button"
                   onClick={() => onRemove(term)}
                   aria-label={`Hapus "${term}" dari riwayat`}
-                  className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-cocoa/50
+                  className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-cocoa-muted
                              hover:bg-beige hover:text-cocoa focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                 >
                   <X size={16} aria-hidden="true" />

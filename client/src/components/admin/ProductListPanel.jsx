@@ -54,7 +54,7 @@ export default function ProductListPanel({ query, onEdit, onRecipe, onToast }) {
   const handlers = { onToggle: toggle, onEdit, onRecipe, pendingId };
   return (
     <section aria-label="Daftar produk" className={`space-y-4 transition-opacity ${query.loading ? 'opacity-60' : ''}`} aria-busy={query.loading}>
-      <p className="text-sm text-cocoa/70">
+      <p className="text-sm text-cocoa-muted">
         {rows.length} produk · {rows.filter((r) => r.is_active).length} aktif di katalog
       </p>
       <div className="md:hidden">

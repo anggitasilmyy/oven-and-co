@@ -17,6 +17,10 @@ import useQuickAddToCart from '../../hooks/useQuickAddToCart';
 import { getMyWishlistProducts, setWishlisted } from '../../services/wishlistService';
 import { CUSTOMER_ROUTES } from '../../constants/routes';
 
+/** Step 8 · F-05: tautan kembali ke Akun (< lg); ≥ lg sidebar Akun sudah tersedia */
+const ACCOUNT_BACK = { to: CUSTOMER_ROUTES.AKUN, label: 'Akun', hideOnDesktop: true };
+
+
 export default function WishlistPage() {
   const navigate = useNavigate();
   const query = useServiceQuery(() => getMyWishlistProducts(), []);
@@ -58,7 +62,7 @@ export default function WishlistPage() {
   return (
     <AccountLayout>
       <div className="space-y-5 lg:space-y-6">
-        <PageHeader title="Wishlist" description={products?.length ? `${products.length} produk favorit` : undefined} />
+        <PageHeader title="Wishlist" back={ACCOUNT_BACK} description={products?.length ? `${products.length} produk favorit` : undefined} />
         {query.error ? (
           <ErrorState message={query.error.message} onRetry={query.reload} />
         ) : (

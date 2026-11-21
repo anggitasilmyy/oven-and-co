@@ -22,12 +22,12 @@ export default function OrderPaymentCard({ order, payment, canMarkPaid, onMarkPa
       </div>
       <p className="text-sm text-cocoa">
         Metode: <span className="font-semibold">{payment.method_name}</span>
-        {payment.paid_at && <span className="block text-xs text-cocoa/65 tabular-nums">Dibayar {formatDateShort(payment.paid_at)} · {formatTime(payment.paid_at)}</span>}
+        {payment.paid_at && <span className="block text-xs text-cocoa-muted tabular-nums">Dibayar {formatDateShort(payment.paid_at)} · {formatTime(payment.paid_at)}</span>}
       </p>
       <dl className="space-y-2 text-sm">
         {orderCostRows(order).map((r) => (
           <div key={r.label} className="flex justify-between gap-3">
-            <dt className="text-cocoa/70">{r.label}</dt>
+            <dt className="text-cocoa-muted">{r.label}</dt>
             <dd className={`font-semibold tabular-nums ${r.discount ? 'text-[#3F6B3A]' : 'text-cocoa'}`}>{r.discount ? '-' : ''}{formatRupiah(r.amount)}</dd>
           </div>
         ))}

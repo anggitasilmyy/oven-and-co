@@ -97,7 +97,7 @@ export default function AdminLoginPage() {
   return (
     <AuthSplitLayout subtitle="Admin Panel" brandExtra={<AdminDemoAccounts />}>
       <h1 className="font-display text-3xl text-cocoa mb-1">Masuk Admin</h1>
-      <p className="text-sm text-cocoa/70 mb-8">Masukkan kredensial akun admin kamu</p>
+      <p className="text-sm text-cocoa-muted mb-8">Masukkan kredensial akun admin kamu</p>
 
       <AdminLoginForm
         form={form}

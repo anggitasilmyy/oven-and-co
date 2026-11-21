@@ -17,9 +17,9 @@ function PriceInput({ id, label, value, onCommit }) {
   };
   return (
     <div className="flex-1 min-w-0">
-      <label htmlFor={id} className="block text-xs font-semibold text-cocoa/70 mb-1">{label}</label>
+      <label htmlFor={id} className="block text-xs font-semibold text-cocoa-muted mb-1">{label}</label>
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa/50 pointer-events-none">Rp</span>
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-cocoa-muted pointer-events-none">Rp</span>
         <input
           id={id}
           inputMode="numeric"
@@ -47,7 +47,7 @@ export default function PriceRangeField({ minPrice, maxPrice, onChange, idPrefix
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-cocoa/70 tabular-nums" aria-live="polite">
+      <p className="text-sm text-cocoa-muted tabular-nums" aria-live="polite">
         {formatRupiah(lo)} – {formatRupiah(hi)}{hi === MAX ? '+' : ''}
       </p>
       <div className="relative h-11">

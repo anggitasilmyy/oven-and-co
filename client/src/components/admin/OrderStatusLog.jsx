@@ -11,19 +11,19 @@ export default function OrderStatusLog({ log }) {
     <section aria-labelledby="admin-status-log-title" className="card-admin p-5 md:p-6">
       <h2 id="admin-status-log-title" className="font-display text-lg text-cocoa mb-3">Log Status</h2>
       {log.length === 0 ? (
-        <p className="text-sm text-cocoa/65">Belum ada riwayat status.</p>
+        <p className="text-sm text-cocoa-muted">Belum ada riwayat status.</p>
       ) : (
         <ol className="space-y-3">
           {log.map((h) => (
             <li key={h.history_id} className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4 pb-3 border-b border-beige/70 last:border-0 last:pb-0">
               <div className="min-w-0 space-y-1">
                 <StatusBadge status={h.status} />
-                <p className="text-xs text-cocoa/70">
+                <p className="text-xs text-cocoa-muted">
                   oleh {h.changed_by_name}{h.changed_by_role ? ` (${ROLE_LABEL[h.changed_by_role]})` : ''}
                 </p>
                 {h.note && <p className="text-xs text-cocoa break-words">{h.note}</p>}
               </div>
-              <time dateTime={h.changed_at} className="text-xs text-cocoa/70 tabular-nums shrink-0">
+              <time dateTime={h.changed_at} className="text-xs text-cocoa-muted tabular-nums shrink-0">
                 {formatDateShort(h.changed_at)} · {formatTime(h.changed_at)}
               </time>
             </li>

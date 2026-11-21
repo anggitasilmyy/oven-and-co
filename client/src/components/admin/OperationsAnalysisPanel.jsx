@@ -17,10 +17,10 @@ export default function OperationsAnalysisPanel({ requirements }) {
       <div className="space-y-3">
         <p className="flex gap-2 rounded-btn bg-beige/40 p-3 text-xs text-cocoa/80"><Info size={16} className="mt-0.5 shrink-0" aria-hidden="true" /><span>{MATERIAL_REQUIREMENT_NOTE}</span></p>
         {requirements.rows.length === 0
-          ? <p className="text-sm text-cocoa/70">Belum ada kebutuhan bahan yang dihitung untuk hari ini.</p>
+          ? <p className="text-sm text-cocoa-muted">Belum ada kebutuhan bahan yang dihitung untuk hari ini.</p>
           : <MaterialRequirementTable rows={requirements.rows} dateLabel={dateLabel} />}
         {requirements.products_without_recipe?.length > 0 && (
-          <p className="text-xs text-cocoa/70">{requirements.products_without_recipe.length} produk belum punya komposisi dan tidak dihitung.</p>
+          <p className="text-xs text-cocoa-muted">{requirements.products_without_recipe.length} produk belum punya komposisi dan tidak dihitung.</p>
         )}
       </div>
     </DashboardPanel>

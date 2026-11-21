@@ -27,12 +27,12 @@ export default function OperationsProductionTables({ production, plan }) {
     <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
       <DashboardPanel title="Hasil produksi" description="Hasil bersih per work order yang dicatat pada periode ini">
         {production.length === 0
-          ? <p className="text-sm text-cocoa/70">Belum ada hasil produksi pada periode ini.</p>
+          ? <p className="text-sm text-cocoa-muted">Belum ada hasil produksi pada periode ini.</p>
           : <DataTable label="Hasil produksi per work order" columns={woColumns} rows={production} rowKey={(r) => r.wo_id} minWidth="min-w-[480px]" />}
       </DashboardPanel>
       <DashboardPanel title="Rencana vs hasil" description="Rencana menurut tanggal produksi; hasil menurut tanggal pencatatan">
         {plan.length === 0
-          ? <p className="text-sm text-cocoa/70">Belum ada rencana atau hasil pada periode ini.</p>
+          ? <p className="text-sm text-cocoa-muted">Belum ada rencana atau hasil pada periode ini.</p>
           : <DataTable label="Rencana dan hasil produksi per produk" columns={planColumns} rows={plan} rowKey={(r) => r.product_id} minWidth="min-w-[400px]" />}
       </DashboardPanel>
     </div>

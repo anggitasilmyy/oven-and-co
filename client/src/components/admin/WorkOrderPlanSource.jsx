@@ -8,8 +8,8 @@ import { WO_STATUS_META } from '../../constants/workOrder';
 function Section({ title, empty, rows }) {
   return (
     <div className="space-y-1">
-      <p className="text-xs font-semibold uppercase tracking-wide text-cocoa/70">{title}</p>
-      {rows.length === 0 ? <p className="text-xs text-cocoa/60">{empty}</p> : (
+      <p className="text-xs font-semibold uppercase tracking-wide text-cocoa-muted">{title}</p>
+      {rows.length === 0 ? <p className="text-xs text-cocoa-muted">{empty}</p> : (
         <ul className="space-y-0.5 text-sm text-cocoa">
           {rows.map(([key, label, value]) => <li key={key} className="flex justify-between gap-3"><span>{label}</span><span className="tabular-nums">{value}</span></li>)}
         </ul>
@@ -26,9 +26,9 @@ function Section({ title, empty, rows }) {
 export default function WorkOrderPlanSource({ source, loading, error }) {
   return (
     <section className="space-y-3 rounded-btn bg-beige/40 p-3" aria-label="Acuan perencanaan (hanya baca)">
-      <p className="text-sm font-semibold text-cocoa">Acuan perencanaan <span className="font-normal text-cocoa/70">(hanya baca)</span></p>
-      {loading && <p className="text-xs text-cocoa/70">Memuat acuan…</p>}
-      {error && <p className="text-xs text-error">{error}</p>}
+      <p className="text-sm font-semibold text-cocoa">Acuan perencanaan <span className="font-normal text-cocoa-muted">(hanya baca)</span></p>
+      {loading && <p className="text-xs text-cocoa-muted">Memuat acuan…</p>}
+      {error && <p className="text-xs text-error-strong">{error}</p>}
       {source && (
         <>
           <Section title="Rencana stok ready (menu Stok)" empty={source.date === source.today_key ? 'Belum ada rencana stok ready hari ini.' : 'Rencana stok ready hanya tersedia untuk hari ini.'}

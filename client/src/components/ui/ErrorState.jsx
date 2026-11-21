@@ -13,7 +13,7 @@ export default function ErrorState({ message = 'Data gagal dimuat.', onRetry, cl
     <div
       role="alert"
       className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-btn border border-error/30
-                  bg-red-50 px-4 py-3 text-sm text-error ${className}`}
+                  bg-red-50 px-4 py-3 text-sm text-error-strong ${className}`}
     >
       <p className="flex items-center gap-2 flex-1 font-medium">
         <AlertCircle size={18} className="shrink-0" aria-hidden="true" />

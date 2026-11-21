@@ -19,8 +19,8 @@ export default function ProductCardList({ rows, onToggle, onEdit, onRecipe, pend
           <div className="flex gap-3">
             <ProductImage src={r.image_url} alt="" sizes="80px" className="h-16 w-20 shrink-0 rounded-lg object-cover" />
             <div className="min-w-0 flex-1">
-              <p className={`font-semibold text-sm leading-snug ${r.is_active ? 'text-cocoa' : 'text-cocoa/60'}`}>{r.name}</p>
-              <p className="mt-0.5 text-xs text-cocoa/65">{r.category_name}{r.is_active ? '' : ' · Nonaktif'}</p>
+              <p className={`font-semibold text-sm leading-snug ${r.is_active ? 'text-cocoa' : 'text-cocoa-muted'}`}>{r.name}</p>
+              <p className="mt-0.5 text-xs text-cocoa-muted">{r.category_name}{r.is_active ? '' : ' · Nonaktif'}</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <ProductTypeBadge row={r} />
                 <span className="text-sm font-bold text-cocoa tabular-nums">{formatRupiah(r.price)}</span>
@@ -28,8 +28,8 @@ export default function ProductCardList({ rows, onToggle, onEdit, onRecipe, pend
             </div>
           </div>
           <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <div><dt className="text-cocoa/60">Stok hari ini</dt><dd className="font-semibold text-cocoa tabular-nums">{stockTodayText(r)}</dd></div>
-            <div><dt className="text-cocoa/60">Rating</dt><dd className="font-semibold text-cocoa"><ProductRating rating={r.rating} /></dd></div>
+            <div><dt className="text-cocoa-muted">Stok hari ini</dt><dd className="font-semibold text-cocoa tabular-nums">{stockTodayText(r)}</dd></div>
+            <div><dt className="text-cocoa-muted">Rating</dt><dd className="font-semibold text-cocoa"><ProductRating rating={r.rating} /></dd></div>
           </dl>
           <div className="mt-3 flex items-center justify-between gap-3 border-t border-beige pt-2">
             <Switch

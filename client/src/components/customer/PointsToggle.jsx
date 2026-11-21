@@ -18,7 +18,7 @@ export default function PointsToggle({ balance, redeemable, checked, onChange, m
         <span className="block font-semibold text-cocoa">
           {disabled ? 'Tukar poin' : `Gunakan ${redeemable.points.toLocaleString('id-ID')} poin (hemat ${formatRupiah(redeemable.value)})`}
         </span>
-        <span className="block text-xs text-cocoa/65">Saldo {balance.toLocaleString('id-ID')} poin{disabled ? ` · minimal ${minPoints.toLocaleString('id-ID')} poin` : ''}</span>
+        <span className="block text-xs text-cocoa-muted">Saldo {balance.toLocaleString('id-ID')} poin{disabled ? ` · minimal ${minPoints.toLocaleString('id-ID')} poin` : ''}</span>
       </span>
       {/* Switch: checkbox asli agar bisa dipakai keyboard & pembaca layar */}
       <input

@@ -55,7 +55,7 @@ export default function StokPage() {
 
         {tab === STOCK_TAB.HARIAN && daily.data && (
           <>
-            <p className="text-sm text-cocoa/75">
+            <p className="text-sm text-cocoa-muted">
               Stok hari ini · <span className="font-semibold text-cocoa">{formatDate(parseDateKey(daily.data.date))}</span>.
               Terjual bertambah saat pesanan dibuat dan kembali bila pesanan dibatalkan.
             </p>

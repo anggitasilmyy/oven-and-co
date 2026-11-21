@@ -21,12 +21,12 @@ export default function ReviewForm({ item, review }) {
         <ProductImage src={item.image_url} sizes="80px" className="w-20 h-20 shrink-0 rounded-btn object-cover" />
         <div className="min-w-0">
           <h2 className="font-display text-xl text-cocoa leading-snug">{item.name}</h2>
-          {details.length > 0 && <p className="text-xs text-cocoa/65 break-words">{details.join(' · ')}</p>}
+          {details.length > 0 && <p className="text-xs text-cocoa-muted break-words">{details.join(' · ')}</p>}
         </div>
       </div>
 
       <div>
-        <p id="rating-label" className="text-sm font-bold text-cocoa mb-1">Beri rating <span className="text-error">*</span></p>
+        <p id="rating-label" className="text-sm font-bold text-cocoa mb-1">Beri rating <span className="text-error-strong">*</span></p>
         <StarRatingInput value={review.form.rating} onChange={review.setRating} labelId="rating-label" />
       </div>
 
@@ -41,7 +41,7 @@ export default function ReviewForm({ item, review }) {
 
       <div>
         <label htmlFor="review-comment" className="block text-sm font-bold text-cocoa mb-1.5">
-          Ulasan <span className="font-normal text-cocoa/60">(opsional)</span>
+          Ulasan <span className="font-normal text-cocoa-muted">(opsional)</span>
         </label>
         <textarea
           id="review-comment"

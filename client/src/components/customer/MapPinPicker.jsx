@@ -71,7 +71,7 @@ export default function MapPinPicker({ store, settings, value, onChange, error }
           />
         )}
       </div>
-      <p id="map-pin-status" className={`mt-1.5 text-xs ${error ? 'text-error' : 'text-cocoa/70'}`}>
+      <p id="map-pin-status" className={`mt-1.5 text-xs ${error ? 'text-error-strong' : 'text-cocoa-muted'}`}>
         {error
           || (quote
             ? `${formatNumber(quote.distance)} km dari toko · ${quote.withinRadius ? 'dalam' : 'di luar'} radius pengiriman ${formatNumber(settings.delivery_radius_km)} km`

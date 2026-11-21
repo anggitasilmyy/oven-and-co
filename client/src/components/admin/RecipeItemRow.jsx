@@ -50,8 +50,8 @@ export default function RecipeItemRow({ row, index, materials, usedIds, errorOf,
         onClick={() => onRemove(row.key)}
         disabled={disabled}
         aria-label={`Hapus bahan ${index + 1}${material ? ` (${material.name})` : ''}`}
-        className="inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 self-end rounded-lg border border-beige px-3 text-xs
-                   font-semibold text-error hover:bg-error/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/40
+        className="inline-flex h-11 min-w-touch-min items-center justify-center gap-1.5 self-end rounded-btn border border-beige px-3 text-xs
+                   font-semibold text-error-strong hover:bg-error/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/40
                    disabled:opacity-50 sm:mt-7 sm:self-start"
       >
         <Trash2 size={14} aria-hidden="true" /> Hapus

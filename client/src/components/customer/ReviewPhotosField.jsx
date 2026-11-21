@@ -44,7 +44,7 @@ export default function ReviewPhotosField({ value, onChange }) {
   return (
     <div>
       <p className="text-sm font-bold text-cocoa mb-1.5">
-        Foto <span className="font-normal text-cocoa/60">(opsional, maks. {REVIEW_MAX_PHOTOS})</span>
+        Foto <span className="font-normal text-cocoa-muted">(opsional, maks. {REVIEW_MAX_PHOTOS})</span>
       </p>
       <ul className="flex flex-wrap gap-3">
         {value.map((url, i) => (
@@ -75,7 +75,7 @@ export default function ReviewPhotosField({ value, onChange }) {
           </li>
         )}
       </ul>
-      <p className="mt-1.5 text-xs text-cocoa/60">JPG, PNG, atau WebP · maks. {MAX_MB} MB per foto</p>
+      <p className="mt-1.5 text-xs text-cocoa-muted">JPG, PNG, atau WebP · maks. {MAX_MB} MB per foto</p>
       <FormError message={error} className="text-sm mt-2" />
     </div>
   );

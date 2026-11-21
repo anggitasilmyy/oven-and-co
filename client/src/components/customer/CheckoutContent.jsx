@@ -42,14 +42,14 @@ export default function CheckoutContent({ ctx, cart }) {
       label="Total & aksi"
       summary={
         <div>
-          <p className="text-xs text-cocoa/65">Total</p>
+          <p className="text-xs text-cocoa-muted">Total</p>
           <p className="font-bold text-lg lg:text-2xl text-cocoa tabular-nums" aria-live="polite">{formatRupiah(quote.total)}</p>
         </div>
       }
     >
       <div className="flex flex-col gap-1.5 min-w-0">
         <Button fullWidth onClick={goToPayment} disabled={Boolean(f.blockedReason)}>Pilih Pembayaran</Button>
-        {f.blockedReason && <p className="text-xs text-error text-center lg:text-left" role="status">{f.blockedReason}</p>}
+        {f.blockedReason && <p className="text-xs text-error-strong text-center lg:text-left" role="status">{f.blockedReason}</p>}
       </div>
     </ActionBar>
   );

@@ -22,8 +22,8 @@ function AddressOption({ address, radius, selected, onSelect }) {
                   ${selected ? 'border-primary bg-beige/40' : 'border-beige bg-surface hover:border-primary/40'}`}
     >
       <span className="block font-semibold text-cocoa">{address.label}{address.is_primary ? ' · Utama' : ''}</span>
-      <span className="block text-sm text-cocoa/70 break-words">{address.recipient_name} · {address.full_address}</span>
-      <span className={`block text-xs font-semibold mt-1 ${address.withinRadius ? 'text-primary' : 'text-error'}`}>{distanceText(address, radius)}</span>
+      <span className="block text-sm text-cocoa-muted break-words">{address.recipient_name} · {address.full_address}</span>
+      <span className={`block text-xs font-semibold mt-1 ${address.withinRadius ? 'text-primary' : 'text-error-strong'}`}>{distanceText(address, radius)}</span>
     </button>
   );
 }
@@ -42,7 +42,7 @@ export default function FulfillmentDetails({ isDelivery, store, addresses, addre
         <span className="w-12 h-12 shrink-0 rounded-btn bg-beige text-primary flex items-center justify-center"><Store size={22} aria-hidden="true" /></span>
         <div className="min-w-0">
           <p className="font-semibold text-cocoa">{store.name}</p>
-          <p className="text-sm text-cocoa/70 break-words">{store.address}</p>
+          <p className="text-sm text-cocoa-muted break-words">{store.address}</p>
         </div>
       </div>
     );
@@ -63,8 +63,8 @@ export default function FulfillmentDetails({ isDelivery, store, addresses, addre
           {!choosing && (
             <>
               <p className="text-sm text-cocoa">{address.label} · {address.recipient_name} ({address.recipient_phone})</p>
-              <p className="text-sm text-cocoa/70 break-words">{address.full_address}</p>
-              <p className={`text-xs font-semibold mt-1 ${address.withinRadius ? 'text-primary' : 'text-error'}`} role={address.withinRadius ? undefined : 'alert'}>
+              <p className="text-sm text-cocoa-muted break-words">{address.full_address}</p>
+              <p className={`text-xs font-semibold mt-1 ${address.withinRadius ? 'text-primary' : 'text-error-strong'}`} role={address.withinRadius ? undefined : 'alert'}>
                 {distanceText(address, radius)}
               </p>
             </>

@@ -21,10 +21,10 @@ export default function OrderFulfillmentCard({ order, storeAddress, payBeforeTim
       </h2>
       {isPickup ? (
         <>
-          {storeAddress && <p className="text-sm text-cocoa/75">{storeAddress}</p>}
+          {storeAddress && <p className="text-sm text-cocoa-muted">{storeAddress}</p>}
           {showCode && (
             <div className="rounded-btn bg-beige/60 px-4 py-3 text-center">
-              <p className="text-xs text-cocoa/70">Tunjukkan kode ini saat mengambil</p>
+              <p className="text-xs text-cocoa-muted">Tunjukkan kode ini saat mengambil</p>
               <p className="font-mono text-2xl font-bold tracking-widest text-cocoa">{order.pickup_code}</p>
             </div>
           )}
@@ -32,14 +32,14 @@ export default function OrderFulfillmentCard({ order, storeAddress, payBeforeTim
       ) : (
         <dl className="space-y-2 text-sm">
           <div>
-            <dt className="text-cocoa/65">Alamat</dt>
+            <dt className="text-cocoa-muted">Alamat</dt>
             <dd className="font-medium text-cocoa break-words">{order.delivery_address_snapshot ?? '-'}</dd>
           </div>
           {order.distance_km != null && (
-            <div className="flex justify-between gap-3"><dt className="text-cocoa/65">Jarak</dt><dd className="font-medium text-cocoa">{String(order.distance_km).replace('.', ',')} km</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-cocoa-muted">Jarak</dt><dd className="font-medium text-cocoa">{String(order.distance_km).replace('.', ',')} km</dd></div>
           )}
           <div className="flex justify-between gap-3">
-            <dt className="text-cocoa/65">Kurir</dt>
+            <dt className="text-cocoa-muted">Kurir</dt>
             <dd className="font-medium text-cocoa text-right">{order.courier_name ?? 'Diinformasikan saat pesanan dikirim'}</dd>
           </div>
         </dl>

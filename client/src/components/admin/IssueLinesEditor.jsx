@@ -40,13 +40,13 @@ export default function IssueLinesEditor({ idPrefix, rows, setRows, materials, r
           <FormField id={`${idPrefix}-${r.key}-qty`} label={`Jumlah${unitOf(r.material_id) ? ` (${unitOf(r.material_id)})` : ''}`} error={errorOf(`lines.${i}.qty`)}>
             <input inputMode="decimal" className={`${fieldClass(errorOf(`lines.${i}.qty`))} tabular-nums`} value={r.qty} onChange={(e) => update(r.key, { qty: e.target.value })} />
           </FormField>
-          <button type="button" className="inline-flex h-11 w-11 items-center justify-center self-end rounded-lg text-error hover:bg-red-50 disabled:opacity-40 sm:mt-7"
+          <button type="button" className="inline-flex h-11 w-11 items-center justify-center self-end rounded-btn text-error-strong hover:bg-red-50 disabled:opacity-40 sm:mt-7"
             onClick={() => { setRows((list) => list.filter((x) => x.key !== r.key)); onTouch(); }} disabled={rows.length <= minRows} aria-label={`Hapus bahan ${i + 1}`}>
             <Trash2 size={16} aria-hidden="true" />
           </button>
         </div>
       ))}
-      {errorOf('lines') && <p className="text-xs text-error">{errorOf('lines')}</p>}
+      {errorOf('lines') && <p className="text-xs text-error-strong">{errorOf('lines')}</p>}
       <Button type="button" size="sm" variant="ghost" onClick={add} disabled={rows.length >= WO_MAX_ISSUE_LINES} leftIcon={<Plus size={16} aria-hidden="true" />}>Tambah bahan</Button>
     </fieldset>
   );

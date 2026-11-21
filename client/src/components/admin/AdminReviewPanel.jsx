@@ -66,7 +66,7 @@ export default function AdminReviewPanel({ query, rating, onRatingChange, onToas
       )}
       {query.data && (
         <div className={`space-y-4 transition-opacity ${query.loading ? 'opacity-60' : ''}`}>
-          <p className="text-sm text-cocoa/70">
+          <p className="text-sm text-cocoa-muted">
             {rows.length} ulasan ditampilkan · total {query.data.summary.total} · {query.data.summary.hidden} disembunyikan · {query.data.summary.unreplied} belum dibalas
           </p>
           {visible.length === 0 ? (

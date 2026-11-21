@@ -78,7 +78,7 @@ export default function AdminSidebar({ user, isOpen, onClose, onLogout }) {
           </div>
           <div>
             <p className="font-display text-base leading-tight">Oven &amp; Co.</p>
-            <p className="text-[10px] text-cream/50 font-sans">Admin Panel</p>
+            <p className="text-[10px] text-cream/80 font-sans">Admin Panel</p>
           </div>
           {/* Tombol tutup (mobile) */}
           <button
@@ -118,7 +118,7 @@ export default function AdminSidebar({ user, isOpen, onClose, onLogout }) {
               <AdminAvatar name={user.name} variant="dark" />
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-cream truncate leading-tight">{user.name}</p>
-                <p className="text-[11px] text-cream/50 capitalize">{ROLE_LABEL[user.role]}</p>
+                <p className="text-[11px] text-cream/80 capitalize">{ROLE_LABEL[user.role]}</p>
               </div>
             </div>
           )}

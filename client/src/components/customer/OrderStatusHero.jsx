@@ -31,16 +31,16 @@ export default function OrderStatusHero({ order }) {
 
   return (
     <section aria-label="Status pesanan" className={`card p-5 md:p-6 flex gap-4 ${cancelled ? 'border border-error/30' : ''}`}>
-      <div className={`w-14 h-14 shrink-0 rounded-full flex items-center justify-center ${cancelled ? 'bg-red-50 text-error' : 'bg-sage/70 text-cocoa'}`}>
+      <div className={`w-14 h-14 shrink-0 rounded-full flex items-center justify-center ${cancelled ? 'bg-red-50 text-error-strong' : 'bg-sage/70 text-cocoa'}`}>
         <Icon size={28} strokeWidth={1.75} aria-hidden="true" />
       </div>
       <div className="min-w-0 flex-1 space-y-1.5">
-        <p className="text-xs text-cocoa/65">Status saat ini</p>
-        <h2 className={`font-display text-2xl leading-tight ${cancelled ? 'text-error' : 'text-cocoa'}`} aria-live="polite">
+        <p className="text-xs text-cocoa-muted">Status saat ini</p>
+        <h2 className={`font-display text-2xl leading-tight ${cancelled ? 'text-error-strong' : 'text-cocoa'}`} aria-live="polite">
           {ORDER_STATUS_LABEL[status]}
         </h2>
-        <p className="text-sm text-cocoa/75">{ORDER_STATUS_HERO_TEXT[status]}</p>
-        {cancelled && order.cancel_reason && <p className="text-sm text-cocoa/75">Alasan: {order.cancel_reason}</p>}
+        <p className="text-sm text-cocoa-muted">{ORDER_STATUS_HERO_TEXT[status]}</p>
+        {cancelled && order.cancel_reason && <p className="text-sm text-cocoa-muted">Alasan: {order.cancel_reason}</p>}
         {!settled && (
           <p className="text-sm font-semibold text-cocoa">
             {verb} {formatDate(parseDateKey(order.ready_date))} · {order.time_slot}

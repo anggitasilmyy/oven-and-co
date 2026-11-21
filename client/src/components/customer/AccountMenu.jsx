@@ -34,7 +34,7 @@ export default function AccountMenu({ badges = {}, onLogout, className = '' }) {
           </li>
         ))}
         <li>
-          <button type="button" onClick={onLogout} className={`${rowClass} w-full text-error hover:bg-red-50`}>
+          <button type="button" onClick={onLogout} className={`${rowClass} w-full text-error-strong hover:bg-red-50`}>
             <LogOut size={20} className="shrink-0" aria-hidden="true" />
             Keluar
           </button>

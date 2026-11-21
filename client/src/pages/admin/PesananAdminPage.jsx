@@ -88,7 +88,7 @@ export default function PesananAdminPage() {
 
       {data && (
         <section aria-label="Hasil daftar pesanan" aria-busy={orders.loading} className={`space-y-4 transition-opacity ${orders.loading ? 'opacity-60' : ''}`}>
-          <p className="text-sm text-cocoa/70" aria-live="polite">
+          <p className="text-sm text-cocoa-muted" aria-live="polite">
             {data.totalFiltered
               ? `Menampilkan ${firstRow}–${firstRow + data.rows.length - 1} dari ${data.totalFiltered} pesanan`
               : 'Tidak ada pesanan yang cocok'}

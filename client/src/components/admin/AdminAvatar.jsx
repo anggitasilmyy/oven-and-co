@@ -9,9 +9,9 @@ function getInitials(name) {
 // Kelas sama persis dengan markup AdminLayout sebelum dipecah
 const VARIANTS = {
   // Di sidebar gelap
-  dark: { box: 'w-8 h-8 rounded-full bg-primary/60 flex items-center justify-center shrink-0', text: 'text-cream' },
+  dark: { box: 'w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0', text: 'text-cream' },
   // Di topbar terang
-  light: { box: 'w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center', text: 'text-primary' },
+  light: { box: 'w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center', text: 'text-primary-dark' },
 };
 
 export default function AdminAvatar({ name, variant = 'light' }) {

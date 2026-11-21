@@ -78,19 +78,19 @@ export default function SupplierFormModal({ supplier, materials, onClose, onSave
           </FormField>
         </div>
         <fieldset>
-          <legend className="mb-1.5 text-sm font-semibold text-cocoa">Bahan yang dipasok <span className="font-normal text-cocoa/60">(opsional)</span></legend>
-          <p className="mb-2 text-xs text-cocoa/65">Purchase order hanya dapat memuat bahan yang dicentang.</p>
+          <legend className="mb-1.5 text-sm font-semibold text-cocoa">Bahan yang dipasok <span className="font-normal text-cocoa-muted">(opsional)</span></legend>
+          <p className="mb-2 text-xs text-cocoa-muted">Purchase order hanya dapat memuat bahan yang dicentang.</p>
           <ul className="grid gap-1 sm:grid-cols-2">
             {materials.map((m) => (
               <li key={m.material_id}>
                 <label className="flex min-h-touch-min cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-cocoa hover:bg-beige/40">
                   <input type="checkbox" className="h-5 w-5 accent-primary" checked={values.material_ids.includes(String(m.material_id))} onChange={() => toggle(String(m.material_id))} />
-                  {m.name} <span className="text-cocoa/60">({m.unit})</span>
+                  {m.name} <span className="text-cocoa-muted">({m.unit})</span>
                 </label>
               </li>
             ))}
           </ul>
-          {Object.keys(serverErrors).filter((k) => k.startsWith('material_ids')).map((k) => <p key={k} className="mt-1 text-xs text-error">{serverErrors[k]}</p>)}
+          {Object.keys(serverErrors).filter((k) => k.startsWith('material_ids')).map((k) => <p key={k} className="mt-1 text-xs text-error-strong">{serverErrors[k]}</p>)}
         </fieldset>
         <FormError message={error} />
       </form>

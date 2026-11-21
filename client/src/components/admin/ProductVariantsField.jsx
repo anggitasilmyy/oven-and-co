@@ -20,9 +20,9 @@ export default function ProductVariantsField({ variants, actions, errorOf, gener
   return (
     <fieldset className="space-y-3">
       <legend className="text-sm font-semibold text-cocoa">
-        Varian <span className="font-normal text-cocoa/60">(opsional)</span>
+        Varian <span className="font-normal text-cocoa-muted">(opsional)</span>
       </legend>
-      <p className="text-xs text-cocoa/65">
+      <p className="text-xs text-cocoa-muted">
         {isCustom
           ? 'Custom cake memakai pilihan di tab Opsi Custom Cake, jadi tidak memerlukan varian.'
           : 'Contoh: Original +Rp 0, Almond +Rp 6.000. Varian nonaktif tidak tampil di halaman produk.'}
@@ -76,7 +76,7 @@ export default function ProductVariantsField({ variants, actions, errorOf, gener
                     <button
                       type="button"
                       onClick={() => actions.remove(v.key)}
-                      className="flex h-11 w-11 items-center justify-center rounded-full text-error hover:bg-red-50
+                      className="flex h-11 w-11 items-center justify-center rounded-full text-error-strong hover:bg-red-50
                                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/40"
                       aria-label={`Hapus varian ${i + 1}`}
                     >

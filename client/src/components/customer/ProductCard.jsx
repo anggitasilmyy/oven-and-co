@@ -59,8 +59,8 @@ export default function ProductCard({
           <h3 className="font-sans font-semibold text-sm md:text-[15px] text-cocoa leading-snug line-clamp-2 min-h-[2.5em]">
             {product.name}
           </h3>
-          <p className="flex items-center gap-1 text-xs text-cocoa/70">
-            <Star size={13} className="fill-[#D9A441] text-[#D9A441] shrink-0" aria-hidden="true" />
+          <p className="flex items-center gap-1 text-xs text-cocoa-muted">
+            <Star size={13} className="fill-caramel text-caramel shrink-0" aria-hidden="true" />
             {product.rating?.count ? (
               <span>
                 <span className="font-semibold text-cocoa">{product.rating.average.toLocaleString('id-ID')}</span>
@@ -71,7 +71,7 @@ export default function ProductCard({
               <span>Belum ada ulasan</span>
             )}
           </p>
-          {footnote && <p className="text-[11px] text-cocoa/60">{footnote}</p>}
+          {footnote && <p className="text-[11px] text-cocoa-muted">{footnote}</p>}
           {/* Ruang kanan untuk tombol "+" hanya di baris harga */}
           <p
             className={`mt-auto pt-1 min-h-[44px] flex items-center font-bold text-primary text-sm md:text-base tabular-nums

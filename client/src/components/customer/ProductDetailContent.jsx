@@ -24,7 +24,7 @@ export default function ProductDetailContent({ product, wishlist, notify }) {
       label="Ringkasan & aksi"
       summary={
         <div>
-          <p className="text-xs text-cocoa/65">Total{p.quantity > 1 ? ` · ${p.quantity} item` : ''}</p>
+          <p className="text-xs text-cocoa-muted">Total{p.quantity > 1 ? ` · ${p.quantity} item` : ''}</p>
           <p className="font-bold text-lg lg:text-2xl text-cocoa tabular-nums" aria-live="polite">{formatRupiah(p.total)}</p>
         </div>
       }
@@ -33,7 +33,7 @@ export default function ProductDetailContent({ product, wishlist, notify }) {
         <Button fullWidth onClick={p.addToCart} disabled={Boolean(p.blockedReason)}>
           {p.isReady && product.remaining_today === 0 ? 'Stok habis' : 'Tambah ke Keranjang'}
         </Button>
-        {p.blockedReason && <p className="text-xs text-error text-center lg:text-left" role="status">{p.blockedReason}</p>}
+        {p.blockedReason && <p className="text-xs text-error-strong text-center lg:text-left" role="status">{p.blockedReason}</p>}
       </div>
     </ActionBar>
   );
@@ -64,7 +64,7 @@ export default function ProductDetailContent({ product, wishlist, notify }) {
             <div className="flex flex-wrap items-center gap-3">
               <QuantityStepper value={p.quantity} max={p.maxQuantity} onChange={p.setQuantity} label="Jumlah" />
               {p.isReady && p.inCart > 0 && (
-                <span className="text-xs text-cocoa/65">{p.inCart} sudah di keranjang · maks. {p.maxQuantity} lagi</span>
+                <span className="text-xs text-cocoa-muted">{p.inCart} sudah di keranjang · maks. {p.maxQuantity} lagi</span>
               )}
             </div>
           </div>
@@ -81,7 +81,7 @@ export default function ProductDetailContent({ product, wishlist, notify }) {
 
           <div>
             <label htmlFor="catatan-toko" className="block text-sm font-bold text-cocoa mb-1.5">
-              Catatan untuk toko <span className="font-normal text-cocoa/60">(opsional)</span>
+              Catatan untuk toko <span className="font-normal text-cocoa-muted">(opsional)</span>
             </label>
             <textarea
               id="catatan-toko"

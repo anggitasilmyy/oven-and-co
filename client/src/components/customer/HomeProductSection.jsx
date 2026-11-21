@@ -29,7 +29,7 @@ export default function HomeProductSection({
       <div className="flex items-end justify-between gap-4">
         <div className="min-w-0">
           <h2 id={id} className="font-display text-2xl md:text-3xl text-cocoa leading-tight">{title}</h2>
-          {subtitle && <p className="mt-1 text-sm text-cocoa/70">{subtitle}</p>}
+          {subtitle && <p className="mt-1 text-sm text-cocoa-muted">{subtitle}</p>}
         </div>
         {linkTo && (
           <Link
@@ -63,7 +63,7 @@ export default function HomeProductSection({
           })}
         </ResponsiveGrid>
       ) : (
-        <p className="card p-6 text-sm text-cocoa/70 text-center">{emptyText}</p>
+        <p className="card p-6 text-sm text-cocoa-muted text-center">{emptyText}</p>
       )}
     </section>
   );

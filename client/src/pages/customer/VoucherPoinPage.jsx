@@ -7,6 +7,8 @@ import { useSearchParams } from 'react-router-dom';
 import { Ticket, Coins } from 'lucide-react';
 import AccountLayout from '../../layouts/AccountLayout';
 import PageHeader from '../../components/layout/PageHeader';
+import { CUSTOMER_ROUTES } from '../../constants/routes';
+
 import Tabs from '../../components/ui/Tabs';
 import EmptyState from '../../components/ui/EmptyState';
 import ErrorState from '../../components/ui/ErrorState';
@@ -18,6 +20,9 @@ import PointHistoryList from '../../components/customer/PointHistoryList';
 import useServiceQuery from '../../hooks/useServiceQuery';
 import { getMyLoyaltySummary, getMyPointHistory, getMyVouchers } from '../../services/loyaltyService';
 import { VOUCHER_POINT_TAB, VOUCHER_POINT_TABS } from '../../constants/account';
+
+/** Step 8 · F-05: tautan kembali ke Akun (< lg); ≥ lg sidebar Akun sudah tersedia */
+const ACCOUNT_BACK = { to: CUSTOMER_ROUTES.AKUN, label: 'Akun', hideOnDesktop: true };
 
 const loadingList = (
   <div className="space-y-3" aria-busy="true" aria-label="Memuat">
@@ -55,7 +60,7 @@ export default function VoucherPoinPage() {
   return (
     <AccountLayout>
       <div className="space-y-5 lg:space-y-6">
-        <PageHeader title="Voucher & Poin" />
+        <PageHeader title="Voucher & Poin" back={ACCOUNT_BACK} />
         <div className="grid gap-5 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
           <div className="space-y-5 xl:order-2 md:grid md:grid-cols-2 md:gap-5 md:space-y-0 xl:block xl:space-y-5 xl:sticky xl:top-24">
             <MemberCard summary={summary.data} loading={summary.loading} error={summary.error} onRetry={summary.reload} showRewardLink={false} />

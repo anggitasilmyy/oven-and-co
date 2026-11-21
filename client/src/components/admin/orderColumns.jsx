@@ -15,7 +15,7 @@ export const orderDetailPath = (orderNumber) => buildPath(ADMIN_ROUTES.DETAIL_PE
 const detailLink = (row) => (
   <Link
     to={orderDetailPath(row.order_number)}
-    className="inline-flex items-center justify-center gap-0.5 h-11 min-w-touch-min px-2 xl:px-3 rounded-lg border border-beige text-xs font-semibold
+    className="inline-flex items-center justify-center gap-0.5 h-11 min-w-touch-min px-2 xl:px-3 rounded-btn border border-beige text-xs font-semibold
                text-primary hover:bg-beige/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
     aria-label={`Detail pesanan ${row.order_number}`}
   >
@@ -33,7 +33,7 @@ const COLUMNS = {
     render: (r) => (
       <>
         <span className="font-semibold">{r.order_number}</span>
-        <span className="block text-xs text-cocoa/60">
+        <span className="block text-xs text-cocoa-muted">
           Dipesan {formatDateShort(r.created_at)}, {formatTime(r.created_at)}
         </span>
       </>
@@ -51,7 +51,7 @@ const COLUMNS = {
     render: (r) => (
       <>
         <span className="font-medium">{FULFILLMENT_LABEL[r.fulfillment_type]}</span> · {formatDateShort(parseDateKey(r.ready_date))}
-        <span className="block text-xs text-cocoa/60">{r.time_slot}</span>
+        <span className="block text-xs text-cocoa-muted">{r.time_slot}</span>
       </>
     ),
   },
@@ -62,7 +62,7 @@ const COLUMNS = {
     render: (r) => (
       <div className="space-y-1">
         <PaymentStatusBadge order={r} />
-        <span className="block text-xs text-cocoa/60 max-w-[130px]">{r.method_name}</span>
+        <span className="block text-xs text-cocoa-muted max-w-[130px]">{r.method_name}</span>
       </div>
     ),
   },

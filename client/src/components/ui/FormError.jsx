@@ -5,7 +5,7 @@
 export default function FormError({ id, message, className = 'text-sm' }) {
   if (!message) return null;
   return (
-    <p id={id} role="alert" className={`${className} text-error flex items-center gap-1.5`}>
+    <p id={id} role="alert" className={`${className} text-error-strong flex items-center gap-1.5`}>
       <span aria-hidden="true">⚠</span> {message}
     </p>
   );

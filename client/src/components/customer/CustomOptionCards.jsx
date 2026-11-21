@@ -31,7 +31,7 @@ function OptionIcon({ option }) {
  */
 export default function CustomOptionCards({ legend, options, value, onChange }) {
   if (!options.length) {
-    return <p className="text-sm text-cocoa/70">Belum ada pilihan untuk langkah ini. Silakan hubungi toko.</p>;
+    return <p className="text-sm text-cocoa-muted">Belum ada pilihan untuk langkah ini. Silakan hubungi toko.</p>;
   }
   return (
     <div role="radiogroup" aria-label={legend} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -53,7 +53,7 @@ export default function CustomOptionCards({ legend, options, value, onChange }) 
             </span>
             <span className="min-w-0 flex-1 pr-6">
               <span className="block font-semibold text-cocoa leading-snug">{o.name}</span>
-              {o.description && <span className="block text-xs text-cocoa/65">{o.description}</span>}
+              {o.description && <span className="block text-xs text-cocoa-muted">{o.description}</span>}
               <span className="block text-xs font-semibold text-primary tabular-nums mt-0.5">
                 {o.extra_price > 0 ? `+${formatRupiah(o.extra_price)}` : 'Tanpa biaya tambahan'}
               </span>

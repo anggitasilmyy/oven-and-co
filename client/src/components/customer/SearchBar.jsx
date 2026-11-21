@@ -38,7 +38,7 @@ export default function SearchBar({ value, onChange, onSubmit, autoFocus = true 
           onClick={() => onChange('')}
           aria-label="Hapus kata kunci"
           className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full
-                     text-cocoa/60 hover:bg-beige hover:text-cocoa focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                     text-cocoa-muted hover:bg-beige hover:text-cocoa focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           <X size={18} aria-hidden="true" />
         </button>

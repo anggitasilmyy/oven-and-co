@@ -52,7 +52,7 @@ export default function DailyStockEditor({ rows, onSave }) {
   return (
     <div className="space-y-4">
       <div className="card-admin overflow-hidden">
-        <div className={`hidden border-b border-beige px-4 py-3 text-xs font-semibold uppercase tracking-wide text-cocoa/70 ${GRID}`} aria-hidden="true">
+        <div className={`hidden border-b border-beige px-4 py-3 text-xs font-semibold uppercase tracking-wide text-cocoa-muted ${GRID}`} aria-hidden="true">
           <span>Produk</span><span>Rencana</span><span className="text-right">Terjual</span><span className="text-right">Sisa</span><span>Status</span>
         </div>
         <ul aria-label="Stok produk harian" className="divide-y divide-beige/70">
@@ -70,11 +70,11 @@ export default function DailyStockEditor({ rows, onSave }) {
                   <ProductImage src={r.image_url} alt="" sizes="56px" className="h-11 w-14 shrink-0 rounded-lg object-cover" />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-cocoa">{r.name}</p>
-                    <p className="text-xs text-cocoa/60">{r.category_name}</p>
+                    <p className="text-xs text-cocoa-muted">{r.category_name}</p>
                   </div>
                 </div>
                 <div className="mt-3 md:mt-0">
-                  <label htmlFor={inputId} className="mb-1 block text-xs font-semibold text-cocoa/75 md:sr-only">Rencana stok {r.name}</label>
+                  <label htmlFor={inputId} className="mb-1 block text-xs font-semibold text-cocoa-muted md:sr-only">Rencana stok {r.name}</label>
                   <input
                     id={inputId}
                     type="number"
@@ -90,9 +90,9 @@ export default function DailyStockEditor({ rows, onSave }) {
                   <FormError id={`${inputId}-error`} message={rowError} className="mt-1 text-xs" />
                 </div>
                 <dl className="mt-3 grid grid-cols-3 gap-2 text-sm md:contents">
-                  <div className="md:text-right"><dt className="text-xs text-cocoa/60 md:sr-only">Terjual</dt><dd className="tabular-nums text-cocoa">{formatNumber(r.qty_sold)}</dd></div>
-                  <div className="md:text-right"><dt className="text-xs text-cocoa/60 md:sr-only">Sisa</dt><dd className="font-semibold tabular-nums text-cocoa">{formatNumber(preview ?? r.remaining)}</dd></div>
-                  <div><dt className="text-xs text-cocoa/60 md:sr-only">Status</dt><dd><Badge variant={status.variant}>{status.label}</Badge></dd></div>
+                  <div className="md:text-right"><dt className="text-xs text-cocoa-muted md:sr-only">Terjual</dt><dd className="tabular-nums text-cocoa">{formatNumber(r.qty_sold)}</dd></div>
+                  <div className="md:text-right"><dt className="text-xs text-cocoa-muted md:sr-only">Sisa</dt><dd className="font-semibold tabular-nums text-cocoa">{formatNumber(preview ?? r.remaining)}</dd></div>
+                  <div><dt className="text-xs text-cocoa-muted md:sr-only">Status</dt><dd><Badge variant={status.variant}>{status.label}</Badge></dd></div>
                 </dl>
               </li>
             );
@@ -101,7 +101,7 @@ export default function DailyStockEditor({ rows, onSave }) {
       </div>
       <FormError message={error} />
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-        {changed.length > 0 && <p className="text-sm text-cocoa/70 sm:mr-auto" aria-live="polite">{changed.length} produk diubah, belum disimpan</p>}
+        {changed.length > 0 && <p className="text-sm text-cocoa-muted sm:mr-auto" aria-live="polite">{changed.length} produk diubah, belum disimpan</p>}
         <Button variant="ghost" size="sm" onClick={reset} disabled={!changed.length || saving} leftIcon={<RotateCcw size={16} aria-hidden="true" />}>Batalkan perubahan</Button>
         <Button size="sm" onClick={save} loading={saving} disabled={!changed.length || hasErrors} leftIcon={<Save size={16} aria-hidden="true" />}>Simpan Stok</Button>
       </div>

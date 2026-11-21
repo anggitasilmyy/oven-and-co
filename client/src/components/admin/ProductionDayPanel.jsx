@@ -22,7 +22,7 @@ export default function ProductionDayPanel({ date, groups }) {
   return (
     <section aria-labelledby="production-day-title" className="card-admin p-4 md:p-6">
       <h2 id="production-day-title" className="font-display text-lg text-cocoa">{formatDateFull(parseDateKey(date))}</h2>
-      <p className="text-sm text-cocoa/70 mb-4" aria-live="polite">{groups.length ? `${total} item untuk diproduksi` : 'Tidak ada produksi'}</p>
+      <p className="text-sm text-cocoa-muted mb-4" aria-live="polite">{groups.length ? `${total} item untuk diproduksi` : 'Tidak ada produksi'}</p>
       {groups.length === 0 ? (
         <EmptyState icon={<CalendarCheck size={32} aria-hidden="true" />} title="Belum ada produksi" description="Tidak ada pesanan pre-order atau custom cake yang siap pada tanggal ini." />
       ) : (
@@ -34,7 +34,7 @@ export default function ProductionDayPanel({ date, groups }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-semibold text-cocoa leading-snug">{g.name}</p>
-                    {g.design_label && <p className="text-xs text-cocoa/70 break-words">{g.design_label}</p>}
+                    {g.design_label && <p className="text-xs text-cocoa-muted break-words">{g.design_label}</p>}
                   </div>
                   <span className="shrink-0 font-bold text-lg text-primary tabular-nums" aria-label={`${g.quantity} item`}>×{g.quantity}</span>
                 </div>
@@ -45,7 +45,7 @@ export default function ProductionDayPanel({ date, groups }) {
                       <Link to={orderDetailPath(o.order_number)} className="inline-flex items-center min-h-touch-min font-mono font-semibold text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded">
                         {o.order_number}
                       </Link>
-                      <span className="text-xs text-cocoa/70 tabular-nums">×{o.quantity} · {FULFILLMENT_LABEL[o.fulfillment_type]} {o.time_slot}</span>
+                      <span className="text-xs text-cocoa-muted tabular-nums">×{o.quantity} · {FULFILLMENT_LABEL[o.fulfillment_type]} {o.time_slot}</span>
                       <StatusBadge status={o.order_status} />
                     </li>
                   ))}

@@ -33,18 +33,18 @@ export default function OrderFulfillmentInfo({ order, showVerifier, verifier }) 
               <dt className="sr-only">Alamat pengiriman</dt>
               <dd className="min-w-0 break-words">
                 {order.delivery_address_snapshot ?? '-'}
-                {order.distance_km != null && <span className="block text-xs text-cocoa/65">Jarak {String(order.distance_km).replace('.', ',')} km</span>}
+                {order.distance_km != null && <span className="block text-xs text-cocoa-muted">Jarak {String(order.distance_km).replace('.', ',')} km</span>}
               </dd>
             </div>
             <div className="flex items-start gap-3">
-              <dt className="text-cocoa/65 w-[52px] shrink-0">Kurir</dt>
+              <dt className="text-cocoa-muted w-[52px] shrink-0">Kurir</dt>
               <dd className="font-semibold">{order.courier_name ?? 'Belum ditentukan'}</dd>
             </div>
           </>
         )}
         {!isDelivery && (
           <div className="flex items-start gap-3">
-            <dt className="text-cocoa/65 shrink-0">Kode pickup</dt>
+            <dt className="text-cocoa-muted shrink-0">Kode pickup</dt>
             <dd className="font-semibold">{order.has_pickup_code ? 'Ditunjukkan pelanggan saat mengambil' : '-'}</dd>
           </div>
         )}

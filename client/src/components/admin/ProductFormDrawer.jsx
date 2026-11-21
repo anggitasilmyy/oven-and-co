@@ -32,7 +32,7 @@ export default function ProductFormDrawer({ productId, onClose, ...props }) {
           <Skeleton variant="text" count={4} />
         </div>
       ) : (
-        <p className="text-sm text-cocoa/70">Produk tidak ditemukan.</p>
+        <p className="text-sm text-cocoa-muted">Produk tidak ditemukan.</p>
       )}
     </Drawer>
   );

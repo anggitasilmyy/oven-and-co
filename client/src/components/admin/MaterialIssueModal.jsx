@@ -60,7 +60,7 @@ export default function MaterialIssueModal({ order, issue, materials, onClose, o
     <Modal isOpen size="lg" onClose={saving ? undefined : onClose} title={correcting ? `Koreksi pengeluaran #${issue.issue_id}` : `Catat pengeluaran · ${order.wo_number}`}
       footer={(<><Button variant="secondary" size="sm" onClick={onClose} disabled={saving}>Batal</Button><Button type="submit" form="issue-form" size="sm" loading={saving}>{correcting ? 'Simpan koreksi' : 'Simpan pengeluaran'}</Button></>)}>
       <form id="issue-form" noValidate className="space-y-4" onSubmit={submit}>
-        <p className="text-sm text-cocoa/75">{correcting
+        <p className="text-sm text-cocoa-muted">{correcting
           ? 'Isi bahan dan jumlah yang benar. Bahan yang dihapus dari daftar dianggap tidak dikeluarkan. Dokumen asal tetap tersimpan sebagai riwayat.'
           : 'Isi bahan yang benar-benar dikeluarkan untuk WO ini. Stok bahan berkurang dan boleh menjadi minus bila stok tercatat kurang.'}</p>
         <IssueLinesEditor idPrefix="issue" rows={rows} setRows={setRows} materials={materials} recipeIds={new Set(order.recipe.map((r) => r.material_id))} errorOf={errorOf} onTouch={touch} />

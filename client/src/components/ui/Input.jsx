@@ -36,7 +36,7 @@ export default function Input({
 
       <div className="relative">
         {leftIcon && (
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-cocoa/40 pointer-events-none">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-cocoa-muted pointer-events-none">
             {leftIcon}
           </span>
         )}
@@ -58,19 +58,19 @@ export default function Input({
         />
 
         {rightIcon && (
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-cocoa/40">
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-cocoa-muted">
             {rightIcon}
           </span>
         )}
       </div>
 
       {error && (
-        <p id={`${inputId}-error`} className="mt-1.5 text-xs text-error flex items-center gap-1">
+        <p id={`${inputId}-error`} className="mt-1.5 text-xs text-error-strong flex items-center gap-1">
           <span className="shrink-0">⚠</span> {error}
         </p>
       )}
       {!error && hint && (
-        <p id={`${inputId}-hint`} className="mt-1.5 text-xs text-cocoa/50">
+        <p id={`${inputId}-hint`} className="mt-1.5 text-xs text-cocoa-muted">
           {hint}
         </p>
       )}

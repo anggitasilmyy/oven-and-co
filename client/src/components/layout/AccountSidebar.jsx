@@ -13,7 +13,7 @@ const itemClass = ({ isActive }) =>
   `flex items-center gap-3 min-h-touch-min px-3 rounded-btn text-sm font-semibold
    transition-colors duration-150 active:scale-[0.98]
    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ` +
-  (isActive ? 'bg-beige text-primary' : 'text-cocoa/75 hover:bg-beige/60 hover:text-cocoa');
+  (isActive ? 'bg-beige text-primary' : 'text-cocoa-muted hover:bg-beige/60 hover:text-cocoa');
 
 export default function AccountSidebar() {
   const user = useAuthStore((s) => s.user);
@@ -40,7 +40,7 @@ export default function AccountSidebar() {
         type="button"
         onClick={handleLogout}
         className="w-full flex items-center gap-3 min-h-touch-min px-3 rounded-btn text-sm font-semibold
-                   text-error hover:bg-red-50 active:scale-[0.98] transition-colors
+                   text-error-strong hover:bg-red-50 active:scale-[0.98] transition-colors
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error/40"
       >
         <LogOut size={18} aria-hidden="true" />

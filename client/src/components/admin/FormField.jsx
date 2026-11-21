@@ -17,15 +17,15 @@ export default function FormField({ id, label, error, hint, optional = false, cl
   return (
     <div className={className}>
       <label htmlFor={id} className="mb-1.5 block text-sm font-semibold text-cocoa">
-        {label} {optional && <span className="font-normal text-cocoa/60">(opsional)</span>}
+        {label} {optional && <span className="font-normal text-cocoa-muted">(opsional)</span>}
       </label>
       {cloneElement(children, { id, 'aria-invalid': Boolean(error), 'aria-describedby': describedBy })}
       {error ? (
-        <p id={`${id}-error`} className="mt-1.5 flex items-center gap-1 text-xs text-error">
+        <p id={`${id}-error`} className="mt-1.5 flex items-center gap-1 text-xs text-error-strong">
           <span aria-hidden="true">⚠</span> {error}
         </p>
       ) : hint ? (
-        <p id={`${id}-hint`} className="mt-1.5 text-xs text-cocoa/65">{hint}</p>
+        <p id={`${id}-hint`} className="mt-1.5 text-xs text-cocoa-muted">{hint}</p>
       ) : null}
     </div>
   );

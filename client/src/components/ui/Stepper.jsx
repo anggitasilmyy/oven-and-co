@@ -22,7 +22,7 @@ export default function Stepper({ steps, currentStep, onStepClick, canClickStep 
           'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors duration-200',
           isDone ? 'bg-primary text-white' : '',
           isActive ? 'bg-primary text-white ring-4 ring-primary/20' : '',
-          !isDone && !isActive ? 'bg-beige text-cocoa/40' : '',
+          !isDone && !isActive ? 'bg-beige text-cocoa-muted' : '',
         ].join(' ');
         const circleContent = isDone ? <Check size={14} /> : <span>{index + 1}</span>;
 
@@ -52,7 +52,7 @@ export default function Stepper({ steps, currentStep, onStepClick, canClickStep 
               <span
                 className={[
                   'mt-1 text-[10px] font-medium text-center leading-tight hidden sm:block',
-                  isActive ? 'text-primary' : 'text-cocoa/40',
+                  isActive ? 'text-primary' : 'text-cocoa-muted',
                 ].join(' ')}
               >
                 {label}

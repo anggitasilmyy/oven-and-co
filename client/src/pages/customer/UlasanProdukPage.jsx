@@ -74,7 +74,7 @@ export default function UlasanProdukPage() {
                 selected={filter === o.value}
                 onClick={() => setFilter(o.value)}
                 aria-label={o.stars ? `Bintang ${o.label}` : undefined}
-                leftIcon={o.stars && <Star size={14} aria-hidden="true" className={filter === o.value ? 'fill-white' : 'fill-[#D9A441] text-[#D9A441]'} />}
+                leftIcon={o.stars && <Star size={14} aria-hidden="true" className={filter === o.value ? 'fill-white' : 'fill-caramel text-caramel'} />}
               >
                 {o.label}
                 {o.value === REVIEW_FILTER.WITH_PHOTO && ` (${data.summary.withPhotoCount})`}

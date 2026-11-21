@@ -15,7 +15,7 @@ export default function CostSummary({ title = 'Ringkasan biaya', rows, total, no
       <dl className="space-y-2 text-sm">
         {rows.map((r) => (
           <div key={r.label} className="flex items-start justify-between gap-3">
-            <dt className="text-cocoa/70">{r.label}</dt>
+            <dt className="text-cocoa-muted">{r.label}</dt>
             <dd className={`font-semibold tabular-nums text-right ${r.discount ? 'text-[#3F6B3A]' : 'text-cocoa'}`}>
               {r.discount ? `-${formatRupiah(r.amount)}` : formatRupiah(r.amount)}
             </dd>
@@ -28,7 +28,7 @@ export default function CostSummary({ title = 'Ringkasan biaya', rows, total, no
           </div>
         )}
       </dl>
-      {note && <p className="mt-3 text-xs text-cocoa/65">{note}</p>}
+      {note && <p className="mt-3 text-xs text-cocoa-muted">{note}</p>}
     </section>
   );
 }

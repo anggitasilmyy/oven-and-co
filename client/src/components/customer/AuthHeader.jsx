@@ -6,7 +6,7 @@ export default function AuthHeader({ title, subtitle, className = 'mb-8' }) {
   return (
     <div className={className}>
       <h1 className="font-display text-3xl text-cocoa mb-1">{title}</h1>
-      <p className="text-sm text-cocoa/60">{subtitle}</p>
+      <p className="text-sm text-cocoa-muted">{subtitle}</p>
     </div>
   );
 }

@@ -37,12 +37,12 @@ export default function PaymentMethodList({ methods, value, onChange, payAtStore
                                disabled:cursor-not-allowed disabled:hover:bg-transparent
                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50"
                   >
-                    <span className={`w-10 h-10 shrink-0 rounded-btn flex items-center justify-center ${disabled ? 'bg-beige/50 text-cocoa/35' : 'bg-beige text-primary'}`}>
+                    <span className={`w-10 h-10 shrink-0 rounded-btn flex items-center justify-center ${disabled ? 'bg-beige/50 text-cocoa-muted' : 'bg-beige text-primary'}`}>
                       <Icon size={20} aria-hidden="true" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className={`block font-semibold ${disabled ? 'text-cocoa/45' : 'text-cocoa'}`}>{m.name}</span>
-                      {disabled && <span className="block text-xs text-cocoa/65">{PAY_AT_STORE_DISABLED_TEXT}</span>}
+                      <span className={`block font-semibold ${disabled ? 'text-cocoa-muted' : 'text-cocoa'}`}>{m.name}</span>
+                      {disabled && <span className="block text-xs text-cocoa-muted">{PAY_AT_STORE_DISABLED_TEXT}</span>}
                     </span>
                     <span
                       aria-hidden="true"

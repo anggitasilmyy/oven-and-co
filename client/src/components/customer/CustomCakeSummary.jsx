@@ -30,14 +30,14 @@ export default function CustomCakeSummary({ design, selectedOptions, basePrice, 
       <h3 id="ringkasan-desain" className="font-display text-xl text-cocoa mb-2">Ringkasan desain</h3>
       <dl className="divide-y divide-beige">
         <div className="flex items-center justify-between gap-3 py-2.5 text-sm">
-          <dt className="text-cocoa/70">Harga dasar</dt>
+          <dt className="text-cocoa-muted">Harga dasar</dt>
           <dd className="font-semibold text-cocoa tabular-nums">{formatRupiah(basePrice)}</dd>
         </div>
         {CUSTOM_CAKE_STEPS.map((step, index) => {
           const value = valueOf(step, design, selectedOptions);
           return (
             <div key={step.key} className="flex items-center gap-3 py-1.5 text-sm">
-              <dt className="w-24 md:w-32 shrink-0 text-cocoa/70">{step.label}</dt>
+              <dt className="w-24 md:w-32 shrink-0 text-cocoa-muted">{step.label}</dt>
               <dd className="min-w-0 flex-1 text-cocoa">
                 <span className="font-semibold break-words">{value.text}</span>
                 {value.extra && <span className="block text-xs text-primary tabular-nums">{value.extra}</span>}

@@ -2,7 +2,9 @@
 // FR-29 · UC-22 · BR-02 · BR-03 · AD-05 Kalender Produksi (Staf & Owner)
 // Step 5.6: kalender bulanan dengan jumlah pesanan pre-order & custom cake per tanggal siap, panel daftar produksi
 // tanggal terpilih (per produk, jumlah, nomor pesanan). Data dari pesanan tersimpan; bulan & tanggal disimpan di URL
-// (?bulan=YYYY-MM&tanggal=YYYY-MM-DD, kosong = hari ini). Layout: < lg kalender lalu daftar; ≥ lg daftar di panel kanan.
+// (?bulan=YYYY-MM&tanggal=YYYY-MM-DD, kosong = hari ini). Layout: < xl kalender lalu daftar; ≥ xl daftar di panel kanan.
+// Step 8 · F-04 (NFR-02): dua kolom mulai xl, bukan lg — di 1024 px (sidebar 256 px + panel 340 px) sel tanggal hanya
+// ±35 px lebar (< 44 px). Mulai 1280 px sel ≥ 60 px.
 
 import { useSearchParams } from 'react-router-dom';
 import PageHeader from '../../components/layout/PageHeader';
@@ -35,16 +37,16 @@ export default function KalenderPage() {
       {query.error && <ErrorState message={query.error.message || 'Kalender gagal dimuat.'} onRetry={query.reload} />}
 
       {!data && !query.error && (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]" aria-busy="true" aria-label="Memuat kalender">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]" aria-busy="true" aria-label="Memuat kalender">
           <Skeleton variant="block" className="h-[420px] w-full rounded-card-admin" />
           <Skeleton variant="block" className="h-[320px] w-full rounded-card-admin" />
         </div>
       )}
 
       {data && (
-        <div className={`grid gap-5 lg:gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_400px] lg:items-start transition-opacity ${query.loading ? 'opacity-60' : ''}`} aria-busy={query.loading}>
+        <div className={`grid gap-5 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_400px] xl:items-start transition-opacity ${query.loading ? 'opacity-60' : ''}`} aria-busy={query.loading}>
           <ProductionCalendarGrid calendar={data} selectedDate={data.selected.date} onSelect={select} onShiftMonth={shiftMonth} onToday={goToday} />
-          <div className="lg:sticky lg:top-24">
+          <div className="xl:sticky xl:top-24">
             <ProductionDayPanel date={data.selected.date} groups={data.selected.groups} />
           </div>
         </div>

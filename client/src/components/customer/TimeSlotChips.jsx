@@ -17,7 +17,7 @@ export default function TimeSlotChips({ slots, value, onChange }) {
         ))}
       </div>
       {allPassed && (
-        <p className="mt-2 text-xs text-error" role="status">Slot hari ini sudah habis. Produk ready hanya bisa diambil/diantar hari ini.</p>
+        <p className="mt-2 text-xs text-error-strong" role="status">Slot hari ini sudah habis. Produk ready hanya bisa diambil/diantar hari ini.</p>
       )}
     </fieldset>
   );

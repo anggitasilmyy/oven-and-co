@@ -16,7 +16,7 @@ import { formatRupiah, formatNumber, formatDateShort } from '../../utils/format'
 const level = (c) => <Badge variant={c.level.badge}>{c.level.label}</Badge>;
 const lastOrder = (c) => (c.last_order_at ? formatDateShort(c.last_order_at) : 'Belum pernah');
 const COLUMNS = [
-  { key: 'name', header: 'Pelanggan', className: 'min-w-[180px]', render: (c) => <><span className="font-semibold">{c.name}</span><span className="block text-xs text-cocoa/65">{c.email}</span></> },
+  { key: 'name', header: 'Pelanggan', className: 'min-w-[180px]', render: (c) => <><span className="font-semibold">{c.name}</span><span className="block text-xs text-cocoa-muted">{c.email}</span></> },
   { key: 'phone', header: 'No. HP', className: 'whitespace-nowrap tabular-nums' },
   { key: 'total_orders', header: 'Total Pesanan', align: 'right', className: 'tabular-nums', render: (c) => formatNumber(c.total_orders) },
   { key: 'total_spend', header: 'Total Belanja', align: 'right', className: 'whitespace-nowrap font-semibold tabular-nums', render: (c) => formatRupiah(c.total_spend) },
@@ -48,7 +48,7 @@ export default function CustomerListPanel({ rows }) {
             onChange={(e) => { setQuery(e.target.value); setPage(1); }}
           />
         </label>
-        <p className="text-sm tabular-nums text-cocoa/70" aria-live="polite">{formatNumber(filtered.length)} dari {formatNumber(rows.length)} pelanggan</p>
+        <p className="text-sm tabular-nums text-cocoa-muted" aria-live="polite">{formatNumber(filtered.length)} dari {formatNumber(rows.length)} pelanggan</p>
       </div>
 
       {visible.length === 0 ? (
@@ -62,13 +62,13 @@ export default function CustomerListPanel({ rows }) {
             {visible.map((c) => (
               <li key={c.user_id} className="card-admin space-y-2 p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0"><p className="font-semibold text-cocoa">{c.name}</p><p className="text-xs tabular-nums text-cocoa/70">{c.phone}</p></div>
+                  <div className="min-w-0"><p className="font-semibold text-cocoa">{c.name}</p><p className="text-xs tabular-nums text-cocoa-muted">{c.phone}</p></div>
                   {level(c)}
                 </div>
                 <dl className="grid grid-cols-3 gap-2 text-xs">
-                  <div><dt className="text-cocoa/60">Pesanan</dt><dd className="font-semibold tabular-nums text-cocoa">{formatNumber(c.total_orders)}</dd></div>
-                  <div><dt className="text-cocoa/60">Belanja</dt><dd className="font-semibold tabular-nums text-cocoa">{formatRupiah(c.total_spend)}</dd></div>
-                  <div><dt className="text-cocoa/60">Terakhir</dt><dd className="font-semibold text-cocoa">{lastOrder(c)}</dd></div>
+                  <div><dt className="text-cocoa-muted">Pesanan</dt><dd className="font-semibold tabular-nums text-cocoa">{formatNumber(c.total_orders)}</dd></div>
+                  <div><dt className="text-cocoa-muted">Belanja</dt><dd className="font-semibold tabular-nums text-cocoa">{formatRupiah(c.total_spend)}</dd></div>
+                  <div><dt className="text-cocoa-muted">Terakhir</dt><dd className="font-semibold text-cocoa">{lastOrder(c)}</dd></div>
                 </dl>
               </li>
             ))}

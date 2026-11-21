@@ -120,7 +120,7 @@ export default function MasukPage() {
         <div className="text-right">
           <Link
             to={CUSTOMER_ROUTES.LUPA_SANDI}
-            className="text-sm text-primary font-semibold hover:underline"
+            className="inline-flex items-center min-h-touch-min text-sm text-primary font-semibold hover:underline"
           >
             Lupa kata sandi?
           </Link>
@@ -140,18 +140,18 @@ export default function MasukPage() {
       {/* Divider */}
       <div className="flex items-center gap-3 my-5">
         <div className="flex-1 h-px bg-beige" />
-        <span className="text-xs text-cocoa/40 font-medium">atau</span>
+        <span className="text-xs text-cocoa-muted font-medium">atau</span>
         <div className="flex-1 h-px bg-beige" />
       </div>
 
       <GoogleLoginButton onClick={handleGoogle} loading={googleLoading} />
       {info && (
-        <p id="masuk-google-info" role="status" className="mt-3 flex items-start gap-1.5 text-sm text-cocoa/75">
+        <p id="masuk-google-info" role="status" className="mt-3 flex items-start gap-1.5 text-sm text-cocoa-muted">
           <Info size={16} className="mt-0.5 shrink-0" aria-hidden="true" /> {info}
         </p>
       )}
 
-      <p className="text-center text-sm text-cocoa/60 mt-6">
+      <p className="text-center text-sm text-cocoa-muted mt-6">
         Belum punya akun?{' '}
         <Link to={CUSTOMER_ROUTES.DAFTAR} className="text-primary font-semibold hover:underline">
           Daftar sekarang

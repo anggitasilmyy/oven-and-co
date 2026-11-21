@@ -18,7 +18,7 @@ export default function Badge({
     ready: 'bg-sage text-cocoa',
     preorder: 'bg-peach text-cocoa',
     custom: 'bg-pink text-cocoa',
-    error: 'bg-red-100 text-error',
+    error: 'bg-red-100 text-error-strong',
     neutral: 'bg-beige text-cocoa',
     gold: 'bg-yellow-100 text-yellow-700',
     silver: 'bg-gray-100 text-gray-600',

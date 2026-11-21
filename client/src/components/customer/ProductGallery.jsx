@@ -47,7 +47,7 @@ export default function ProductGallery({ images, name, overlay }) {
           ))}
         </div>
         {overlay && <div className="absolute top-3 right-3">{overlay}</div>}
-        <span className="absolute top-3 left-3 rounded-pill bg-cocoa/70 px-2.5 py-1 text-[11px] font-medium text-cream">
+        <span className="absolute top-3 left-3 rounded-pill bg-cocoa/85 px-2.5 py-1 text-[11px] font-medium text-cream">
           {PRODUCT_PHOTO_NOTE}
         </span>
         {list.length > 1 && (

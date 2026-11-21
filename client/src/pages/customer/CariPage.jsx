@@ -62,7 +62,7 @@ export default function CariPage() {
       ) : (
         <section aria-label="Hasil pencarian" className="space-y-4">
           {results.data?.length > 0 && (
-            <p className="text-sm text-cocoa/70" aria-live="polite">
+            <p className="text-sm text-cocoa-muted" aria-live="polite">
               <span className="font-semibold text-cocoa">{results.data.length} hasil</span> untuk “{query}”
             </p>
           )}
